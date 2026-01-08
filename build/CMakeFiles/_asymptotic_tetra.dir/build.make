@@ -53,10 +53,10 @@ RM = /opt/homebrew/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra"
+CMAKE_SOURCE_DIR = /Users/bryen/Documents/GitHub/AsymptoticTetra
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build"
+CMAKE_BINARY_DIR = /Users/bryen/Documents/GitHub/AsymptoticTetra/build
 
 # Include any dependencies generated for this target.
 include CMakeFiles/_asymptotic_tetra.dir/depend.make
@@ -73,88 +73,116 @@ CMakeFiles/_asymptotic_tetra.dir/codegen:
 .PHONY : CMakeFiles/_asymptotic_tetra.dir/codegen
 
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.o: CMakeFiles/_asymptotic_tetra.dir/flags.make
-CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.o: /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/module.cpp
+CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/module.cpp
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.o: CMakeFiles/_asymptotic_tetra.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir="/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.o"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.o -MF CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.o.d -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.o -c "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/module.cpp"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.o -MF CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.o.d -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/module.cpp
 
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.i"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/module.cpp" > CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.i
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/module.cpp > CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.i
 
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.s"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/module.cpp" -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.s
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/module.cpp -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/module.cpp.s
 
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.o: CMakeFiles/_asymptotic_tetra.dir/flags.make
-CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.o: /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/geom_bindings.cpp
+CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/geom_bindings.cpp
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.o: CMakeFiles/_asymptotic_tetra.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir="/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.o"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.o -MF CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.o.d -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.o -c "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/geom_bindings.cpp"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.o -MF CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.o.d -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/geom_bindings.cpp
 
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.i"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/geom_bindings.cpp" > CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.i
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/geom_bindings.cpp > CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.i
 
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.s"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/geom_bindings.cpp" -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.s
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/geom_bindings.cpp -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.s
 
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.o: CMakeFiles/_asymptotic_tetra.dir/flags.make
-CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.o: /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/math_bindings.cpp
+CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/math_bindings.cpp
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.o: CMakeFiles/_asymptotic_tetra.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir="/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.o"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.o -MF CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.o.d -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.o -c "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/math_bindings.cpp"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.o -MF CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.o.d -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/math_bindings.cpp
 
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.i"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/math_bindings.cpp" > CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.i
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/math_bindings.cpp > CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.i
 
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.s"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/math_bindings.cpp" -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.s
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/math_bindings.cpp -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.s
 
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o: CMakeFiles/_asymptotic_tetra.dir/flags.make
-CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o: /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/density_bindings.cpp
+CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/density_bindings.cpp
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o: CMakeFiles/_asymptotic_tetra.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir="/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o -MF CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o.d -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o -c "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/density_bindings.cpp"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o -MF CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o.d -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/density_bindings.cpp
 
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.i"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/density_bindings.cpp" > CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.i
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/density_bindings.cpp > CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.i
 
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.s"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/density_bindings.cpp" -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.s
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/density_bindings.cpp -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.s
 
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.o: CMakeFiles/_asymptotic_tetra.dir/flags.make
-CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.o: /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/io_bindings.cpp
+CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/io_bindings.cpp
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.o: CMakeFiles/_asymptotic_tetra.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir="/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.o"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.o -MF CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.o.d -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.o -c "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/io_bindings.cpp"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.o -MF CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.o.d -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/io_bindings.cpp
 
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.i"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/io_bindings.cpp" > CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.i
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/io_bindings.cpp > CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.i
 
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.s"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/io_bindings.cpp" -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.s
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/io_bindings.cpp -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.s
 
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.o: CMakeFiles/_asymptotic_tetra.dir/flags.make
-CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.o: /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/render_bindings.cpp
+CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/render_bindings.cpp
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.o: CMakeFiles/_asymptotic_tetra.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir="/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.o"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.o -MF CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.o.d -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.o -c "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/render_bindings.cpp"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.o -MF CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.o.d -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/render_bindings.cpp
 
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.i"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/render_bindings.cpp" > CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.i
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/render_bindings.cpp > CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.i
 
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.s"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/render_bindings.cpp" -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.s
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/render_bindings.cpp -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.s
+
+CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.o: CMakeFiles/_asymptotic_tetra.dir/flags.make
+CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/cosmo_bindings.cpp
+CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.o: CMakeFiles/_asymptotic_tetra.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.o -MF CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.o.d -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/cosmo_bindings.cpp
+
+CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.i"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/cosmo_bindings.cpp > CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.i
+
+CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.s"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/cosmo_bindings.cpp -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.s
+
+CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.o: CMakeFiles/_asymptotic_tetra.dir/flags.make
+CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/halo_bindings.cpp
+CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.o: CMakeFiles/_asymptotic_tetra.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.o -MF CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.o.d -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/halo_bindings.cpp
+
+CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.i"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/halo_bindings.cpp > CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.i
+
+CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.s"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/halo_bindings.cpp -o CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.s
 
 # Object files for target _asymptotic_tetra
 _asymptotic_tetra_OBJECTS = \
@@ -163,7 +191,9 @@ _asymptotic_tetra_OBJECTS = \
 "CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.o" \
 "CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o" \
 "CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.o" \
-"CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.o"
+"CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.o" \
+"CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.o" \
+"CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.o"
 
 # External object files for target _asymptotic_tetra
 _asymptotic_tetra_EXTERNAL_OBJECTS =
@@ -174,14 +204,16 @@ _asymptotic_tetra.cpython-310-darwin.so: CMakeFiles/_asymptotic_tetra.dir/python
 _asymptotic_tetra.cpython-310-darwin.so: CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o
 _asymptotic_tetra.cpython-310-darwin.so: CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.o
 _asymptotic_tetra.cpython-310-darwin.so: CMakeFiles/_asymptotic_tetra.dir/python/bindings/render_bindings.cpp.o
+_asymptotic_tetra.cpython-310-darwin.so: CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.o
+_asymptotic_tetra.cpython-310-darwin.so: CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.o
 _asymptotic_tetra.cpython-310-darwin.so: CMakeFiles/_asymptotic_tetra.dir/build.make
 _asymptotic_tetra.cpython-310-darwin.so: libasymptotic_tetra_core.dylib
 _asymptotic_tetra.cpython-310-darwin.so: CMakeFiles/_asymptotic_tetra.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir="/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_7) "Linking CXX shared module _asymptotic_tetra.cpython-310-darwin.so"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Linking CXX shared module _asymptotic_tetra.cpython-310-darwin.so"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/_asymptotic_tetra.dir/link.txt --verbose=$(VERBOSE)
-	/Library/Developer/CommandLineTools/usr/bin/strip -x /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_asymptotic_tetra.cpython-310-darwin.so
-	/opt/homebrew/bin/cmake -E copy_directory /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/asymptotic_tetra /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/asymptotic_tetra
-	/opt/homebrew/bin/cmake -E copy /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_asymptotic_tetra.cpython-310-darwin.so /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/asymptotic_tetra/
+	/Library/Developer/CommandLineTools/usr/bin/strip -x /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_asymptotic_tetra.cpython-310-darwin.so
+	/opt/homebrew/bin/cmake -E copy_directory /Users/bryen/Documents/GitHub/AsymptoticTetra/python/asymptotic_tetra /Users/bryen/Documents/GitHub/AsymptoticTetra/build/asymptotic_tetra
+	/opt/homebrew/bin/cmake -E copy /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_asymptotic_tetra.cpython-310-darwin.so /Users/bryen/Documents/GitHub/AsymptoticTetra/build/asymptotic_tetra/
 
 # Rule to build all files generated by this target.
 CMakeFiles/_asymptotic_tetra.dir/build: _asymptotic_tetra.cpython-310-darwin.so
@@ -192,6 +224,6 @@ CMakeFiles/_asymptotic_tetra.dir/clean:
 .PHONY : CMakeFiles/_asymptotic_tetra.dir/clean
 
 CMakeFiles/_asymptotic_tetra.dir/depend:
-	cd "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build" && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra" "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra" "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build" "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build" "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles/_asymptotic_tetra.dir/DependInfo.cmake" "--color=$(COLOR)"
+	cd /Users/bryen/Documents/GitHub/AsymptoticTetra/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /Users/bryen/Documents/GitHub/AsymptoticTetra /Users/bryen/Documents/GitHub/AsymptoticTetra /Users/bryen/Documents/GitHub/AsymptoticTetra/build /Users/bryen/Documents/GitHub/AsymptoticTetra/build /Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles/_asymptotic_tetra.dir/DependInfo.cmake "--color=$(COLOR)"
 .PHONY : CMakeFiles/_asymptotic_tetra.dir/depend
 

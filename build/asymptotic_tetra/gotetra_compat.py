@@ -13,10 +13,16 @@ Usage:
     grid = gotetra.read_grid("file.gtet")
 """
 
+from __future__ import annotations
+
 import array
 import struct
 import sys
+from typing import Tuple, Union
+
 import numpy as np
+from attrs import define, field
+from numpy.typing import NDArray
 
 # Quantity constants matching original
 DENSITY = 0
@@ -26,28 +32,40 @@ VELOCITY_DIVERGENCE = 3
 VELOCITY_CURL = 4
 
 
+@define(init=False)
 class Sizes:
     """Header size information for different format versions."""
     
-    def __init__(self, ver):
+    header: int = field()
+    type_info: int = field()
+    cosmo_info: int = field()
+    render_info: int = field()
+    location_info: int = field()
+    velocity_info: int = field(default=0)
+    
+    def __init__(self, ver: int) -> None:
         if ver == 1:
-            self.header = 232
-            self.type_info = 24
-            self.cosmo_info = 64
-            self.render_info = 40
-            self.location_info = 104
+            self.__attrs_init__(
+                header=232,
+                type_info=24,
+                cosmo_info=64,
+                render_info=40,
+                location_info=104,
+            )
         elif ver == 2:
-            self.header = 336
-            self.type_info = 24
-            self.cosmo_info = 64
-            self.render_info = 40
-            self.location_info = 104
-            self.velocity_info = 104
+            self.__attrs_init__(
+                header=336,
+                type_info=24,
+                cosmo_info=64,
+                render_info=40,
+                location_info=104,
+                velocity_info=104,
+            )
         else:
             raise ValueError(f"Unrecognized gotetra output version: {ver}")
 
 
-def _read_endianness_version(s):
+def _read_endianness_version(s: bytes) -> Tuple[int, int]:
     flag = struct.unpack("q", s)
     ver = flag[0] & 0xffffffff
     end = -1 if ver >> 31 != 0 else 0
@@ -55,39 +73,46 @@ def _read_endianness_version(s):
     return end, ver
 
 
-def _read_endianness_flag(s):
+def _read_endianness_flag(s: bytes) -> int:
     return _read_endianness_version(s)[0]
 
 
-def _read_version(s):
+def _read_version(s: bytes) -> int:
     return _read_endianness_version(s)[1]
 
 
-def little_endian(end):
+def little_endian(end: int) -> bool:
     return end == -1
 
 
-def endian_unpack(fmt, s, end):
-    fmt = "<" + fmt if little_endian(end) else ">" + fmt
+def endian_unpack(fmt: str, s: bytes, end: int) -> Tuple[int | float, ...]:
+    fmt = f"<{fmt}" if little_endian(end) else f">{fmt}"
     return struct.unpack(fmt, s)
 
 
+@define(init=False)
 class TypeInfo:
     """System information about the file format."""
     
-    def __init__(self, s, end):
-        self.endianness_flag = end
+    endianness_flag: int = field()
+    header_size: int | float = field()
+    grid_type: int | float = field()
+    is_vector_grid: bool = field()
+    
+    def __init__(self, s: bytes, end: int) -> None:
         fmt = "qqq"
-        data = endian_unpack(fmt, s, self.endianness_flag)
-        self.header_size = data[0]
-        self.grid_type = data[1]
-        self.is_vector_grid = not (self.grid_type == DENSITY or 
-                                   self.grid_type == VELOCITY_DIVERGENCE)
+        data = endian_unpack(fmt, s, end)
+        self.__attrs_init__(
+            endianness_flag=end,
+            header_size=data[0],
+            grid_type=data[1],
+            is_vector_grid=data[1] not in [DENSITY, VELOCITY_DIVERGENCE],
+        )
 
-    def endianness_str(self):
+    def endianness_str(self) -> str:
         return "Little Endian" if little_endian(self.endianness_flag) else "Big Endian"
 
-    def grid_type_str(self):
+    def grid_type_str(self) -> str:
         names = {
             DENSITY: "Density",
             DENSITY_GRADIENT: "Density Gradient",
@@ -98,55 +123,95 @@ class TypeInfo:
         return names.get(self.grid_type, "Unknown")
 
 
+@define(init=False)
 class CosmoInfo:
     """Cosmological parameters from the simulation."""
     
-    def __init__(self, s, end):
+    redshift: float = field()
+    scale_factor: float = field()
+    omega_m: float = field()
+    omega_l: float = field()
+    h0: float = field()
+    rho_mean: float = field()
+    rho_critical: float = field()
+    box_width: float = field()
+    
+    def __init__(self, s: bytes, end: int) -> None:
         fmt = "d" * 8
         data = endian_unpack(fmt, s, end)
-        self.redshift = data[0]
-        self.scale_factor = data[1]
-        self.omega_m = data[2]
-        self.omega_l = data[3]
-        self.h0 = data[4]
-        self.rho_mean = data[5]
-        self.rho_critical = data[6]
-        self.box_width = data[7]
+        self.__attrs_init__(
+            redshift=data[0],
+            scale_factor=data[1],
+            omega_m=data[2],
+            omega_l=data[3],
+            h0=data[4],
+            rho_mean=data[5],
+            rho_critical=data[6],
+            box_width=data[7],
+        )
 
 
+@define(init=False)
 class RenderInfo:
     """Rendering parameters used to generate the file."""
     
-    def __init__(self, s, end):
+    particles: int | float = field()
+    total_pixels: int | float = field()
+    subsample_length: int | float = field()
+    min_projection_depth: int | float = field()
+    projection_axis: int | float = field()
+    
+    def __init__(self, s: bytes, end: int) -> None:
         fmt = "qqqqq"
         data = endian_unpack(fmt, s, end)
-        self.particles = data[0]
-        self.total_pixels = data[1]
-        self.subsample_length = data[2]
-        self.min_projection_depth = data[3]
-        self.projection_axis = data[4]
+        self.__attrs_init__(
+            particles=data[0],
+            total_pixels=data[1],
+            subsample_length=data[2],
+            min_projection_depth=data[3],
+            projection_axis=data[4],
+        )
 
 
+@define(init=False)
 class LocationInfo:
     """Physical location and dimensions of the grid."""
     
-    def __init__(self, s, end):
+    origin: NDArray[np.floating] = field(eq=False)
+    span: NDArray[np.floating] = field(eq=False)
+    pixel_origin: NDArray[np.integer] = field(eq=False)
+    pixel_span: NDArray[np.integer] = field(eq=False)
+    pixel_width: float = field()
+    
+    def __init__(self, s: bytes, end: int) -> None:
         fmt = ("d" * 6) + ("q" * 6) + "d"
         data = endian_unpack(fmt, s, end)
-        self.origin = np.array([data[0], data[1], data[2]])
-        self.span = np.array([data[3], data[4], data[5]])
-        self.pixel_origin = np.array([data[6], data[7], data[8]])
-        self.pixel_span = np.array([data[9], data[10], data[11]])
-        self.pixel_width = data[12]
+        self.__attrs_init__(
+            origin=np.array([data[0], data[1], data[2]]),
+            span=np.array([data[3], data[4], data[5]]),
+            pixel_origin=np.array([data[6], data[7], data[8]]),
+            pixel_span=np.array([data[9], data[10], data[11]]),
+            pixel_width=data[12],
+        )
 
 
+@define(init=False)
 class Header:
     """Complete header information from a gotetra output file."""
     
-    def __init__(self, s, sizes):
-        end = _read_endianness_flag(s[0:8])
-        self.version = _read_version(s[0:8])
-        self.sizes = sizes
+    version: int = field()
+    sizes: Sizes = field()
+    type: TypeInfo = field()
+    cosmo: CosmoInfo = field()
+    render: RenderInfo = field()
+    loc: LocationInfo = field()
+    dim: NDArray[np.integer] = field(eq=False)
+    pw: float = field()
+    axis: int | float = field()
+    
+    def __init__(self, s: bytes, sizes: Sizes) -> None:
+        end = _read_endianness_flag(s[:8])
+        version = _read_version(s[:8])
 
         type_start = 8
         type_end = sizes.type_info + type_start
@@ -157,17 +222,25 @@ class Header:
         loc_start = render_end
         loc_end = render_end + sizes.location_info
 
-        self.type = TypeInfo(s[type_start:type_end], end)
-        self.cosmo = CosmoInfo(s[cosmo_start:cosmo_end], end)
-        self.render = RenderInfo(s[render_start:render_end], end)
-        self.loc = LocationInfo(s[loc_start:loc_end], end)
+        type_info = TypeInfo(s[type_start:type_end], end)
+        cosmo_info = CosmoInfo(s[cosmo_start:cosmo_end], end)
+        render_info = RenderInfo(s[render_start:render_end], end)
+        loc_info = LocationInfo(s[loc_start:loc_end], end)
 
-        self.dim = self.loc.pixel_span
-        self.pw = self.loc.pixel_width
-        self.axis = self.render.projection_axis
+        self.__attrs_init__(
+            version=version,
+            sizes=sizes,
+            type=type_info,
+            cosmo=cosmo_info,
+            render=render_info,
+            loc=loc_info,
+            dim=loc_info.pixel_span,
+            pw=loc_info.pixel_width,
+            axis=render_info.projection_axis,
+        )
 
 
-def read_header(filename):
+def read_header(filename: str) -> Header:
     """
     Read the header information from a gotetra output file.
     
@@ -185,7 +258,7 @@ def read_header(filename):
     return Header(flag_s + s, sizes)
 
 
-def read_grid(filename):
+def read_grid(filename: str) -> NDArray[np.floating]:
     """
     Read the grid data from a gotetra output file.
     
@@ -197,7 +270,7 @@ def read_grid(filename):
     """
     hd = read_header(filename)
 
-    def maybe_swap(xs):
+    def maybe_swap(xs: array.array[float]) -> None:
         endianness = sys.byteorder
         if endianness == "little" and hd.type.endianness_flag == -1:
             return

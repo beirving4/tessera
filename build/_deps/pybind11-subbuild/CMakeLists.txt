@@ -28,8 +28,8 @@ set_property(GLOBAL PROPERTY _CMAKE_FindGit_GIT_EXECUTABLE_VERSION
 include(ExternalProject)
 ExternalProject_Add(pybind11-populate
                      "UPDATE_DISCONNECTED" "False" "GIT_REPOSITORY" "https://github.com/pybind/pybind11.git" "EXTERNALPROJECT_INTERNAL_ARGUMENT_SEPARATOR" "GIT_TAG" "v2.11.1"
-                    SOURCE_DIR          "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src"
-                    BINARY_DIR          "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-build"
+                    SOURCE_DIR          "/Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src"
+                    BINARY_DIR          "/Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-build"
                     CONFIGURE_COMMAND   ""
                     BUILD_COMMAND       ""
                     INSTALL_COMMAND     ""

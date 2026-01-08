@@ -57,10 +57,10 @@ RM = /opt/homebrew/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra"
+CMAKE_SOURCE_DIR = /Users/bryen/Documents/GitHub/AsymptoticTetra
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build"
+CMAKE_BINARY_DIR = /Users/bryen/Documents/GitHub/AsymptoticTetra/build
 
 #=============================================================================
 # Targets provided globally by CMake.
@@ -132,9 +132,9 @@ install/strip/fast: preinstall/fast
 
 # The main all target
 all: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles" "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build//CMakeFiles/progress.marks"
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles /Users/bryen/Documents/GitHub/AsymptoticTetra/build//CMakeFiles/progress.marks
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 all
-	$(CMAKE_COMMAND) -E cmake_progress_start "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles" 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles 0
 .PHONY : all
 
 # The main clean target
@@ -187,6 +187,30 @@ _asymptotic_tetra/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/_asymptotic_tetra.dir/build.make CMakeFiles/_asymptotic_tetra.dir/build
 .PHONY : _asymptotic_tetra/fast
 
+python/bindings/cosmo_bindings.o: python/bindings/cosmo_bindings.cpp.o
+.PHONY : python/bindings/cosmo_bindings.o
+
+# target to build an object file
+python/bindings/cosmo_bindings.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/_asymptotic_tetra.dir/build.make CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.o
+.PHONY : python/bindings/cosmo_bindings.cpp.o
+
+python/bindings/cosmo_bindings.i: python/bindings/cosmo_bindings.cpp.i
+.PHONY : python/bindings/cosmo_bindings.i
+
+# target to preprocess a source file
+python/bindings/cosmo_bindings.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/_asymptotic_tetra.dir/build.make CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.i
+.PHONY : python/bindings/cosmo_bindings.cpp.i
+
+python/bindings/cosmo_bindings.s: python/bindings/cosmo_bindings.cpp.s
+.PHONY : python/bindings/cosmo_bindings.s
+
+# target to generate assembly for a file
+python/bindings/cosmo_bindings.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/_asymptotic_tetra.dir/build.make CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.s
+.PHONY : python/bindings/cosmo_bindings.cpp.s
+
 python/bindings/density_bindings.o: python/bindings/density_bindings.cpp.o
 .PHONY : python/bindings/density_bindings.o
 
@@ -234,6 +258,30 @@ python/bindings/geom_bindings.s: python/bindings/geom_bindings.cpp.s
 python/bindings/geom_bindings.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/_asymptotic_tetra.dir/build.make CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.s
 .PHONY : python/bindings/geom_bindings.cpp.s
+
+python/bindings/halo_bindings.o: python/bindings/halo_bindings.cpp.o
+.PHONY : python/bindings/halo_bindings.o
+
+# target to build an object file
+python/bindings/halo_bindings.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/_asymptotic_tetra.dir/build.make CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.o
+.PHONY : python/bindings/halo_bindings.cpp.o
+
+python/bindings/halo_bindings.i: python/bindings/halo_bindings.cpp.i
+.PHONY : python/bindings/halo_bindings.i
+
+# target to preprocess a source file
+python/bindings/halo_bindings.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/_asymptotic_tetra.dir/build.make CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.i
+.PHONY : python/bindings/halo_bindings.cpp.i
+
+python/bindings/halo_bindings.s: python/bindings/halo_bindings.cpp.s
+.PHONY : python/bindings/halo_bindings.s
+
+# target to generate assembly for a file
+python/bindings/halo_bindings.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/_asymptotic_tetra.dir/build.make CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.s
+.PHONY : python/bindings/halo_bindings.cpp.s
 
 python/bindings/io_bindings.o: python/bindings/io_bindings.cpp.o
 .PHONY : python/bindings/io_bindings.o
@@ -427,6 +475,54 @@ src/geom/tetra.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/asymptotic_tetra_core.dir/build.make CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.s
 .PHONY : src/geom/tetra.cpp.s
 
+src/halo/finder.o: src/halo/finder.cpp.o
+.PHONY : src/halo/finder.o
+
+# target to build an object file
+src/halo/finder.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asymptotic_tetra_core.dir/build.make CMakeFiles/asymptotic_tetra_core.dir/src/halo/finder.cpp.o
+.PHONY : src/halo/finder.cpp.o
+
+src/halo/finder.i: src/halo/finder.cpp.i
+.PHONY : src/halo/finder.i
+
+# target to preprocess a source file
+src/halo/finder.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asymptotic_tetra_core.dir/build.make CMakeFiles/asymptotic_tetra_core.dir/src/halo/finder.cpp.i
+.PHONY : src/halo/finder.cpp.i
+
+src/halo/finder.s: src/halo/finder.cpp.s
+.PHONY : src/halo/finder.s
+
+# target to generate assembly for a file
+src/halo/finder.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asymptotic_tetra_core.dir/build.make CMakeFiles/asymptotic_tetra_core.dir/src/halo/finder.cpp.s
+.PHONY : src/halo/finder.cpp.s
+
+src/halo/io.o: src/halo/io.cpp.o
+.PHONY : src/halo/io.o
+
+# target to build an object file
+src/halo/io.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asymptotic_tetra_core.dir/build.make CMakeFiles/asymptotic_tetra_core.dir/src/halo/io.cpp.o
+.PHONY : src/halo/io.cpp.o
+
+src/halo/io.i: src/halo/io.cpp.i
+.PHONY : src/halo/io.i
+
+# target to preprocess a source file
+src/halo/io.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asymptotic_tetra_core.dir/build.make CMakeFiles/asymptotic_tetra_core.dir/src/halo/io.cpp.i
+.PHONY : src/halo/io.cpp.i
+
+src/halo/io.s: src/halo/io.cpp.s
+.PHONY : src/halo/io.s
+
+# target to generate assembly for a file
+src/halo/io.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asymptotic_tetra_core.dir/build.make CMakeFiles/asymptotic_tetra_core.dir/src/halo/io.cpp.s
+.PHONY : src/halo/io.cpp.s
+
 src/io/io.o: src/io/io.cpp.o
 .PHONY : src/io/io.o
 
@@ -499,6 +595,30 @@ src/render/box.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/asymptotic_tetra_core.dir/build.make CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.s
 .PHONY : src/render/box.cpp.s
 
+src/render/hist.o: src/render/hist.cpp.o
+.PHONY : src/render/hist.o
+
+# target to build an object file
+src/render/hist.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asymptotic_tetra_core.dir/build.make CMakeFiles/asymptotic_tetra_core.dir/src/render/hist.cpp.o
+.PHONY : src/render/hist.cpp.o
+
+src/render/hist.i: src/render/hist.cpp.i
+.PHONY : src/render/hist.i
+
+# target to preprocess a source file
+src/render/hist.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asymptotic_tetra_core.dir/build.make CMakeFiles/asymptotic_tetra_core.dir/src/render/hist.cpp.i
+.PHONY : src/render/hist.cpp.i
+
+src/render/hist.s: src/render/hist.cpp.s
+.PHONY : src/render/hist.s
+
+# target to generate assembly for a file
+src/render/hist.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asymptotic_tetra_core.dir/build.make CMakeFiles/asymptotic_tetra_core.dir/src/render/hist.cpp.s
+.PHONY : src/render/hist.cpp.s
+
 src/render/manager.o: src/render/manager.cpp.o
 .PHONY : src/render/manager.o
 
@@ -537,12 +657,18 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... _asymptotic_tetra"
 	@echo "... asymptotic_tetra_core"
+	@echo "... python/bindings/cosmo_bindings.o"
+	@echo "... python/bindings/cosmo_bindings.i"
+	@echo "... python/bindings/cosmo_bindings.s"
 	@echo "... python/bindings/density_bindings.o"
 	@echo "... python/bindings/density_bindings.i"
 	@echo "... python/bindings/density_bindings.s"
 	@echo "... python/bindings/geom_bindings.o"
 	@echo "... python/bindings/geom_bindings.i"
 	@echo "... python/bindings/geom_bindings.s"
+	@echo "... python/bindings/halo_bindings.o"
+	@echo "... python/bindings/halo_bindings.i"
+	@echo "... python/bindings/halo_bindings.s"
 	@echo "... python/bindings/io_bindings.o"
 	@echo "... python/bindings/io_bindings.i"
 	@echo "... python/bindings/io_bindings.s"
@@ -567,6 +693,12 @@ help:
 	@echo "... src/geom/tetra.o"
 	@echo "... src/geom/tetra.i"
 	@echo "... src/geom/tetra.s"
+	@echo "... src/halo/finder.o"
+	@echo "... src/halo/finder.i"
+	@echo "... src/halo/finder.s"
+	@echo "... src/halo/io.o"
+	@echo "... src/halo/io.i"
+	@echo "... src/halo/io.s"
 	@echo "... src/io/io.o"
 	@echo "... src/io/io.i"
 	@echo "... src/io/io.s"
@@ -576,6 +708,9 @@ help:
 	@echo "... src/render/box.o"
 	@echo "... src/render/box.i"
 	@echo "... src/render/box.s"
+	@echo "... src/render/hist.o"
+	@echo "... src/render/hist.i"
+	@echo "... src/render/hist.s"
 	@echo "... src/render/manager.o"
 	@echo "... src/render/manager.i"
 	@echo "... src/render/manager.s"

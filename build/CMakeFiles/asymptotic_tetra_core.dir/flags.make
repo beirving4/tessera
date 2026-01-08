@@ -4,7 +4,7 @@
 # compile CXX with /Library/Developer/CommandLineTools/usr/bin/c++
 CXX_DEFINES = -Dasymptotic_tetra_core_EXPORTS
 
-CXX_INCLUDES = -I"/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/include" -isystem /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1
+CXX_INCLUDES = -I/Users/bryen/Documents/GitHub/AsymptoticTetra/include -isystem /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1
 
 CXX_FLAGSarm64 = -std=c++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.5.sdk -fPIC -Wall -Wextra -O3 -ffast-math
 

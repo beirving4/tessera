@@ -1,6 +1,6 @@
 CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.o: \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/math/rand.cpp \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/math/rand.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/src/math/rand.cpp \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/math/rand.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/cstdint \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__config \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__config_site \

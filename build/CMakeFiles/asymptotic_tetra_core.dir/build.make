@@ -53,10 +53,10 @@ RM = /opt/homebrew/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra"
+CMAKE_SOURCE_DIR = /Users/bryen/Documents/GitHub/AsymptoticTetra
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build"
+CMAKE_BINARY_DIR = /Users/bryen/Documents/GitHub/AsymptoticTetra/build
 
 # Include any dependencies generated for this target.
 include CMakeFiles/asymptotic_tetra_core.dir/depend.make
@@ -73,116 +73,158 @@ CMakeFiles/asymptotic_tetra_core.dir/codegen:
 .PHONY : CMakeFiles/asymptotic_tetra_core.dir/codegen
 
 CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/flags.make
-CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.o: /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/math/rand.cpp
+CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/src/math/rand.cpp
 CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir="/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.o"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.o -c "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/math/rand.cpp"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/src/math/rand.cpp
 
 CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.i"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/math/rand.cpp" > CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.i
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/src/math/rand.cpp > CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.i
 
 CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.s"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/math/rand.cpp" -o CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.s
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/src/math/rand.cpp -o CMakeFiles/asymptotic_tetra_core.dir/src/math/rand.cpp.s
 
 CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/flags.make
-CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.o: /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/geom/deriv.cpp
+CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/src/geom/deriv.cpp
 CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir="/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.o"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.o -c "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/geom/deriv.cpp"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/src/geom/deriv.cpp
 
 CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.i"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/geom/deriv.cpp" > CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.i
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/src/geom/deriv.cpp > CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.i
 
 CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.s"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/geom/deriv.cpp" -o CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.s
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/src/geom/deriv.cpp -o CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.s
 
 CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/flags.make
-CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.o: /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/geom/tetra.cpp
+CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/src/geom/tetra.cpp
 CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir="/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.o"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.o -c "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/geom/tetra.cpp"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/src/geom/tetra.cpp
 
 CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.i"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/geom/tetra.cpp" > CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.i
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/src/geom/tetra.cpp > CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.i
 
 CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.s"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/geom/tetra.cpp" -o CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.s
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/src/geom/tetra.cpp -o CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.s
 
 CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/flags.make
-CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.o: /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/density/buffer.cpp
+CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/src/density/buffer.cpp
 CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir="/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.o"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.o -c "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/density/buffer.cpp"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/src/density/buffer.cpp
 
 CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.i"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/density/buffer.cpp" > CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.i
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/src/density/buffer.cpp > CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.i
 
 CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.s"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/density/buffer.cpp" -o CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.s
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/src/density/buffer.cpp -o CMakeFiles/asymptotic_tetra_core.dir/src/density/buffer.cpp.s
 
 CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/flags.make
-CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.o: /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/density/interpolator.cpp
+CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/src/density/interpolator.cpp
 CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir="/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.o"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.o -c "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/density/interpolator.cpp"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/src/density/interpolator.cpp
 
 CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.i"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/density/interpolator.cpp" > CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.i
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/src/density/interpolator.cpp > CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.i
 
 CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.s"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/density/interpolator.cpp" -o CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.s
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/src/density/interpolator.cpp -o CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.s
 
 CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/flags.make
-CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.o: /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/io/io.cpp
+CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/src/io/io.cpp
 CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir="/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.o"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.o -c "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/io/io.cpp"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/src/io/io.cpp
 
 CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.i"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/io/io.cpp" > CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.i
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/src/io/io.cpp > CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.i
 
 CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.s"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/io/io.cpp" -o CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.s
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/src/io/io.cpp -o CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.s
 
 CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/flags.make
-CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.o: /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/render/box.cpp
+CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/src/render/box.cpp
 CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir="/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.o"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.o -c "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/render/box.cpp"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/src/render/box.cpp
 
 CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.i"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/render/box.cpp" > CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.i
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/src/render/box.cpp > CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.i
 
 CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.s"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/render/box.cpp" -o CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.s
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/src/render/box.cpp -o CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.s
+
+CMakeFiles/asymptotic_tetra_core.dir/src/render/hist.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/flags.make
+CMakeFiles/asymptotic_tetra_core.dir/src/render/hist.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/src/render/hist.cpp
+CMakeFiles/asymptotic_tetra_core.dir/src/render/hist.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/render/hist.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/render/hist.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/render/hist.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/render/hist.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/src/render/hist.cpp
+
+CMakeFiles/asymptotic_tetra_core.dir/src/render/hist.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/asymptotic_tetra_core.dir/src/render/hist.cpp.i"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/src/render/hist.cpp > CMakeFiles/asymptotic_tetra_core.dir/src/render/hist.cpp.i
+
+CMakeFiles/asymptotic_tetra_core.dir/src/render/hist.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/asymptotic_tetra_core.dir/src/render/hist.cpp.s"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/src/render/hist.cpp -o CMakeFiles/asymptotic_tetra_core.dir/src/render/hist.cpp.s
 
 CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/flags.make
-CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.o: /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/render/manager.cpp
+CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/src/render/manager.cpp
 CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir="/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.o"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.o -c "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/render/manager.cpp"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/src/render/manager.cpp
 
 CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.i"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/render/manager.cpp" > CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.i
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/src/render/manager.cpp > CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.i
 
 CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.s"
-	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/render/manager.cpp" -o CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.s
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/src/render/manager.cpp -o CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.s
+
+CMakeFiles/asymptotic_tetra_core.dir/src/halo/finder.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/flags.make
+CMakeFiles/asymptotic_tetra_core.dir/src/halo/finder.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/src/halo/finder.cpp
+CMakeFiles/asymptotic_tetra_core.dir/src/halo/finder.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/halo/finder.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/halo/finder.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/halo/finder.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/halo/finder.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/src/halo/finder.cpp
+
+CMakeFiles/asymptotic_tetra_core.dir/src/halo/finder.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/asymptotic_tetra_core.dir/src/halo/finder.cpp.i"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/src/halo/finder.cpp > CMakeFiles/asymptotic_tetra_core.dir/src/halo/finder.cpp.i
+
+CMakeFiles/asymptotic_tetra_core.dir/src/halo/finder.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/asymptotic_tetra_core.dir/src/halo/finder.cpp.s"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/src/halo/finder.cpp -o CMakeFiles/asymptotic_tetra_core.dir/src/halo/finder.cpp.s
+
+CMakeFiles/asymptotic_tetra_core.dir/src/halo/io.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/flags.make
+CMakeFiles/asymptotic_tetra_core.dir/src/halo/io.cpp.o: /Users/bryen/Documents/GitHub/AsymptoticTetra/src/halo/io.cpp
+CMakeFiles/asymptotic_tetra_core.dir/src/halo/io.cpp.o: CMakeFiles/asymptotic_tetra_core.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/asymptotic_tetra_core.dir/src/halo/io.cpp.o"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/asymptotic_tetra_core.dir/src/halo/io.cpp.o -MF CMakeFiles/asymptotic_tetra_core.dir/src/halo/io.cpp.o.d -o CMakeFiles/asymptotic_tetra_core.dir/src/halo/io.cpp.o -c /Users/bryen/Documents/GitHub/AsymptoticTetra/src/halo/io.cpp
+
+CMakeFiles/asymptotic_tetra_core.dir/src/halo/io.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/asymptotic_tetra_core.dir/src/halo/io.cpp.i"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bryen/Documents/GitHub/AsymptoticTetra/src/halo/io.cpp > CMakeFiles/asymptotic_tetra_core.dir/src/halo/io.cpp.i
+
+CMakeFiles/asymptotic_tetra_core.dir/src/halo/io.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/asymptotic_tetra_core.dir/src/halo/io.cpp.s"
+	/Library/Developer/CommandLineTools/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bryen/Documents/GitHub/AsymptoticTetra/src/halo/io.cpp -o CMakeFiles/asymptotic_tetra_core.dir/src/halo/io.cpp.s
 
 # Object files for target asymptotic_tetra_core
 asymptotic_tetra_core_OBJECTS = \
@@ -193,7 +235,10 @@ asymptotic_tetra_core_OBJECTS = \
 "CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.o" \
 "CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.o" \
 "CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.o" \
-"CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.o"
+"CMakeFiles/asymptotic_tetra_core.dir/src/render/hist.cpp.o" \
+"CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.o" \
+"CMakeFiles/asymptotic_tetra_core.dir/src/halo/finder.cpp.o" \
+"CMakeFiles/asymptotic_tetra_core.dir/src/halo/io.cpp.o"
 
 # External object files for target asymptotic_tetra_core
 asymptotic_tetra_core_EXTERNAL_OBJECTS =
@@ -205,10 +250,13 @@ libasymptotic_tetra_core.dylib: CMakeFiles/asymptotic_tetra_core.dir/src/density
 libasymptotic_tetra_core.dylib: CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.o
 libasymptotic_tetra_core.dylib: CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.o
 libasymptotic_tetra_core.dylib: CMakeFiles/asymptotic_tetra_core.dir/src/render/box.cpp.o
+libasymptotic_tetra_core.dylib: CMakeFiles/asymptotic_tetra_core.dir/src/render/hist.cpp.o
 libasymptotic_tetra_core.dylib: CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.o
+libasymptotic_tetra_core.dylib: CMakeFiles/asymptotic_tetra_core.dir/src/halo/finder.cpp.o
+libasymptotic_tetra_core.dylib: CMakeFiles/asymptotic_tetra_core.dir/src/halo/io.cpp.o
 libasymptotic_tetra_core.dylib: CMakeFiles/asymptotic_tetra_core.dir/build.make
 libasymptotic_tetra_core.dylib: CMakeFiles/asymptotic_tetra_core.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir="/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_9) "Linking CXX shared library libasymptotic_tetra_core.dylib"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Linking CXX shared library libasymptotic_tetra_core.dylib"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/asymptotic_tetra_core.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.
@@ -220,6 +268,6 @@ CMakeFiles/asymptotic_tetra_core.dir/clean:
 .PHONY : CMakeFiles/asymptotic_tetra_core.dir/clean
 
 CMakeFiles/asymptotic_tetra_core.dir/depend:
-	cd "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build" && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra" "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra" "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build" "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build" "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/CMakeFiles/asymptotic_tetra_core.dir/DependInfo.cmake" "--color=$(COLOR)"
+	cd /Users/bryen/Documents/GitHub/AsymptoticTetra/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /Users/bryen/Documents/GitHub/AsymptoticTetra /Users/bryen/Documents/GitHub/AsymptoticTetra /Users/bryen/Documents/GitHub/AsymptoticTetra/build /Users/bryen/Documents/GitHub/AsymptoticTetra/build /Users/bryen/Documents/GitHub/AsymptoticTetra/build/CMakeFiles/asymptotic_tetra_core.dir/DependInfo.cmake "--color=$(COLOR)"
 .PHONY : CMakeFiles/asymptotic_tetra_core.dir/depend
 

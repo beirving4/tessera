@@ -1,6 +1,6 @@
 CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.o: \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/io/io.cpp \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/io/headers.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/src/io/io.cpp \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/io/headers.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/cstdint \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__config \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__config_site \
@@ -753,8 +753,8 @@ CMakeFiles/asymptotic_tetra_core.dir/src/io/io.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX15.5.sdk/usr/include/_types/_nl_item.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__locale_dir/locale_base_api/bsd_locale_defaults.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/cstdarg \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/geom/vec.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/geom/grid.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/geom/vec.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/geom/grid.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/fstream \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/filesystem \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/copy_options.h \

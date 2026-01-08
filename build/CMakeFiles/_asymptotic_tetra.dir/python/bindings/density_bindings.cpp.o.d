@@ -1,9 +1,9 @@
 CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o: \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/python/bindings/density_bindings.cpp \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/pybind11.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/class.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../attr.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../detail/common.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/python/bindings/density_bindings.cpp \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/pybind11.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/class.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../attr.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../detail/common.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/optional \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/variant \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/string_view \
@@ -904,25 +904,25 @@ CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__functional/perfect_forward.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/typeindex \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/unordered_set \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../cast.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../detail/descr.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../detail/type_caster_base.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../detail/../pytypes.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../detail/../detail/common.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../detail/../buffer_info.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../detail/internals.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../detail/typeid.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../cast.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../detail/descr.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../detail/type_caster_base.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../detail/../pytypes.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../detail/../detail/common.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../detail/../buffer_info.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../detail/internals.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../detail/typeid.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/cxxabi.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__cxxabi_config.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../pytypes.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../options.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/init.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/attr.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/gil.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/common.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/internals.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/options.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/stl.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../pytypes.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/../options.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/init.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/attr.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/gil.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/common.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/detail/internals.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/options.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/stl.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/deque \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__fwd/deque.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/list \
@@ -940,8 +940,8 @@ CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/print \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/set \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/valarray \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/numpy.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/complex.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/numpy.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include/pybind11/complex.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/complex \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/sstream \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/istream \
@@ -961,7 +961,7 @@ CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__numeric/transform_reduce.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/execution \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/is_execution_policy.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/density/quantity.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/density/buffer.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/geom/vec.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/geom/grid.h
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/density/quantity.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/density/buffer.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/geom/vec.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/geom/grid.h

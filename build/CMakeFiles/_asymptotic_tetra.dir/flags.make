@@ -4,7 +4,7 @@
 # compile CXX with /Library/Developer/CommandLineTools/usr/bin/c++
 CXX_DEFINES = -D_asymptotic_tetra_EXPORTS
 
-CXX_INCLUDES = -I"/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/include" -I/Users/bryen/miniconda3/lib/python3.10/site-packages/numpy/core/include -isystem /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1 -isystem /Users/bryen/miniconda3/include/python3.10 -isystem "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src/include"
+CXX_INCLUDES = -I/Users/bryen/Documents/GitHub/AsymptoticTetra/include -I/Users/bryen/miniconda3/lib/python3.10/site-packages/numpy/core/include -isystem /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1 -isystem /Users/bryen/miniconda3/include/python3.10 -isystem /Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src/include
 
 CXX_FLAGSarm64 = -std=c++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.5.sdk -fPIC -fvisibility=hidden -flto
 

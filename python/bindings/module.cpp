@@ -10,6 +10,8 @@ void bind_math(py::module& m);
 void bind_density(py::module& m);
 void bind_io(py::module& m);
 void bind_render(py::module& m);
+void bind_cosmo(py::module& m);
+void bind_halo(py::module& m);
 
 PYBIND11_MODULE(_asymptotic_tetra, m) {
     m.doc() = R"pbdoc(
@@ -25,6 +27,8 @@ PYBIND11_MODULE(_asymptotic_tetra, m) {
             density - Density field computation and buffers
             io - File I/O for Gadget and sheet formats
             render - High-level rendering interface
+            cosmo - Cosmological calculations
+            halo - Halo finding and analysis
     )pbdoc";
 
     // Create submodules
@@ -33,6 +37,8 @@ PYBIND11_MODULE(_asymptotic_tetra, m) {
     auto density_m = m.def_submodule("density", "Density field computation");
     auto io_m = m.def_submodule("io", "File I/O");
     auto render_m = m.def_submodule("render", "Rendering interface");
+    auto cosmo_m = m.def_submodule("cosmo", "Cosmological calculations");
+    auto halo_m = m.def_submodule("halo", "Halo finding and analysis");
 
     // Bind all submodules
     bind_geom(geom_m);
@@ -40,6 +46,8 @@ PYBIND11_MODULE(_asymptotic_tetra, m) {
     bind_density(density_m);
     bind_io(io_m);
     bind_render(render_m);
+    bind_cosmo(cosmo_m);
+    bind_halo(halo_m);
 
     // Version info
     m.attr("__version__") = "1.0.0";

@@ -3,9 +3,9 @@
 # No other meaning or use of this file is supported.
 
 method=git
-command=/opt/homebrew/bin/cmake;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-subbuild/pybind11-populate-prefix/tmp/pybind11-populate-gitclone.cmake
-source_dir=/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps/pybind11-src
-work_dir=/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/AsymptoticTetra/build/_deps
+command=/opt/homebrew/bin/cmake;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-subbuild/pybind11-populate-prefix/tmp/pybind11-populate-gitclone.cmake
+source_dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps/pybind11-src
+work_dir=/Users/bryen/Documents/GitHub/AsymptoticTetra/build/_deps
 repository=https://github.com/pybind/pybind11.git
 remote=origin
 init_submodules=TRUE

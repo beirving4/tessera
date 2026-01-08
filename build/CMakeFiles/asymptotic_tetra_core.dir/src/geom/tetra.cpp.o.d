@@ -1,6 +1,6 @@
 CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.o: \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/geom/tetra.cpp \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/geom/tetra.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/src/geom/tetra.cpp \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/geom/tetra.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/array \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/equal.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/comp.h \
@@ -753,9 +753,9 @@ CMakeFiles/asymptotic_tetra_core.dir/src/geom/tetra.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX15.5.sdk/usr/include/_types/_nl_item.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__locale_dir/locale_base_api/bsd_locale_defaults.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/cstdarg \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/geom/vec.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/geom/grid.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/math/rand.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/geom/vec.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/geom/grid.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/math/rand.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/random \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__random/bernoulli_distribution.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__random/uniform_real_distribution.h \

@@ -30,7 +30,9 @@ Modules:
     math - Random number generation (Generator, TauswortheGenerator)
     density - Density field computation (Quantity, Buffer)
     io - File I/O for simulation formats (GadgetHeader, SheetHeader)
-    render - Rendering interface (coming soon)
+    render - Rendering interface
+    cosmo - Cosmological calculations (rho_critical, rho_average)
+    halo - Halo finding and analysis (SubhaloFinder, RadiusType)
 """
 
 try:
@@ -40,6 +42,8 @@ try:
         density,
         io,
         render,
+        cosmo,
+        halo,
     )
     __version__ = "1.0.0"
 
@@ -58,6 +62,12 @@ try:
     SheetHeader = io.SheetHeader
     GadgetHeader = io.GadgetHeader
     ByteOrder = io.ByteOrder
+    # Halo module
+    RadiusType = halo.RadiusType
+    HaloGrid = halo.HaloGrid
+    SubhaloFinder = halo.SubhaloFinder
+    HaloData = halo.HaloData
+    Val = halo.Val
 except ImportError as e:
     # Fallback if native module not available
     import warnings
@@ -68,6 +78,8 @@ except ImportError as e:
     density = None
     io = None
     render = None
+    cosmo = None
+    halo = None
 
 __all__ = [
     # Submodules
@@ -76,6 +88,8 @@ __all__ = [
     "density",
     "io",
     "render",
+    "cosmo",
+    "halo",
     # Geometry
     "Vec3f",
     "Tetra",
@@ -88,13 +102,18 @@ __all__ = [
     "GeneratorType",
     # Density
     "Quantity",
-    "create_buffer",
     # I/O
     "CosmologyHeader",
     "CatalogHeader",
     "SheetHeader",
     "GadgetHeader",
     "ByteOrder",
+    # Halo
+    "RadiusType",
+    "HaloGrid",
+    "SubhaloFinder",
+    "HaloData",
+    "Val",
     # Meta
     "__version__",
 ]

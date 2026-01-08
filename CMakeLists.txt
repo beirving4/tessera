@@ -35,6 +35,7 @@ file(GLOB_RECURSE GEOM_SOURCES "src/geom/*.cpp")
 file(GLOB_RECURSE DENSITY_SOURCES "src/density/*.cpp")
 file(GLOB_RECURSE IO_SOURCES "src/io/*.cpp")
 file(GLOB_RECURSE RENDER_SOURCES "src/render/*.cpp")
+file(GLOB_RECURSE HALO_SOURCES "src/halo/*.cpp")
 
 set(ALL_SOURCES
     ${MATH_SOURCES}
@@ -42,6 +43,7 @@ set(ALL_SOURCES
     ${DENSITY_SOURCES}
     ${IO_SOURCES}
     ${RENDER_SOURCES}
+    ${HALO_SOURCES}
 )
 
 # Core library
@@ -84,6 +86,8 @@ if(BUILD_PYTHON_BINDINGS)
         python/bindings/density_bindings.cpp
         python/bindings/io_bindings.cpp
         python/bindings/render_bindings.cpp
+        python/bindings/cosmo_bindings.cpp
+        python/bindings/halo_bindings.cpp
     )
     target_link_libraries(_asymptotic_tetra PRIVATE asymptotic_tetra_core)
     target_include_directories(_asymptotic_tetra PRIVATE ${Python3_NumPy_INCLUDE_DIRS})

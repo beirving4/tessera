@@ -1,8 +1,12 @@
 file(REMOVE_RECURSE
+  "CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.o"
+  "CMakeFiles/_asymptotic_tetra.dir/python/bindings/cosmo_bindings.cpp.o.d"
   "CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o"
   "CMakeFiles/_asymptotic_tetra.dir/python/bindings/density_bindings.cpp.o.d"
   "CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.o"
   "CMakeFiles/_asymptotic_tetra.dir/python/bindings/geom_bindings.cpp.o.d"
+  "CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.o"
+  "CMakeFiles/_asymptotic_tetra.dir/python/bindings/halo_bindings.cpp.o.d"
   "CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.o"
   "CMakeFiles/_asymptotic_tetra.dir/python/bindings/io_bindings.cpp.o.d"
   "CMakeFiles/_asymptotic_tetra.dir/python/bindings/math_bindings.cpp.o"

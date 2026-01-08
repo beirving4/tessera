@@ -1,6 +1,6 @@
 CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.o: \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/geom/deriv.cpp \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/geom/deriv.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/src/geom/deriv.cpp \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/geom/deriv.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/vector \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/copy.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/copy_move_common.h \
@@ -753,5 +753,5 @@ CMakeFiles/asymptotic_tetra_core.dir/src/geom/deriv.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX15.5.sdk/usr/include/_types/_nl_item.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__locale_dir/locale_base_api/bsd_locale_defaults.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/cstdarg \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/geom/grid.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/geom/vec.h
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/geom/grid.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/geom/vec.h

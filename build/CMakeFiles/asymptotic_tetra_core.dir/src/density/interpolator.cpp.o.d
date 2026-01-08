@@ -1,6 +1,6 @@
 CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.o: \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/density/interpolator.cpp \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/density/interpolator.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/src/density/interpolator.cpp \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/density/interpolator.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/memory \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__config \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__config_site \
@@ -753,12 +753,12 @@ CMakeFiles/asymptotic_tetra_core.dir/src/density/interpolator.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX15.5.sdk/usr/include/_types/_nl_item.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__locale_dir/locale_base_api/bsd_locale_defaults.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/cstdarg \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/geom/vec.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/geom/grid.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/geom/tetra.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/density/buffer.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/density/quantity.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/math/rand.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/geom/vec.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/geom/grid.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/geom/tetra.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/density/buffer.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/density/quantity.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/math/rand.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/random \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__random/bernoulli_distribution.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__random/uniform_real_distribution.h \

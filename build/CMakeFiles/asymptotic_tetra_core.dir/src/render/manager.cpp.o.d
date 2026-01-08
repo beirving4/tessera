@@ -1,6 +1,6 @@
 CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.o: \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/src/render/manager.cpp \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/render/manager.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/src/render/manager.cpp \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/render/manager.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/string \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/max.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/comp.h \
@@ -809,13 +809,13 @@ CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/chrono \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__chrono/file_clock.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/forward_list \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/geom/vec.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/geom/grid.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/density/quantity.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/density/buffer.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/density/interpolator.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/geom/tetra.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/math/rand.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/geom/vec.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/geom/grid.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/density/quantity.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/density/buffer.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/density/interpolator.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/geom/tetra.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/math/rand.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/random \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__random/bernoulli_distribution.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__random/uniform_real_distribution.h \
@@ -867,6 +867,6 @@ CMakeFiles/asymptotic_tetra_core.dir/src/render/manager.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__random/student_t_distribution.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__random/uniform_random_bit_generator.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__random/weibull_distribution.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/render/box.h \
-  /Users/bryen/Documents/Physics\ Research/Stanford/asymptotic_assembly/AsymptoticTetra/include/io/headers.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/render/box.h \
+  /Users/bryen/Documents/GitHub/AsymptoticTetra/include/io/headers.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/iostream
