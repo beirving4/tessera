@@ -177,6 +177,14 @@ def compute_density_slice(
     # Create extent for plotting
     extent = (0, box_size, 0, box_size)
     
+    # Compute mean background surface density for this slice
+    # Total mass in box = N_total * mass_per_particle
+    # Mean 3D density = total_mass / box_volume
+    # Mean surface density for slice = mean_3D_density * slice_thickness
+    total_mass = len(positions) * mass_per_particle
+    mean_3d_density = total_mass / (box_size ** 3)
+    mean_surface_density = mean_3d_density * slice_thickness
+    
     # Slice info for metadata
     slice_info = {
         'center': slice_center,
@@ -185,7 +193,9 @@ def compute_density_slice(
         'n_particles_in_slice': len(pos_in_slice),
         'n_particles_total': len(positions),
         'grid_resolution': grid_resolution,
-        'pixel_size': box_size / grid_resolution
+        'pixel_size': box_size / grid_resolution,
+        'mean_surface_density': mean_surface_density,
+        'mean_3d_density': mean_3d_density
     }
     
     return density, extent, slice_info
@@ -236,6 +246,8 @@ def save_density_hdf5(
         slc.attrs['n_particles_total'] = slice_info['n_particles_total']
         slc.attrs['grid_resolution'] = slice_info['grid_resolution']
         slc.attrs['pixel_size'] = slice_info['pixel_size']
+        slc.attrs['mean_surface_density'] = slice_info['mean_surface_density']
+        slc.attrs['mean_3d_density'] = slice_info['mean_3d_density']
         
         # Store grid extent
         grid = f.create_group('Grid')
@@ -257,7 +269,8 @@ def plot_density_slice(
     cmap='ocean',
     log_scale=True,
     vmin_percentile=1,
-    vmax_percentile=99.9
+    vmax_percentile=99.9,
+    overdensity=False
 ):
     """
     Create a visualization of the density slice.
@@ -265,7 +278,7 @@ def plot_density_slice(
     Parameters
     ----------
     density : ndarray
-        2D density array
+        2D density array (surface density)
     extent : tuple
         Spatial extent for plotting
     slice_info : dict
@@ -280,6 +293,8 @@ def plot_density_slice(
         If True, plot log10(density)
     vmin_percentile, vmax_percentile : float
         Percentiles for color scaling
+    overdensity : bool
+        If True, plot 1+delta (density/mean_density) instead of raw density
     """
     try:
         import matplotlib.pyplot as plt
@@ -288,10 +303,18 @@ def plot_density_slice(
         print("matplotlib not available - skipping visualization")
         return
     
-    fig, ax = plt.subplots(figsize=(10, 10), dpi=150)
+    fig, ax = plt.subplots(figsize=(10, 10), dpi=300)
     
     # Handle log scale
     plot_data = density.T  # Transpose for correct orientation
+    
+    # Convert to overdensity (1 + delta) if requested
+    if overdensity:
+        mean_density = slice_info['mean_surface_density']
+        plot_data = plot_data / mean_density  # This gives 1 + delta
+        density_label = r'$1 + \delta$ (overdensity)'
+    else:
+        density_label = 'Surface Density'
     
     if log_scale:
         # Avoid log(0)
@@ -329,7 +352,7 @@ def plot_density_slice(
     
     # Colorbar
     cbar = plt.colorbar(im, ax=ax, shrink=0.8)
-    cbar.set_label('Surface Density' + (' (log scale)' if log_scale else ''), fontsize=12)
+    cbar.set_label(density_label + (' (log scale)' if log_scale else ''), fontsize=12)
     
     plt.tight_layout()
     
@@ -379,6 +402,8 @@ Examples:
                         help='Output image filename (optional)')
     parser.add_argument('--cmap', type=str, default='ocean',
                         help='Colormap for visualization (default: ocean)')
+    parser.add_argument('--overdensity', action='store_true',
+                        help='Plot 1+delta (density/mean) instead of raw density')
     
     args = parser.parse_args()
     
@@ -428,6 +453,14 @@ Examples:
     print(f"  Min: {density.min():.6e}")
     print(f"  Max: {density.max():.6e}")
     print(f"  Mean: {density.mean():.6e}")
+    print(f"  Mean background: {slice_info['mean_surface_density']:.6e}")
+    
+    # Print overdensity stats
+    overdensity_field = density / slice_info['mean_surface_density']
+    print(f"\nOverdensity (1+delta) statistics:")
+    print(f"  Min: {overdensity_field.min():.4f}")
+    print(f"  Max: {overdensity_field.max():.4f}")
+    print(f"  Mean: {overdensity_field.mean():.4f}")
     
     # Save to HDF5
     save_density_hdf5(args.output, density, header, slice_info, extent)
@@ -438,7 +471,8 @@ Examples:
         plot_density_slice(
             density, extent, slice_info, header,
             output_file=args.plot,
-            cmap=args.cmap
+            cmap=args.cmap,
+            overdensity=args.overdensity
         )
     
     print("\nDone!")
