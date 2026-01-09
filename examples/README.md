@@ -60,6 +60,28 @@ Demonstrates the histogram module:
 python examples/histogram.py
 ```
 
+### density_slice.py
+
+Creates a 2D projected density slice from a GADGET-4 snapshot:
+- Reads particles from single or distributed snapshots
+- Selects particles within a thin slab
+- Projects to a 2D grid to create a density field
+- Saves output to HDF5 with full metadata
+- Optional visualization (requires matplotlib)
+
+```bash
+# Basic usage
+python examples/density_slice.py snapshot_034.hdf5 -o density.h5
+
+# Distributed snapshot with custom slice parameters
+python examples/density_slice.py snapdir_009/ -n 9 --center 125 --thickness 25 -o density.h5
+
+# With visualization
+python examples/density_slice.py snapshot.hdf5 -o density.h5 --plot density.png --cmap ocean
+```
+
+Inspired by [gotetra's density visualizations](https://pages.astro.umd.edu/~diemer/erebos/web/viz/).
+
 ## Quick Start
 
 ```python
