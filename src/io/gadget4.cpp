@@ -2,6 +2,10 @@
 #include <highfive/highfive.hpp>
 #include <stdexcept>
 #include <sstream>
+#include <filesystem>
+#include <algorithm>
+#include <regex>
+#include <numeric>
 
 namespace asymptotic_tetra {
 namespace io {
@@ -191,7 +195,7 @@ Gadget4Header read_gadget4_header(const std::string& filename) {
     return hd;
 }
 
-Gadget4Snapshot read_gadget4_snapshot(
+Gadget4Snapshot read_gadget4_snapshot_file(
     const std::string& filename,
     uint32_t particle_types,
     bool read_velocities,
@@ -570,7 +574,7 @@ std::vector<Gadget4Subhalo> read_gadget4_subhalos(const std::string& filename) {
     return subhalos;
 }
 
-Gadget4HaloCatalog read_gadget4_halo_catalog(
+Gadget4HaloCatalog read_gadget4_halo_catalog_file(
     const std::string& filename,
     bool read_ids
 ) {
@@ -601,6 +605,428 @@ Gadget4HaloCatalog read_gadget4_halo_catalog(
     }
     
     return catalog;
+}
+
+// =============================================================================
+// Distributed file reading
+// =============================================================================
+
+namespace {
+
+/**
+ * Extract file index from a distributed filename.
+ * E.g., "snapshot_009.5.hdf5" -> 5
+ */
+int extract_file_index(const std::string& filename, const std::string& prefix, int snapshot_num) {
+    // Build expected pattern: prefix_NNN.X.hdf5
+    std::ostringstream pattern_ss;
+    pattern_ss << prefix << "_" << std::setfill('0') << std::setw(3) << snapshot_num << "\\.";
+    std::regex pattern(pattern_ss.str() + "(\\d+)\\.hdf5$");
+    
+    std::smatch match;
+    std::string fname = std::filesystem::path(filename).filename().string();
+    if (std::regex_search(fname, match, pattern)) {
+        return std::stoi(match[1].str());
+    }
+    return -1;
+}
+
+/**
+ * Generic function to discover files matching a pattern in a directory.
+ */
+std::vector<std::string> discover_files(
+    const std::string& directory,
+    const std::string& prefix,
+    int snapshot_num
+) {
+    namespace fs = std::filesystem;
+    
+    std::vector<std::pair<int, std::string>> indexed_files;
+    
+    // Build pattern: prefix_NNN.*.hdf5
+    std::ostringstream pattern_ss;
+    pattern_ss << prefix << "_" << std::setfill('0') << std::setw(3) << snapshot_num << "\\.\\d+\\.hdf5$";
+    std::regex pattern(pattern_ss.str());
+    
+    for (const auto& entry : fs::directory_iterator(directory)) {
+        if (!entry.is_regular_file()) continue;
+        
+        std::string fname = entry.path().filename().string();
+        if (std::regex_search(fname, pattern)) {
+            int idx = extract_file_index(entry.path().string(), prefix, snapshot_num);
+            if (idx >= 0) {
+                indexed_files.emplace_back(idx, entry.path().string());
+            }
+        }
+    }
+    
+    // Sort by file index
+    std::sort(indexed_files.begin(), indexed_files.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+    
+    // Extract just the paths
+    std::vector<std::string> result;
+    result.reserve(indexed_files.size());
+    for (const auto& [idx, path] : indexed_files) {
+        result.push_back(path);
+    }
+    
+    return result;
+}
+
+/**
+ * Append particles from src to dst.
+ */
+void append_particles(Gadget4Particles& dst, const Gadget4Particles& src) {
+    // Coordinates
+    dst.coordinates.insert(dst.coordinates.end(),
+                           src.coordinates.begin(), src.coordinates.end());
+    
+    // Velocities
+    dst.velocities.insert(dst.velocities.end(),
+                          src.velocities.begin(), src.velocities.end());
+    
+    // Particle IDs
+    dst.particle_ids.insert(dst.particle_ids.end(),
+                            src.particle_ids.begin(), src.particle_ids.end());
+    
+    // Optional fields
+    dst.accelerations.insert(dst.accelerations.end(),
+                             src.accelerations.begin(), src.accelerations.end());
+    dst.potential.insert(dst.potential.end(),
+                         src.potential.begin(), src.potential.end());
+    dst.subfind_density.insert(dst.subfind_density.end(),
+                               src.subfind_density.begin(), src.subfind_density.end());
+    dst.subfind_hsml.insert(dst.subfind_hsml.end(),
+                            src.subfind_hsml.begin(), src.subfind_hsml.end());
+    dst.subfind_vel_disp.insert(dst.subfind_vel_disp.end(),
+                                src.subfind_vel_disp.begin(), src.subfind_vel_disp.end());
+}
+
+} // anonymous namespace
+
+std::vector<std::string> discover_snapshot_files(
+    const std::string& directory,
+    int snapshot_num
+) {
+    return discover_files(directory, "snapshot", snapshot_num);
+}
+
+std::vector<std::string> discover_halo_catalog_files(
+    const std::string& directory,
+    int snapshot_num
+) {
+    return discover_files(directory, "fof_subhalo_tab", snapshot_num);
+}
+
+Gadget4Snapshot read_gadget4_snapshot_distributed(
+    const std::string& directory,
+    int snapshot_num,
+    uint32_t particle_types,
+    bool read_velocities,
+    bool read_ids
+) {
+    auto files = discover_snapshot_files(directory, snapshot_num);
+    
+    if (files.empty()) {
+        std::ostringstream ss;
+        ss << "No snapshot files found in " << directory 
+           << " for snapshot " << std::setfill('0') << std::setw(3) << snapshot_num;
+        throw std::runtime_error(ss.str());
+    }
+    
+    // Read first file to get header
+    Gadget4Snapshot result = read_gadget4_snapshot_file(files[0], particle_types, 
+                                                         read_velocities, read_ids);
+    
+    // The header from the first file already has NumPart_Total set correctly,
+    // but NumPart_ThisFile is only for that file. We'll update it at the end.
+    
+    // Read and append remaining files
+    for (size_t i = 1; i < files.size(); i++) {
+        auto partial = read_gadget4_snapshot_file(files[i], particle_types,
+                                                   read_velocities, read_ids);
+        
+        // Append particles from each type
+        for (int ptype = 0; ptype < 6; ptype++) {
+            append_particles(result.particles[ptype], partial.particles[ptype]);
+        }
+    }
+    
+    // Update num_part_this_file to reflect all particles now in the snapshot
+    for (int ptype = 0; ptype < 6; ptype++) {
+        result.header.num_part_this_file[ptype] = result.particles[ptype].size();
+    }
+    
+    return result;
+}
+
+Gadget4HaloCatalog read_gadget4_halo_catalog_distributed(
+    const std::string& directory,
+    int snapshot_num,
+    bool read_ids
+) {
+    auto files = discover_halo_catalog_files(directory, snapshot_num);
+    
+    if (files.empty()) {
+        std::ostringstream ss;
+        ss << "No halo catalog files found in " << directory 
+           << " for snapshot " << std::setfill('0') << std::setw(3) << snapshot_num;
+        throw std::runtime_error(ss.str());
+    }
+    
+    // Read all files first to collect groups and subhalos
+    struct FileData {
+        std::vector<Gadget4Group> groups;
+        std::vector<Gadget4Subhalo> subhalos;
+        std::vector<uint64_t> particle_ids;
+        int64_t group_offset = 0;   // Global offset for groups in this file
+        int64_t subhalo_offset = 0; // Global offset for subhalos in this file
+    };
+    
+    std::vector<FileData> file_data(files.size());
+    
+    // Track global offsets
+    int64_t total_groups = 0;
+    int64_t total_subhalos = 0;
+    int64_t total_ids = 0;
+    
+    // Read header from first file
+    Gadget4HaloCatalogHeader header = read_gadget4_halo_header(files[0]);
+    
+    // Read each file
+    for (size_t i = 0; i < files.size(); i++) {
+        file_data[i].groups = read_gadget4_groups(files[i]);
+        file_data[i].subhalos = read_gadget4_subhalos(files[i]);
+        file_data[i].group_offset = total_groups;
+        file_data[i].subhalo_offset = total_subhalos;
+        
+        total_groups += file_data[i].groups.size();
+        total_subhalos += file_data[i].subhalos.size();
+        
+        if (read_ids) {
+            HighFive::File hfile(files[i], HighFive::File::ReadOnly);
+            if (hfile.exist("IDs")) {
+                auto ids_group = hfile.getGroup("IDs");
+                if (has_dataset(ids_group, "ParticleIDs")) {
+                    try {
+                        file_data[i].particle_ids = read_1d_dataset<uint64_t>(
+                            ids_group.getDataSet("ParticleIDs"));
+                    } catch (...) {
+                        auto ids32 = read_1d_dataset<uint32_t>(
+                            ids_group.getDataSet("ParticleIDs"));
+                        file_data[i].particle_ids.resize(ids32.size());
+                        for (size_t j = 0; j < ids32.size(); j++) {
+                            file_data[i].particle_ids[j] = ids32[j];
+                        }
+                    }
+                    total_ids += file_data[i].particle_ids.size();
+                }
+            }
+        }
+    }
+    
+    // Build result catalog
+    Gadget4HaloCatalog result;
+    result.header = header;
+    result.header.n_groups_this_file = total_groups;
+    result.header.n_subhalos_this_file = total_subhalos;
+    result.header.n_ids_this_file = total_ids;
+    
+    // Reserve space
+    result.groups.reserve(total_groups);
+    result.subhalos.reserve(total_subhalos);
+    if (read_ids) {
+        result.particle_ids.reserve(total_ids);
+    }
+    
+    // Merge groups, updating first_sub pointers
+    for (size_t i = 0; i < files.size(); i++) {
+        for (auto& grp : file_data[i].groups) {
+            // Update first_sub to global index
+            if (grp.first_sub >= 0) {
+                grp.first_sub += file_data[i].subhalo_offset;
+            }
+            result.groups.push_back(std::move(grp));
+        }
+    }
+    
+    // Merge subhalos, updating group_nr pointers
+    for (size_t i = 0; i < files.size(); i++) {
+        for (auto& sub : file_data[i].subhalos) {
+            // group_nr is already a global index in GADGET-4, no need to update
+            result.subhalos.push_back(std::move(sub));
+        }
+    }
+    
+    // Merge particle IDs
+    if (read_ids) {
+        for (size_t i = 0; i < files.size(); i++) {
+            result.particle_ids.insert(result.particle_ids.end(),
+                                       file_data[i].particle_ids.begin(),
+                                       file_data[i].particle_ids.end());
+        }
+    }
+    
+    // Sort groups by their original file order (they should already be in order)
+    // GADGET-4 writes groups in order across files, so simple concatenation works.
+    // However, if sorting is needed for subhalos by group_nr:
+    
+    // Create indices for sorting subhalos by (group_nr, rank_in_gr)
+    std::vector<size_t> subhalo_order(result.subhalos.size());
+    std::iota(subhalo_order.begin(), subhalo_order.end(), 0);
+    
+    std::sort(subhalo_order.begin(), subhalo_order.end(),
+              [&result](size_t a, size_t b) {
+                  const auto& sa = result.subhalos[a];
+                  const auto& sb = result.subhalos[b];
+                  if (sa.group_nr != sb.group_nr) {
+                      return sa.group_nr < sb.group_nr;
+                  }
+                  return sa.rank_in_gr < sb.rank_in_gr;
+              });
+    
+    // Reorder subhalos according to sorted order
+    std::vector<Gadget4Subhalo> sorted_subhalos(result.subhalos.size());
+    for (size_t i = 0; i < subhalo_order.size(); i++) {
+        sorted_subhalos[i] = std::move(result.subhalos[subhalo_order[i]]);
+    }
+    result.subhalos = std::move(sorted_subhalos);
+    
+    // Update first_sub in groups to point to correct positions after sorting
+    // Build a map from group_nr to first subhalo index
+    std::vector<int64_t> group_first_sub(result.groups.size(), -1);
+    for (size_t i = 0; i < result.subhalos.size(); i++) {
+        int64_t gn = result.subhalos[i].group_nr;
+        if (gn >= 0 && static_cast<size_t>(gn) < group_first_sub.size()) {
+            if (group_first_sub[gn] < 0) {
+                group_first_sub[gn] = static_cast<int64_t>(i);
+            }
+        }
+    }
+    
+    // Update groups with correct first_sub
+    for (size_t i = 0; i < result.groups.size(); i++) {
+        result.groups[i].first_sub = group_first_sub[i];
+    }
+    
+    return result;
+}
+
+// =============================================================================
+// Unified interface functions
+// =============================================================================
+
+namespace {
+
+/**
+ * Extract snapshot number from a directory name like "snapdir_009" or "snapdir_123".
+ * Returns -1 if unable to parse.
+ */
+int extract_snapshot_num_from_dir(const std::string& dirname) {
+    std::regex pattern("snapdir_(\\d+)$");
+    std::smatch match;
+    if (std::regex_search(dirname, match, pattern)) {
+        return std::stoi(match[1].str());
+    }
+    return -1;
+}
+
+/**
+ * Extract snapshot number from a filename like "snapshot_034.hdf5" or "fof_subhalo_tab_034.hdf5".
+ * Returns -1 if unable to parse.
+ */
+int extract_snapshot_num_from_file(const std::string& filename) {
+    // Try snapshot pattern
+    std::regex snap_pattern("snapshot_(\\d+)\\.hdf5$");
+    std::smatch match;
+    std::string fname = std::filesystem::path(filename).filename().string();
+    if (std::regex_search(fname, match, snap_pattern)) {
+        return std::stoi(match[1].str());
+    }
+    
+    // Try halo catalog pattern
+    std::regex halo_pattern("fof_subhalo_tab_(\\d+)\\.hdf5$");
+    if (std::regex_search(fname, match, halo_pattern)) {
+        return std::stoi(match[1].str());
+    }
+    
+    return -1;
+}
+
+} // anonymous namespace
+
+Gadget4Snapshot read_gadget4_snapshot(
+    const std::string& path,
+    int snapshot_num,
+    uint32_t particle_types,
+    bool read_velocities,
+    bool read_ids
+) {
+    namespace fs = std::filesystem;
+    
+    // Check if path is a file or directory
+    if (fs::is_regular_file(path)) {
+        // Single file - use direct read
+        return read_gadget4_snapshot_file(path, particle_types, read_velocities, read_ids);
+    }
+    
+    if (fs::is_directory(path)) {
+        // Directory - use distributed read
+        int snap_num = snapshot_num;
+        
+        // Try to infer snapshot number from directory name if not provided
+        if (snap_num < 0) {
+            std::string dirname = fs::path(path).filename().string();
+            snap_num = extract_snapshot_num_from_dir(dirname);
+        }
+        
+        if (snap_num < 0) {
+            throw std::runtime_error(
+                "Cannot infer snapshot number from directory name. "
+                "Please provide snapshot_num explicitly.");
+        }
+        
+        return read_gadget4_snapshot_distributed(path, snap_num, particle_types,
+                                                  read_velocities, read_ids);
+    }
+    
+    throw std::runtime_error("Path does not exist or is not a file/directory: " + path);
+}
+
+Gadget4HaloCatalog read_gadget4_halo_catalog(
+    const std::string& path,
+    int snapshot_num,
+    bool read_ids
+) {
+    namespace fs = std::filesystem;
+    
+    // Check if path is a file or directory
+    if (fs::is_regular_file(path)) {
+        // Single file - use direct read
+        return read_gadget4_halo_catalog_file(path, read_ids);
+    }
+    
+    if (fs::is_directory(path)) {
+        // Directory - use distributed read
+        int snap_num = snapshot_num;
+        
+        // Try to infer snapshot number from directory name if not provided
+        if (snap_num < 0) {
+            std::string dirname = fs::path(path).filename().string();
+            snap_num = extract_snapshot_num_from_dir(dirname);
+        }
+        
+        if (snap_num < 0) {
+            throw std::runtime_error(
+                "Cannot infer snapshot number from directory name. "
+                "Please provide snapshot_num explicitly.");
+        }
+        
+        return read_gadget4_halo_catalog_distributed(path, snap_num, read_ids);
+    }
+    
+    throw std::runtime_error("Path does not exist or is not a file/directory: " + path);
 }
 
 } // namespace io

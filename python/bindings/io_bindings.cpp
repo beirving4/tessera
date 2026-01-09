@@ -213,16 +213,19 @@ void bind_io(py::module& m) {
                    ", subhalos=" + std::to_string(c.num_subhalos()) + ")";
         });
 
-    // Read functions
+    // =========================================================================
+    // Read functions - single file (low-level)
+    // =========================================================================
+    
     m.def("read_gadget4_header", &read_gadget4_header, py::arg("filename"),
           "Read GADGET-4 snapshot header");
 
-    m.def("read_gadget4_snapshot", &read_gadget4_snapshot,
+    m.def("read_gadget4_snapshot_file", &read_gadget4_snapshot_file,
           py::arg("filename"),
           py::arg("particle_types") = 0x3F,
           py::arg("read_velocities") = true,
           py::arg("read_ids") = true,
-          "Read complete GADGET-4 snapshot");
+          "Read complete GADGET-4 snapshot from a single file");
 
     m.def("read_gadget4_positions", &read_gadget4_positions,
           py::arg("filename"),
@@ -232,16 +235,78 @@ void bind_io(py::module& m) {
     m.def("read_gadget4_halo_header", &read_gadget4_halo_header, py::arg("filename"),
           "Read GADGET-4 halo catalog header");
 
-    m.def("read_gadget4_halo_catalog", &read_gadget4_halo_catalog,
+    m.def("read_gadget4_halo_catalog_file", &read_gadget4_halo_catalog_file,
           py::arg("filename"),
           py::arg("read_ids") = false,
-          "Read complete GADGET-4 halo catalog");
+          "Read complete GADGET-4 halo catalog from a single file");
 
     m.def("read_gadget4_groups", &read_gadget4_groups, py::arg("filename"),
           "Read only FOF groups from GADGET-4 halo catalog");
 
     m.def("read_gadget4_subhalos", &read_gadget4_subhalos, py::arg("filename"),
           "Read only subhalos from GADGET-4 halo catalog");
+
+    // =========================================================================
+    // Distributed file reading (multi-file snapshots/catalogs)
+    // =========================================================================
+    
+    m.def("discover_snapshot_files", &discover_snapshot_files,
+          py::arg("directory"),
+          py::arg("snapshot_num"),
+          "Discover distributed snapshot files in a directory.\n"
+          "Returns sorted list of file paths for snapshot_NNN.*.hdf5 files.");
+
+    m.def("discover_halo_catalog_files", &discover_halo_catalog_files,
+          py::arg("directory"),
+          py::arg("snapshot_num"),
+          "Discover distributed halo catalog files in a directory.\n"
+          "Returns sorted list of file paths for fof_subhalo_tab_NNN.*.hdf5 files.");
+
+    m.def("read_gadget4_snapshot_distributed", &read_gadget4_snapshot_distributed,
+          py::arg("directory"),
+          py::arg("snapshot_num"),
+          py::arg("particle_types") = 0x3F,
+          py::arg("read_velocities") = true,
+          py::arg("read_ids") = true,
+          "Read a distributed GADGET-4 snapshot from multiple files.\n"
+          "Particle data from all files is concatenated.");
+
+    m.def("read_gadget4_halo_catalog_distributed", &read_gadget4_halo_catalog_distributed,
+          py::arg("directory"),
+          py::arg("snapshot_num"),
+          py::arg("read_ids") = false,
+          "Read a distributed GADGET-4 halo catalog from multiple files.\n"
+          "Groups and subhalos are merged and sorted by their global indices.");
+
+    // =========================================================================
+    // Unified interface functions (auto-detect single vs distributed)
+    // =========================================================================
+    
+    m.def("read_gadget4_snapshot", &read_gadget4_snapshot,
+          py::arg("path"),
+          py::arg("snapshot_num") = -1,
+          py::arg("particle_types") = 0x3F,
+          py::arg("read_velocities") = true,
+          py::arg("read_ids") = true,
+          "Read a GADGET-4 snapshot, auto-detecting single file vs distributed.\n"
+          "\n"
+          "Parameters:\n"
+          "  path: Path to a single HDF5 file or a directory containing distributed files\n"
+          "  snapshot_num: Snapshot number (inferred from directory name if -1)\n"
+          "  particle_types: Bitmask of particle types to read (default: all)\n"
+          "  read_velocities: Whether to read velocity data\n"
+          "  read_ids: Whether to read particle IDs");
+
+    m.def("read_gadget4_halo_catalog", &read_gadget4_halo_catalog,
+          py::arg("path"),
+          py::arg("snapshot_num") = -1,
+          py::arg("read_ids") = false,
+          "Read a GADGET-4 halo catalog, auto-detecting single file vs distributed.\n"
+          "\n"
+          "Parameters:\n"
+          "  path: Path to a single HDF5 file or a directory containing distributed files\n"
+          "  snapshot_num: Snapshot number (inferred from directory name if -1)\n"
+          "  read_ids: Whether to read particle IDs");
 
     // Flag to indicate HDF5 support is available
     m.attr("HAS_HDF5") = true;

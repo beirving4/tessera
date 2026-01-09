@@ -193,7 +193,7 @@ struct Gadget4HaloCatalog {
 };
 
 // =============================================================================
-// Read functions
+// Read functions (single file)
 // =============================================================================
 
 /**
@@ -204,14 +204,14 @@ struct Gadget4HaloCatalog {
 Gadget4Header read_gadget4_header(const std::string& filename);
 
 /**
- * Read complete GADGET-4 snapshot.
+ * Read complete GADGET-4 snapshot from a single file.
  * @param filename Path to HDF5 snapshot file
  * @param particle_types Bitmask of particle types to read (default: all)
  * @param read_velocities Whether to read velocity data
  * @param read_ids Whether to read particle IDs
  * @return Complete snapshot data
  */
-Gadget4Snapshot read_gadget4_snapshot(
+Gadget4Snapshot read_gadget4_snapshot_file(
     const std::string& filename,
     uint32_t particle_types = 0x3F,  // All 6 types
     bool read_velocities = true,
@@ -237,12 +237,12 @@ std::vector<std::array<float, 3>> read_gadget4_positions(
 Gadget4HaloCatalogHeader read_gadget4_halo_header(const std::string& filename);
 
 /**
- * Read complete GADGET-4 halo catalog.
+ * Read complete GADGET-4 halo catalog from a single file.
  * @param filename Path to HDF5 halo catalog file
  * @param read_ids Whether to read particle IDs
  * @return Complete halo catalog
  */
-Gadget4HaloCatalog read_gadget4_halo_catalog(
+Gadget4HaloCatalog read_gadget4_halo_catalog_file(
     const std::string& filename,
     bool read_ids = false
 );
@@ -260,6 +260,108 @@ std::vector<Gadget4Group> read_gadget4_groups(const std::string& filename);
  * @return Vector of subhalos
  */
 std::vector<Gadget4Subhalo> read_gadget4_subhalos(const std::string& filename);
+
+// =============================================================================
+// Distributed file reading (multi-file snapshots/catalogs)
+// =============================================================================
+
+/**
+ * Discover distributed snapshot files in a directory.
+ * @param directory Path to directory containing snapshot files
+ * @param snapshot_num Snapshot number (e.g., 9 for snapshot_009.*.hdf5)
+ * @return Sorted list of file paths
+ */
+std::vector<std::string> discover_snapshot_files(
+    const std::string& directory,
+    int snapshot_num
+);
+
+/**
+ * Discover distributed halo catalog files in a directory.
+ * @param directory Path to directory containing halo catalog files
+ * @param snapshot_num Snapshot number (e.g., 9 for fof_subhalo_tab_009.*.hdf5)
+ * @return Sorted list of file paths
+ */
+std::vector<std::string> discover_halo_catalog_files(
+    const std::string& directory,
+    int snapshot_num
+);
+
+/**
+ * Read a distributed GADGET-4 snapshot from multiple files.
+ * @param directory Path to directory containing snapshot files
+ * @param snapshot_num Snapshot number (e.g., 9 for snapshot_009.*.hdf5)
+ * @param particle_types Bitmask of particle types to read (default: all)
+ * @param read_velocities Whether to read velocity data
+ * @param read_ids Whether to read particle IDs
+ * @return Complete snapshot with data concatenated from all files
+ */
+Gadget4Snapshot read_gadget4_snapshot_distributed(
+    const std::string& directory,
+    int snapshot_num,
+    uint32_t particle_types = 0x3F,
+    bool read_velocities = true,
+    bool read_ids = true
+);
+
+/**
+ * Read a distributed GADGET-4 halo catalog from multiple files.
+ * Groups and subhalos are concatenated and sorted by their global indices.
+ * The first_sub pointers in groups are updated to point to the correct
+ * subhalo indices in the merged catalog.
+ * 
+ * @param directory Path to directory containing halo catalog files
+ * @param snapshot_num Snapshot number (e.g., 9 for fof_subhalo_tab_009.*.hdf5)
+ * @param read_ids Whether to read particle IDs
+ * @return Complete halo catalog with data merged from all files
+ */
+Gadget4HaloCatalog read_gadget4_halo_catalog_distributed(
+    const std::string& directory,
+    int snapshot_num,
+    bool read_ids = false
+);
+
+// =============================================================================
+// Unified interface functions (auto-detect single vs distributed)
+// =============================================================================
+
+/**
+ * Read a GADGET-4 snapshot, auto-detecting single file vs distributed.
+ * 
+ * @param path Path to either:
+ *             - A single HDF5 file (e.g., "snapshot_034.hdf5")
+ *             - A directory containing distributed files (e.g., "snapdir_009/")
+ * @param snapshot_num Snapshot number, required only for distributed files.
+ *                     If -1 (default), will attempt to infer from directory name.
+ * @param particle_types Bitmask of particle types to read (default: all)
+ * @param read_velocities Whether to read velocity data
+ * @param read_ids Whether to read particle IDs
+ * @return Complete snapshot data
+ */
+Gadget4Snapshot read_gadget4_snapshot(
+    const std::string& path,
+    int snapshot_num = -1,
+    uint32_t particle_types = 0x3F,
+    bool read_velocities = true,
+    bool read_ids = true
+);
+
+/**
+ * Read a GADGET-4 halo catalog, auto-detecting single file vs distributed.
+ * 
+ * @param path Path to either:
+ *             - A single HDF5 file (e.g., "fof_subhalo_tab_034.hdf5")
+ *             - A directory containing distributed files (e.g., "snapdir_009/")
+ * @param snapshot_num Snapshot number, required only for distributed files.
+ *                     If -1 (default), will attempt to infer from directory name.
+ * @param read_ids Whether to read particle IDs
+ * @return Complete halo catalog
+ */
+Gadget4HaloCatalog read_gadget4_halo_catalog(
+    const std::string& path,
+    int snapshot_num = -1,
+    bool read_ids = false
+);
 
 } // namespace io
 } // namespace asymptotic_tetra
