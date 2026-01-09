@@ -10,9 +10,28 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 option(BUILD_TESTS "Build unit tests" OFF)
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
+option(BUILD_WITH_HDF5 "Build with HDF5 support for GADGET-4" ON)
 
 # Find threads
 find_package(Threads REQUIRED)
+
+# Find HDF5 (for GADGET-4 I/O)
+if(BUILD_WITH_HDF5)
+    find_package(HDF5 REQUIRED COMPONENTS C)
+    
+    # Fetch HighFive (modern C++ HDF5 wrapper)
+    include(FetchContent)
+    FetchContent_Declare(
+        HighFive
+        GIT_REPOSITORY https://github.com/BlueBrain/HighFive.git
+        GIT_TAG v2.9.0
+    )
+    set(HIGHFIVE_USE_BOOST OFF CACHE BOOL "" FORCE)
+    set(HIGHFIVE_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+    set(HIGHFIVE_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(HIGHFIVE_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(HighFive)
+endif()
 
 # macOS specific: Ensure C++ standard library headers are found
 if(APPLE)
@@ -53,6 +72,12 @@ target_include_directories(asymptotic_tetra_core PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(asymptotic_tetra_core PUBLIC Threads::Threads)
+
+# Link HDF5 if enabled
+if(BUILD_WITH_HDF5)
+    target_link_libraries(asymptotic_tetra_core PUBLIC HighFive)
+    target_compile_definitions(asymptotic_tetra_core PUBLIC ASYMPTOTIC_TETRA_HAS_HDF5)
+endif()
 
 # Set compiler flags
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
