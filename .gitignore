@@ -41,3 +41,8 @@ _deps/
 # Testing
 Testing/
 CTestTestfile.cmake
+
+# Virtual environments
+.venv*/
+venv/
+env/
