@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <numeric>
 #include <stdexcept>
+#include <atomic>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -273,7 +274,39 @@ static inline void unwrap_corners(
 }
 
 /**
+ * Check if a tetrahedron potentially overlaps a sub-box.
+ * Uses bounding box test for quick rejection.
+ */
+static inline bool tetra_overlaps_subbox(
+    const double corners[4][3],
+    const double subbox_min[3],
+    const double subbox_max[3],
+    double box_size)
+{
+    // Find bounding box of tetrahedron
+    double tetra_min[3] = {corners[0][0], corners[0][1], corners[0][2]};
+    double tetra_max[3] = {corners[0][0], corners[0][1], corners[0][2]};
+    
+    for (int c = 1; c < 4; ++c) {
+        for (int d = 0; d < 3; ++d) {
+            tetra_min[d] = std::min(tetra_min[d], corners[c][d]);
+            tetra_max[d] = std::max(tetra_max[d], corners[c][d]);
+        }
+    }
+    
+    // Check overlap (simple AABB test)
+    // Note: This doesn't handle periodic wrapping perfectly, but catches most cases
+    for (int d = 0; d < 3; ++d) {
+        if (tetra_max[d] < subbox_min[d] || tetra_min[d] > subbox_max[d]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
  * Core 3D density computation with OpenMP parallelization.
+ * Supports optional sub-box rendering for high-resolution local density fields.
  */
 template<typename T>
 static TetraDensityResult3D compute_density_3d_impl(
@@ -286,6 +319,30 @@ static TetraDensityResult3D compute_density_3d_impl(
     double box_size = config.box_size;
     double particle_mass = config.particle_mass;
     int n_samples = config.n_samples;
+    
+    // Sub-box parameters
+    bool use_subbox = config.subbox_enabled;
+    double subbox_origin[3] = {0, 0, 0};
+    double subbox_width[3] = {box_size, box_size, box_size};
+    double subbox_min[3], subbox_max[3];
+    double render_width;  // Width of the rendered region (for cell calculations)
+    
+    if (use_subbox) {
+        for (int d = 0; d < 3; ++d) {
+            subbox_origin[d] = config.subbox_origin[d];
+            subbox_width[d] = config.subbox_width[d];
+            subbox_min[d] = subbox_origin[d];
+            subbox_max[d] = subbox_origin[d] + subbox_width[d];
+        }
+        // Use the maximum dimension for isotropic cell width
+        render_width = std::max({subbox_width[0], subbox_width[1], subbox_width[2]});
+    } else {
+        for (int d = 0; d < 3; ++d) {
+            subbox_min[d] = 0;
+            subbox_max[d] = box_size;
+        }
+        render_width = box_size;
+    }
     
     // Verify particle count
     int64_t n_particles = static_cast<int64_t>(grid_size) * grid_size * grid_size;
@@ -321,8 +378,8 @@ static TetraDensityResult3D compute_density_3d_impl(
     // Spread over n_samples points
     double mass_per_sample = particle_mass / static_cast<double>(n_samples) / 6.0;
     
-    // Cell dimensions
-    double cell_width = box_size / output_cells;
+    // Cell dimensions - for sub-box, cells span the sub-region
+    double cell_width = render_width / output_cells;
     double inv_cell_width = 1.0 / cell_width;
     int64_t cells_sq = static_cast<int64_t>(output_cells) * output_cells;
     int64_t cells_cu = cells_sq * output_cells;
@@ -333,6 +390,9 @@ static TetraDensityResult3D compute_density_3d_impl(
         thread_grids[t].resize(cells_cu, 0.0);
     }
     
+    // Counter for tetrahedra actually processed (for sub-box mode)
+    std::atomic<int64_t> tetra_processed{0};
+    
     // Main parallel loop over tetrahedra
     #pragma omp parallel
     {
@@ -342,6 +402,7 @@ static TetraDensityResult3D compute_density_3d_impl(
         int tid = 0;
 #endif
         double* local_density = thread_grids[tid].data();
+        int64_t local_tetra_count = 0;
         
         // Per-thread random buffer selection
         std::mt19937 local_gen(config.seed + tid + 1);
@@ -356,6 +417,15 @@ static TetraDensityResult3D compute_density_3d_impl(
             // Get and unwrap corner positions
             unwrap_corners(positions, idx, box_size, corners);
             
+            // Sub-box optimization: skip tetrahedra that don't overlap
+            if (use_subbox) {
+                if (!tetra_overlaps_subbox(corners, subbox_min, subbox_max, box_size)) {
+                    continue;
+                }
+            }
+            
+            local_tetra_count++;
+            
             // Get sample buffer for this tetrahedron
             int buf_idx = buf_dist(local_gen);
             const auto& sample_buf = samples->get_buffer(buf_idx);
@@ -365,20 +435,58 @@ static TetraDensityResult3D compute_density_3d_impl(
                 double px, py, pz;
                 barycentric_to_physical(corners, sample_buf[si], box_size, px, py, pz);
                 
-                // Convert to grid indices (with periodic wrapping)
-                int ix = static_cast<int>(px * inv_cell_width);
-                int iy = static_cast<int>(py * inv_cell_width);
-                int iz = static_cast<int>(pz * inv_cell_width);
-                
-                // Ensure indices are in bounds (handle edge cases)
-                ix = std::max(0, std::min(output_cells - 1, ix));
-                iy = std::max(0, std::min(output_cells - 1, iy));
-                iz = std::max(0, std::min(output_cells - 1, iz));
-                
-                int64_t cell_idx = ix + iy * output_cells + iz * cells_sq;
-                local_density[cell_idx] += mass_per_sample;
+                if (use_subbox) {
+                    // Check if sample is within sub-box (with periodic handling)
+                    // Convert to sub-box local coordinates
+                    double lx = px - subbox_origin[0];
+                    double ly = py - subbox_origin[1];
+                    double lz = pz - subbox_origin[2];
+                    
+                    // Handle periodic wrapping: sample might be on the other side of box
+                    if (lx < -box_size/2) lx += box_size;
+                    else if (lx > box_size/2) lx -= box_size;
+                    if (ly < -box_size/2) ly += box_size;
+                    else if (ly > box_size/2) ly -= box_size;
+                    if (lz < -box_size/2) lz += box_size;
+                    else if (lz > box_size/2) lz -= box_size;
+                    
+                    // Skip if outside sub-box
+                    if (lx < 0 || lx >= subbox_width[0] ||
+                        ly < 0 || ly >= subbox_width[1] ||
+                        lz < 0 || lz >= subbox_width[2]) {
+                        continue;
+                    }
+                    
+                    // Convert to grid indices within sub-box
+                    int ix = static_cast<int>(lx * inv_cell_width);
+                    int iy = static_cast<int>(ly * inv_cell_width);
+                    int iz = static_cast<int>(lz * inv_cell_width);
+                    
+                    // Ensure indices are in bounds
+                    ix = std::max(0, std::min(output_cells - 1, ix));
+                    iy = std::max(0, std::min(output_cells - 1, iy));
+                    iz = std::max(0, std::min(output_cells - 1, iz));
+                    
+                    int64_t cell_idx = ix + iy * output_cells + iz * cells_sq;
+                    local_density[cell_idx] += mass_per_sample;
+                } else {
+                    // Full-box mode: original behavior
+                    int ix = static_cast<int>(px * inv_cell_width);
+                    int iy = static_cast<int>(py * inv_cell_width);
+                    int iz = static_cast<int>(pz * inv_cell_width);
+                    
+                    // Ensure indices are in bounds (handle edge cases)
+                    ix = std::max(0, std::min(output_cells - 1, ix));
+                    iy = std::max(0, std::min(output_cells - 1, iy));
+                    iz = std::max(0, std::min(output_cells - 1, iz));
+                    
+                    int64_t cell_idx = ix + iy * output_cells + iz * cells_sq;
+                    local_density[cell_idx] += mass_per_sample;
+                }
             }
         }
+        
+        tetra_processed += local_tetra_count;
     }
     
     // Reduce thread-local grids
@@ -398,7 +506,10 @@ static TetraDensityResult3D compute_density_3d_impl(
     
     // Compute statistics
     double total_mass = std::accumulate(density.begin(), density.end(), 0.0) * cell_volume;
-    double mean_density = total_mass / (box_size * box_size * box_size);
+    double region_volume = use_subbox 
+        ? (subbox_width[0] * subbox_width[1] * subbox_width[2])
+        : (box_size * box_size * box_size);
+    double mean_density = total_mass / region_volume;
     
     TetraDensityResult3D result;
     result.density = std::move(density);
@@ -406,7 +517,7 @@ static TetraDensityResult3D compute_density_3d_impl(
     result.cell_width = cell_width;
     result.total_mass = total_mass;
     result.mean_density = mean_density;
-    result.n_tetrahedra = n_tetra;
+    result.n_tetrahedra = tetra_processed.load();
     
     return result;
 }

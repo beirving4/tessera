@@ -33,12 +33,17 @@ namespace density {
 struct TetraDensityConfig {
     int lagrangian_grid_size;   ///< Particles per dimension (N for N^3)
     int output_cells;           ///< Output grid cells per dimension
-    double box_size;            ///< Physical box size
+    double box_size;            ///< Physical simulation box size
     double particle_mass;       ///< Mass per particle
     int n_samples;              ///< Monte Carlo samples per tetrahedron
     int n_threads;              ///< Number of threads (0 = auto)
     bool periodic;              ///< Use periodic boundary conditions
     uint64_t seed;              ///< Random seed for reproducibility (0 = time-based)
+    
+    // Sub-box rendering (for high-resolution local density fields)
+    bool subbox_enabled = false;        ///< If true, render only within sub-box
+    std::array<double, 3> subbox_origin = {0, 0, 0};  ///< Sub-box origin (x, y, z)
+    std::array<double, 3> subbox_width = {0, 0, 0};   ///< Sub-box dimensions (width in each dim)
 };
 
 /**

@@ -38,6 +38,13 @@ void bind_tetra_density(py::module& m) {
             Whether to use periodic boundary conditions. Default: True.
         seed : int
             Random seed for reproducibility. 0 = use current time.
+        subbox_enabled : bool
+            If True, render only within a sub-region for high-resolution local
+            density fields (e.g., around a halo). Default: False.
+        subbox_origin : tuple
+            Origin (x, y, z) of the sub-box in physical coordinates.
+        subbox_width : tuple
+            Width (dx, dy, dz) of the sub-box. Output grid will span this region.
         )pbdoc")
         .def(py::init<>())
         .def(py::init([](int grid_size, int output_cells, double box_size,
@@ -69,7 +76,28 @@ void bind_tetra_density(py::module& m) {
         .def_readwrite("n_samples", &TetraDensityConfig::n_samples)
         .def_readwrite("n_threads", &TetraDensityConfig::n_threads)
         .def_readwrite("periodic", &TetraDensityConfig::periodic)
-        .def_readwrite("seed", &TetraDensityConfig::seed);
+        .def_readwrite("seed", &TetraDensityConfig::seed)
+        .def_readwrite("subbox_enabled", &TetraDensityConfig::subbox_enabled)
+        .def_property("subbox_origin",
+            [](const TetraDensityConfig& cfg) {
+                return std::make_tuple(cfg.subbox_origin[0], cfg.subbox_origin[1], cfg.subbox_origin[2]);
+            },
+            [](TetraDensityConfig& cfg, const std::tuple<double, double, double>& origin) {
+                cfg.subbox_origin[0] = std::get<0>(origin);
+                cfg.subbox_origin[1] = std::get<1>(origin);
+                cfg.subbox_origin[2] = std::get<2>(origin);
+            },
+            "Sub-box origin (x, y, z)")
+        .def_property("subbox_width",
+            [](const TetraDensityConfig& cfg) {
+                return std::make_tuple(cfg.subbox_width[0], cfg.subbox_width[1], cfg.subbox_width[2]);
+            },
+            [](TetraDensityConfig& cfg, const std::tuple<double, double, double>& width) {
+                cfg.subbox_width[0] = std::get<0>(width);
+                cfg.subbox_width[1] = std::get<1>(width);
+                cfg.subbox_width[2] = std::get<2>(width);
+            },
+            "Sub-box dimensions (dx, dy, dz)");
     
     // TetraDensityResult3D
     py::class_<TetraDensityResult3D>(m, "TetraDensityResult3D",
