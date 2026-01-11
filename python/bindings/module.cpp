@@ -13,6 +13,7 @@ void bind_io(py::module& m);
 void bind_render(py::module& m);
 void bind_cosmo(py::module& m);
 void bind_halo(py::module& m);
+void bind_stats(py::module_& m);
 
 PYBIND11_MODULE(_asymptotic_tetra, m) {
     m.doc() = R"pbdoc(
@@ -30,6 +31,7 @@ PYBIND11_MODULE(_asymptotic_tetra, m) {
             render - High-level rendering interface
             cosmo - Cosmological calculations
             halo - Halo finding and analysis
+            stats - Statistical functions (histograms, PDFs)
     )pbdoc";
 
     // Create submodules
@@ -50,6 +52,7 @@ PYBIND11_MODULE(_asymptotic_tetra, m) {
     bind_render(render_m);
     bind_cosmo(cosmo_m);
     bind_halo(halo_m);
+    bind_stats(m);  // Creates its own submodule
 
     // Version info
     m.attr("__version__") = "1.0.0";

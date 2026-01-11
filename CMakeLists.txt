@@ -55,6 +55,7 @@ file(GLOB_RECURSE DENSITY_SOURCES "src/density/*.cpp")
 file(GLOB_RECURSE IO_SOURCES "src/io/*.cpp")
 file(GLOB_RECURSE RENDER_SOURCES "src/render/*.cpp")
 file(GLOB_RECURSE HALO_SOURCES "src/halo/*.cpp")
+file(GLOB_RECURSE STATS_SOURCES "src/stats/*.cpp")
 
 set(ALL_SOURCES
     ${MATH_SOURCES}
@@ -63,6 +64,7 @@ set(ALL_SOURCES
     ${IO_SOURCES}
     ${RENDER_SOURCES}
     ${HALO_SOURCES}
+    ${STATS_SOURCES}
 )
 
 # Core library
@@ -114,6 +116,7 @@ if(BUILD_PYTHON_BINDINGS)
         python/bindings/render_bindings.cpp
         python/bindings/cosmo_bindings.cpp
         python/bindings/halo_bindings.cpp
+        python/bindings/stats_bindings.cpp
     )
     target_link_libraries(_asymptotic_tetra PRIVATE asymptotic_tetra_core)
     target_include_directories(_asymptotic_tetra PRIVATE ${Python3_NumPy_INCLUDE_DIRS})
