@@ -540,6 +540,8 @@ Examples:
                         help='Extraction radius as multiple of R200 (default: 3.0)')
     parser.add_argument('--min-radius', type=float, default=5.0,
                         help='Minimum extraction radius in code units (default: 5.0)')
+    parser.add_argument('--fixed-radius', type=float, default=None,
+                        help='Fixed extraction radius in cMpc/h (overrides radius-factor)')
     parser.add_argument('--use-r-mean', action='store_true',
                         help='Use R_Mean200 instead of R_Crit200 (sometimes better units)')
     parser.add_argument('--resolution', type=int, default=128,
@@ -667,10 +669,17 @@ Examples:
         r200 = r_crit200_physical
         r200_label = "R200c"
     
-    extraction_radius = max(r200 * args.radius_factor, args.min_radius)
-    print(f"\nExtraction region:")
-    print(f"  {r200_label}: {r200:.4f} Mpc/h")
-    print(f"  Extraction radius: {extraction_radius:.4f} ({args.radius_factor}x {r200_label})")
+    # Fixed radius overrides the R200-based calculation
+    if args.fixed_radius is not None:
+        extraction_radius = args.fixed_radius
+        print(f"\nExtraction region (fixed):")
+        print(f"  {r200_label}: {r200:.4f} Mpc/h")
+        print(f"  Extraction radius: {extraction_radius:.4f} cMpc/h (fixed)")
+    else:
+        extraction_radius = max(r200 * args.radius_factor, args.min_radius)
+        print(f"\nExtraction region:")
+        print(f"  {r200_label}: {r200:.4f} Mpc/h")
+        print(f"  Extraction radius: {extraction_radius:.4f} ({args.radius_factor}x {r200_label})")
     
     # Compute sub-box origin (centered on halo)
     halo_pos = np.array(halo.pos)
