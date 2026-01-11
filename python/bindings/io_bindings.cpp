@@ -80,12 +80,29 @@ void bind_io(py::module& m) {
     // =========================================================================
 
     // Gadget4Header
-    py::class_<Gadget4Header>(m, "Gadget4Header", "GADGET-4 snapshot header")
+    py::class_<Gadget4Header>(m, "Gadget4Header",
+        R"pbdoc(
+        GADGET-4 snapshot header.
+        
+        GADGET-4 Internal Code Units
+        ----------------------------
+        All values are in GADGET-4 internal code units:
+        
+        - Mass: 10^10 M_sun/h
+        - Length: kpc/h or Mpc/h (depends on simulation)
+        - Velocity: km/s
+        
+        To convert to physical units:
+        - mass_physical = mass_code * 1e10 / h  [M_sun]
+        - length_physical = length_code / h     [kpc or Mpc]
+        
+        where h = H0 / 100 km/s/Mpc (typically ~0.67-0.70)
+        )pbdoc")
         .def(py::init<>())
-        .def_readwrite("box_size", &Gadget4Header::box_size, "Box size")
-        .def_readwrite("time", &Gadget4Header::time, "Scale factor")
-        .def_readwrite("redshift", &Gadget4Header::redshift, "Redshift")
-        .def_readwrite("mass_table", &Gadget4Header::mass_table, "Mass table by particle type")
+        .def_readwrite("box_size", &Gadget4Header::box_size, "Box size in code length units (kpc/h or Mpc/h)")
+        .def_readwrite("time", &Gadget4Header::time, "Scale factor a (cosmological) or time")
+        .def_readwrite("redshift", &Gadget4Header::redshift, "Redshift z = 1/a - 1")
+        .def_readwrite("mass_table", &Gadget4Header::mass_table, "Mass per particle type (10^10 M_sun/h)")
         .def_readwrite("num_part_this_file", &Gadget4Header::num_part_this_file)
         .def_readwrite("num_part_total", &Gadget4Header::num_part_total)
         .def_readwrite("num_files_per_snapshot", &Gadget4Header::num_files_per_snapshot)
@@ -130,11 +147,20 @@ void bind_io(py::module& m) {
              "Get gas particles (type 0)");
 
     // Gadget4Group
-    py::class_<Gadget4Group>(m, "Gadget4Group", "FOF Group (halo) from GADGET-4")
+    py::class_<Gadget4Group>(m, "Gadget4Group",
+        R"pbdoc(
+        FOF Group (halo) from GADGET-4 halo catalog.
+        
+        Units (GADGET-4 internal code units):
+        - Positions: kpc/h or Mpc/h
+        - Velocities: km/s
+        - Masses: 10^10 M_sun/h
+        - Radii: kpc/h or Mpc/h
+        )pbdoc")
         .def(py::init<>())
-        .def_readwrite("pos", &Gadget4Group::pos, "Center of mass position")
-        .def_readwrite("vel", &Gadget4Group::vel, "Center of mass velocity")
-        .def_readwrite("mass", &Gadget4Group::mass, "Total FOF mass")
+        .def_readwrite("pos", &Gadget4Group::pos, "Center of mass position (code length units)")
+        .def_readwrite("vel", &Gadget4Group::vel, "Center of mass velocity (km/s)")
+        .def_readwrite("mass", &Gadget4Group::mass, "Total FOF mass (10^10 M_sun/h)")
         .def_readwrite("len", &Gadget4Group::len, "Number of particles")
         .def_readwrite("mass_type", &Gadget4Group::mass_type, "Mass by particle type")
         .def_readwrite("len_type", &Gadget4Group::len_type, "Particles by type")
@@ -156,13 +182,22 @@ void bind_io(py::module& m) {
         });
 
     // Gadget4Subhalo
-    py::class_<Gadget4Subhalo>(m, "Gadget4Subhalo", "Subhalo from GADGET-4")
+    py::class_<Gadget4Subhalo>(m, "Gadget4Subhalo",
+        R"pbdoc(
+        Subhalo from GADGET-4 halo catalog.
+        
+        Units (GADGET-4 internal code units):
+        - Positions: kpc/h or Mpc/h
+        - Velocities: km/s
+        - Masses: 10^10 M_sun/h
+        - Radii: kpc/h or Mpc/h
+        )pbdoc")
         .def(py::init<>())
-        .def_readwrite("pos", &Gadget4Subhalo::pos, "Position")
-        .def_readwrite("vel", &Gadget4Subhalo::vel, "Velocity")
-        .def_readwrite("cm", &Gadget4Subhalo::cm, "Center of mass")
+        .def_readwrite("pos", &Gadget4Subhalo::pos, "Position (code length units)")
+        .def_readwrite("vel", &Gadget4Subhalo::vel, "Velocity (km/s)")
+        .def_readwrite("cm", &Gadget4Subhalo::cm, "Center of mass (code length units)")
         .def_readwrite("spin", &Gadget4Subhalo::spin, "Angular momentum")
-        .def_readwrite("mass", &Gadget4Subhalo::mass, "Total bound mass")
+        .def_readwrite("mass", &Gadget4Subhalo::mass, "Total bound mass (10^10 M_sun/h)")
         .def_readwrite("len", &Gadget4Subhalo::len, "Number of bound particles")
         .def_readwrite("mass_type", &Gadget4Subhalo::mass_type)
         .def_readwrite("len_type", &Gadget4Subhalo::len_type)

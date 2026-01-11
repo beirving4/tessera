@@ -11,13 +11,38 @@ namespace asymptotic_tetra {
 namespace io {
 
 /**
+ * @brief GADGET-4 internal code units.
+ * 
+ * GADGET-4 uses the following default internal units:
+ * - Mass: 10^10 M_sun/h  (UnitMass_in_g = 1.989e43)
+ * - Length: kpc/h or Mpc/h depending on simulation (UnitLength_in_cm)
+ * - Velocity: km/s (UnitVelocity_in_cm_per_s = 1e5)
+ * - Time: derived from Length/Velocity
+ * 
+ * To convert to physical units:
+ * - mass_physical = mass_code * 1e10 / h  [M_sun]
+ * - length_physical = length_code / h     [kpc or Mpc]
+ * - velocity is already in km/s
+ * 
+ * where h = H0 / 100 km/s/Mpc (typically ~0.67-0.70)
+ * 
+ * Note: These are the default units. Check your simulation's parameter file
+ * for the actual UnitMass_in_g, UnitLength_in_cm, and UnitVelocity_in_cm_per_s.
+ */
+
+/**
  * GADGET-4 snapshot header from HDF5 attributes.
+ * 
+ * @note All values are in GADGET-4 internal code units:
+ *       - box_size: Length units (typically kpc/h or Mpc/h)
+ *       - mass_table: Mass units (10^10 M_sun/h)
+ *       - time: Scale factor a (for cosmological) or time units
  */
 struct Gadget4Header {
-    double box_size = 0.0;
-    double time = 0.0;
-    double redshift = 0.0;
-    std::array<double, 6> mass_table = {0, 0, 0, 0, 0, 0};
+    double box_size = 0.0;       ///< Box size in code length units (kpc/h or Mpc/h)
+    double time = 0.0;           ///< Scale factor (cosmological) or time
+    double redshift = 0.0;       ///< Redshift z = 1/a - 1
+    std::array<double, 6> mass_table = {0, 0, 0, 0, 0, 0};  ///< Mass per particle type (10^10 M_sun/h)
     std::array<uint64_t, 6> num_part_this_file = {0, 0, 0, 0, 0, 0};
     std::array<uint64_t, 6> num_part_total = {0, 0, 0, 0, 0, 0};
     int num_files_per_snapshot = 1;
@@ -94,11 +119,17 @@ struct Gadget4Snapshot {
 
 /**
  * FOF Group (halo) data from GADGET-4 halo catalog.
+ * 
+ * @note All values are in GADGET-4 internal code units:
+ *       - Positions: kpc/h or Mpc/h
+ *       - Velocities: km/s
+ *       - Masses: 10^10 M_sun/h
+ *       - Radii: kpc/h or Mpc/h
  */
 struct Gadget4Group {
-    std::array<float, 3> pos = {0, 0, 0};      // Center of mass position
-    std::array<float, 3> vel = {0, 0, 0};      // Center of mass velocity
-    float mass = 0.0f;                          // Total mass (FOF)
+    std::array<float, 3> pos = {0, 0, 0};      ///< Center of mass position (code length units)
+    std::array<float, 3> vel = {0, 0, 0};      ///< Center of mass velocity (km/s)
+    float mass = 0.0f;                          ///< Total mass (10^10 M_sun/h)
     int32_t len = 0;                            // Number of particles
     std::array<float, 6> mass_type = {0, 0, 0, 0, 0, 0};  // Mass by particle type
     std::array<int32_t, 6> len_type = {0, 0, 0, 0, 0, 0}; // Particles by type
@@ -122,14 +153,20 @@ struct Gadget4Group {
 
 /**
  * Subhalo data from GADGET-4 halo catalog.
+ * 
+ * @note All values are in GADGET-4 internal code units:
+ *       - Positions: kpc/h or Mpc/h
+ *       - Velocities: km/s
+ *       - Masses: 10^10 M_sun/h
+ *       - Radii: kpc/h or Mpc/h
  */
 struct Gadget4Subhalo {
-    std::array<float, 3> pos = {0, 0, 0};      // Position (most bound particle)
-    std::array<float, 3> vel = {0, 0, 0};      // Velocity
-    std::array<float, 3> cm = {0, 0, 0};       // Center of mass
-    std::array<float, 3> spin = {0, 0, 0};     // Angular momentum
+    std::array<float, 3> pos = {0, 0, 0};      ///< Position of most bound particle (code length units)
+    std::array<float, 3> vel = {0, 0, 0};      ///< Velocity (km/s)
+    std::array<float, 3> cm = {0, 0, 0};       ///< Center of mass (code length units)
+    std::array<float, 3> spin = {0, 0, 0};     ///< Angular momentum
     
-    float mass = 0.0f;                          // Total bound mass
+    float mass = 0.0f;                          ///< Total bound mass (10^10 M_sun/h)
     int32_t len = 0;                            // Number of bound particles
     std::array<float, 6> mass_type = {0, 0, 0, 0, 0, 0};
     std::array<int32_t, 6> len_type = {0, 0, 0, 0, 0, 0};

@@ -8,6 +8,7 @@ namespace py = pybind11;
 void bind_geom(py::module& m);
 void bind_math(py::module& m);
 void bind_density(py::module& m);
+void bind_tetra_density(py::module& m);
 void bind_io(py::module& m);
 void bind_render(py::module& m);
 void bind_cosmo(py::module& m);
@@ -44,6 +45,7 @@ PYBIND11_MODULE(_asymptotic_tetra, m) {
     bind_geom(geom_m);
     bind_math(math_m);
     bind_density(density_m);
+    bind_tetra_density(density_m);  // Add tessellation functions to density module
     bind_io(io_m);
     bind_render(render_m);
     bind_cosmo(cosmo_m);
