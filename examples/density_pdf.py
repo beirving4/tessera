@@ -307,10 +307,10 @@ def save_pdf_hdf5(filename, density_3d, overdensity, bin_centers, bin_edges,
     print(f"Saved PDF results to {filename}")
 
 
-def plot_pdf(bin_centers, pdf, header, output_file=None, 
+def plot_pdf(bin_centers, bin_edges, pdf, counts, header, output_file=None, 
              log_min=None, log_max=None):
     """
-    Plot the density PDF as ρ²P(ρ) vs (1+δ).
+    Plot the density PDF as ρ²P(ρ) vs (1+δ) with histogram overlay.
     
     Plotting ρ²P(ρ) is common practice to reduce dynamic range
     and highlight features in the PDF.
@@ -324,26 +324,44 @@ def plot_pdf(bin_centers, pdf, header, output_file=None,
     
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
     
+    # Compute bin widths for bar plot
+    bin_widths = np.diff(bin_edges)
+    
+    # Normalize counts to match PDF scale for overlay
+    counts_normalized = counts / (counts.sum() * bin_widths)  # Same normalization as PDF
+    
     # Left panel: P(ρ) vs (1+δ)
     mask = pdf > 0
-    ax1.loglog(bin_centers[mask], pdf[mask], 'b-', lw=1.5)
+    
+    # Histogram bars (using step plot for log-scale compatibility)
+    ax1.fill_between(bin_centers, 0, counts_normalized, alpha=0.3, color='blue', 
+                     step='mid', label='Histogram')
+    # PDF line
+    ax1.loglog(bin_centers[mask], pdf[mask], 'b-', lw=2, label='PDF')
     ax1.set_xlabel(r'$1 + \delta$', fontsize=12)
     ax1.set_ylabel(r'$P(\rho)$', fontsize=12)
     ax1.set_title(f'Density PDF (z = {header.redshift:.2f})', fontsize=14)
     ax1.grid(True, alpha=0.3)
+    ax1.legend(loc='upper right')
     
     if log_min is not None and log_max is not None:
         ax1.set_xlim(10**log_min, 10**log_max)
     
     # Right panel: ρ²P(ρ) vs (1+δ) - standard plotting convention
     rho2_P = bin_centers**2 * pdf
-    ax2.semilogx(bin_centers[mask], rho2_P[mask], 'r-', lw=1.5)
+    rho2_counts = bin_centers**2 * counts_normalized
+    
+    # Histogram bars
+    ax2.fill_between(bin_centers, 0, rho2_counts, alpha=0.3, color='red',
+                     step='mid', label='Histogram')
+    # PDF line
+    ax2.semilogx(bin_centers[mask], rho2_P[mask], 'r-', lw=2, label=r'$\rho^2 P(\rho)$')
     ax2.set_xlabel(r'$1 + \delta$', fontsize=12)
     ax2.set_ylabel(r'$\rho^2 P(\rho)$', fontsize=12)
     ax2.set_title(r'Density PDF ($\rho^2$-weighted)', fontsize=14)
     ax2.grid(True, alpha=0.3)
     ax2.axvline(1.0, color='k', ls='--', alpha=0.5, label=r'$\rho = \bar{\rho}$')
-    ax2.legend()
+    ax2.legend(loc='upper right')
     
     if log_min is not None and log_max is not None:
         ax2.set_xlim(10**log_min, 10**log_max)
@@ -473,7 +491,8 @@ Examples:
     # Plot
     if args.plot:
         print("\nGenerating visualization...")
-        plot_pdf(bin_centers, pdf, header, output_file=args.plot,
+        plot_pdf(bin_centers, bin_edges, pdf, counts, header, 
+                 output_file=args.plot,
                  log_min=args.log_min, log_max=args.log_max)
     
     print("\nDone!")
