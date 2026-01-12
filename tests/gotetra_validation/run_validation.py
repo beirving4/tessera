@@ -98,13 +98,38 @@ def sort_positions_lagrangian(positions, particle_ids, grid_size):
     return at.density.sort_by_lagrangian_id(positions, particle_ids, grid_size)
 
 
-def compute_asymptotic_density_2d(sorted_positions, box_size, grid_size, output_cells, subbox=None):
-    """Compute 2D z-projected density field using AsymptoticTetra."""
+def compute_asymptotic_density_2d(sorted_positions, box_size, grid_size, output_cells,
+                                   subbox=None, scale_factor=1.0):
+    """Compute 2D z-projected density field using AsymptoticTetra.
+
+    Args:
+        sorted_positions: Particle positions sorted by Lagrangian ID (comoving coordinates)
+        box_size: Simulation box size (comoving)
+        grid_size: Lagrangian grid size (e.g., 256 for 256^3 particles)
+        output_cells: Number of output cells per dimension
+        subbox: Subbox parameters (comoving coordinates) or None for full box
+        scale_factor: Scale factor 'a' for physical space computation. If != 1.0,
+                      positions and box parameters are scaled to physical coordinates
+                      before density computation. This effectively computes density
+                      in physical space while keeping the output grid in comoving coords.
+
+    Returns:
+        2D density array
+    """
     import _asymptotic_tetra as at
+
+    # Scale to physical coordinates if requested
+    if scale_factor != 1.0:
+        # Scale positions: r_phys = r_com * a
+        positions_scaled = sorted_positions * scale_factor
+        box_size_scaled = box_size * scale_factor
+    else:
+        positions_scaled = sorted_positions
+        box_size_scaled = box_size
 
     config = at.density.TetraDensityConfig()
     config.lagrangian_grid_size = grid_size
-    config.box_size = box_size
+    config.box_size = box_size_scaled
     config.output_cells = output_cells
     config.n_threads = 1  # Single thread to avoid OpenMP issues on macOS
     config.n_samples = 50  # Same as gotetra "Particles = 50"
@@ -114,17 +139,30 @@ def compute_asymptotic_density_2d(sorted_positions, box_size, grid_size, output_
     if subbox is not None:
         config.subbox_enabled = True
         width = subbox['width']
+        # Scale subbox parameters to physical if needed
+        if scale_factor != 1.0:
+            width_scaled = width * scale_factor
+        else:
+            width_scaled = width
+
         # Use exact origin from gotetra header if available, otherwise compute from center
         if 'origin' in subbox:
             origin = subbox['origin']
-            config.subbox_origin = (origin[0], origin[1], origin[2])
+            if scale_factor != 1.0:
+                config.subbox_origin = (origin[0] * scale_factor, origin[1] * scale_factor, origin[2] * scale_factor)
+            else:
+                config.subbox_origin = (origin[0], origin[1], origin[2])
         else:
             center = subbox['center']
-            config.subbox_origin = (center[0] - width/2, center[1] - width/2, center[2] - width/2)
-        config.subbox_width = (width, width, width)
+            if scale_factor != 1.0:
+                center_scaled = (center[0] * scale_factor, center[1] * scale_factor, center[2] * scale_factor)
+                config.subbox_origin = (center_scaled[0] - width_scaled/2, center_scaled[1] - width_scaled/2, center_scaled[2] - width_scaled/2)
+            else:
+                config.subbox_origin = (center[0] - width/2, center[1] - width/2, center[2] - width/2)
+        config.subbox_width = (width_scaled, width_scaled, width_scaled)
 
     # Use Z-axis projection (axis=2)
-    result = at.density.compute_tetra_density_2d_projection(sorted_positions, config, 2)
+    result = at.density.compute_tetra_density_2d_projection(positions_scaled, config, 2)
     return result.density
 
 
