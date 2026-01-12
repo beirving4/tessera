@@ -229,14 +229,10 @@ static inline void barycentric_to_physical(
     out_x = bary_x + s * d[0][0] + t * d[1][0] + u * d[2][0] + v * d[3][0];
     out_y = bary_y + s * d[0][1] + t * d[1][1] + u * d[2][1] + v * d[3][1];
     out_z = bary_z + s * d[0][2] + t * d[1][2] + u * d[2][2] + v * d[3][2];
-    
-    // Apply periodic boundary conditions
-    if (out_x < 0) out_x += box_size;
-    else if (out_x >= box_size) out_x -= box_size;
-    if (out_y < 0) out_y += box_size;
-    else if (out_y >= box_size) out_y -= box_size;
-    if (out_z < 0) out_z += box_size;
-    else if (out_z >= box_size) out_z -= box_size;
+
+    // Note: Periodic BC is NOT applied here. Following gotetra, periodic boundaries
+    // are handled at the corner unwrapping level (unwrap_corners), and the output
+    // positions are trusted to be valid after barycentric interpolation.
 }
 
 /**
@@ -315,7 +311,8 @@ static TetraDensityResult3D compute_density_3d_impl(
     const UnitTetraSamples* samples_ptr)
 {
     int grid_size = config.lagrangian_grid_size;
-    int output_cells = config.output_cells;
+    // gotetra uses N+1 output cells for better boundary handling
+    int output_cells = config.gotetra_compatible ? config.output_cells + 1 : config.output_cells;
     double box_size = config.box_size;
     double particle_mass = config.particle_mass;
     int n_samples = config.n_samples;
@@ -470,16 +467,28 @@ static TetraDensityResult3D compute_density_3d_impl(
                     int64_t cell_idx = ix + iy * output_cells + iz * cells_sq;
                     local_density[cell_idx] += mass_per_sample;
                 } else {
-                    // Full-box mode: original behavior
-                    int ix = static_cast<int>(px * inv_cell_width);
-                    int iy = static_cast<int>(py * inv_cell_width);
-                    int iz = static_cast<int>(pz * inv_cell_width);
-                    
-                    // Ensure indices are in bounds (handle edge cases)
-                    ix = std::max(0, std::min(output_cells - 1, ix));
-                    iy = std::max(0, std::min(output_cells - 1, iy));
-                    iz = std::max(0, std::min(output_cells - 1, iz));
-                    
+                    // Full-box mode: follow gotetra's approach
+                    // Apply proper periodic wrapping to physical positions
+                    // Note: positions from unwrapped tetrahedra can be significantly
+                    // outside [0, box_size], so use fmod for full wrapping
+                    double px_wrapped = std::fmod(px, box_size);
+                    double py_wrapped = std::fmod(py, box_size);
+                    double pz_wrapped = std::fmod(pz, box_size);
+                    if (px_wrapped < 0) px_wrapped += box_size;
+                    if (py_wrapped < 0) py_wrapped += box_size;
+                    if (pz_wrapped < 0) pz_wrapped += box_size;
+
+                    // Direct integer truncation (like gotetra)
+                    int ix = static_cast<int>(px_wrapped * inv_cell_width);
+                    int iy = static_cast<int>(py_wrapped * inv_cell_width);
+                    int iz = static_cast<int>(pz_wrapped * inv_cell_width);
+
+                    // Clamp to valid range (handles floating-point edge case where
+                    // px_wrapped could be exactly box_size due to precision)
+                    ix = std::min(ix, output_cells - 1);
+                    iy = std::min(iy, output_cells - 1);
+                    iz = std::min(iz, output_cells - 1);
+
                     int64_t cell_idx = ix + iy * output_cells + iz * cells_sq;
                     local_density[cell_idx] += mass_per_sample;
                 }
@@ -551,10 +560,11 @@ TetraDensityResult2D compute_tetra_density_2d_projection(
 {
     // First compute full 3D density
     auto result_3d = compute_tetra_density_3d(positions, config, samples_ptr);
-    
-    int cells = config.output_cells;
+
+    // Use the cells from 3D result (accounts for gotetra_compatible N+1)
+    int cells = result_3d.cells;
     int64_t cells_sq = static_cast<int64_t>(cells) * cells;
-    double cell_width = config.box_size / cells;
+    double cell_width = result_3d.cell_width;
     
     // Project along specified axis
     std::vector<double> density_2d(cells_sq, 0.0);
@@ -613,10 +623,11 @@ TetraDensityResult2D compute_tetra_density_2d_slice(
 {
     // First compute full 3D density
     auto result_3d = compute_tetra_density_3d(positions, config, samples_ptr);
-    
-    int cells = config.output_cells;
+
+    // Use the cells from 3D result (accounts for gotetra_compatible N+1)
+    int cells = result_3d.cells;
     int64_t cells_sq = static_cast<int64_t>(cells) * cells;
-    double cell_width = config.box_size / cells;
+    double cell_width = result_3d.cell_width;
     
     // Find cell indices for slice bounds
     int idx_min = std::max(0, static_cast<int>(slice_min / cell_width));

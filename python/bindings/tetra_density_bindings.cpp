@@ -45,6 +45,9 @@ void bind_tetra_density(py::module& m) {
             Origin (x, y, z) of the sub-box in physical coordinates.
         subbox_width : tuple
             Width (dx, dy, dz) of the sub-box. Output grid will span this region.
+        gotetra_compatible : bool
+            If True, use N+1 output cells like the original gotetra code.
+            This can improve quality at box boundaries. Default: False.
         )pbdoc")
         .def(py::init<>())
         .def(py::init([](int grid_size, int output_cells, double box_size,
@@ -97,7 +100,9 @@ void bind_tetra_density(py::module& m) {
                 cfg.subbox_width[1] = std::get<1>(width);
                 cfg.subbox_width[2] = std::get<2>(width);
             },
-            "Sub-box dimensions (dx, dy, dz)");
+            "Sub-box dimensions (dx, dy, dz)")
+        .def_readwrite("gotetra_compatible", &TetraDensityConfig::gotetra_compatible,
+            "Use N+1 output cells like gotetra for better boundary handling");
     
     // TetraDensityResult3D
     py::class_<TetraDensityResult3D>(m, "TetraDensityResult3D",

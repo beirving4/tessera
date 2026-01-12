@@ -44,6 +44,10 @@ struct TetraDensityConfig {
     bool subbox_enabled = false;        ///< If true, render only within sub-box
     std::array<double, 3> subbox_origin = {0, 0, 0};  ///< Sub-box origin (x, y, z)
     std::array<double, 3> subbox_width = {0, 0, 0};   ///< Sub-box dimensions (width in each dim)
+
+    // gotetra compatibility mode
+    bool gotetra_compatible = false;    ///< If true, use N+1 output cells like gotetra
+                                        ///< This can improve quality at box boundaries
 };
 
 /**
