@@ -20,6 +20,10 @@ from datetime import datetime
 import tempfile
 import shutil
 
+# Set environment variables before any imports
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+os.environ['OMP_NUM_THREADS'] = '1'  # Avoid OpenMP threading issues on macOS
+
 # Configuration - adjust these paths as needed
 SCRIPT_DIR = Path(__file__).parent.resolve()
 REPO_ROOT = SCRIPT_DIR.parent.parent
@@ -200,6 +204,115 @@ def compare_results(orig_tags, asym_tags, asym_result):
     return stats
 
 
+def create_comparison_image(output_dir, label, stats, asym_result, description):
+    """Create comparison visualization."""
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+    class_names = ['Void', 'Wall', 'Filament', 'Halo']
+    colors = ['#3498db', '#2ecc71', '#e74c3c', '#9b59b6']
+
+    # Mass fractions pie chart
+    mass_fracs = [stats['mass_fractions']['void'],
+                  stats['mass_fractions']['wall'],
+                  stats['mass_fractions']['filament'],
+                  stats['mass_fractions']['halo']]
+    axes[0].pie(mass_fracs, labels=class_names, colors=colors, autopct='%.1f%%',
+                startangle=90)
+    axes[0].set_title('Mass Fractions')
+
+    # Volume fractions pie chart
+    vol_fracs = [stats['volume_fractions']['void'],
+                 stats['volume_fractions']['wall'],
+                 stats['volume_fractions']['filament'],
+                 stats['volume_fractions']['halo']]
+    axes[1].pie(vol_fracs, labels=class_names, colors=colors, autopct='%.1f%%',
+                startangle=90)
+    axes[1].set_title('Volume Fractions')
+
+    # Per-class comparison bar chart
+    x = np.arange(4)
+    width = 0.35
+    orig_counts = [stats['per_class'][n.lower()]['original_fraction'] * 100 for n in class_names]
+    asym_counts = [stats['per_class'][n.lower()]['asymptotic_fraction'] * 100 for n in class_names]
+
+    bars1 = axes[2].bar(x - width/2, orig_counts, width, label='Original ORIGAMI', color='#2c3e50')
+    bars2 = axes[2].bar(x + width/2, asym_counts, width, label='AsymptoticTetra', color='#e67e22')
+    axes[2].set_ylabel('Fraction (%)')
+    axes[2].set_xticks(x)
+    axes[2].set_xticklabels(class_names)
+    axes[2].legend()
+    axes[2].set_title('Classification Comparison')
+
+    match_rate = stats['match_rate'] * 100
+    plt.suptitle(f"ORIGAMI Validation: {description}\nMatch Rate: {match_rate:.2f}%")
+    plt.tight_layout()
+
+    output_path = output_dir / f"origami_{label}.png"
+    plt.savefig(output_path, dpi=150)
+    plt.close()
+
+    return output_path
+
+
+def create_morphology_slice_image(output_dir, label, asym_result, grid_size, description):
+    """Create morphology slice visualization."""
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import ListedColormap
+
+    # Create colormap for morphology classes
+    colors = ['#3498db', '#2ecc71', '#e74c3c', '#9b59b6']  # Void, Wall, Filament, Halo
+    cmap = ListedColormap(colors)
+
+    # Get morphology grid from result
+    if hasattr(asym_result, 'morphology_grid') and len(asym_result.morphology_grid) > 0:
+        morph_grid = np.array(asym_result.morphology_grid)
+        n_cells = asym_result.grid_cells
+
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+        # X-Y slice (z=middle)
+        z_mid = n_cells // 2
+        im0 = axes[0].imshow(morph_grid[z_mid, :, :], cmap=cmap, vmin=0, vmax=3, origin='lower')
+        axes[0].set_title(f'X-Y Slice (z={z_mid})')
+        axes[0].set_xlabel('X')
+        axes[0].set_ylabel('Y')
+
+        # X-Z slice (y=middle)
+        y_mid = n_cells // 2
+        im1 = axes[1].imshow(morph_grid[:, y_mid, :], cmap=cmap, vmin=0, vmax=3, origin='lower')
+        axes[1].set_title(f'X-Z Slice (y={y_mid})')
+        axes[1].set_xlabel('X')
+        axes[1].set_ylabel('Z')
+
+        # Y-Z slice (x=middle)
+        x_mid = n_cells // 2
+        im2 = axes[2].imshow(morph_grid[:, :, x_mid], cmap=cmap, vmin=0, vmax=3, origin='lower')
+        axes[2].set_title(f'Y-Z Slice (x={x_mid})')
+        axes[2].set_xlabel('Y')
+        axes[2].set_ylabel('Z')
+
+        # Colorbar
+        cbar = fig.colorbar(im0, ax=axes, ticks=[0.375, 1.125, 1.875, 2.625], shrink=0.6)
+        cbar.ax.set_yticklabels(['Void', 'Wall', 'Filament', 'Halo'])
+
+        plt.suptitle(f"Morphology Grid: {description}")
+        plt.tight_layout()
+
+        output_path = output_dir / f"morphology_slices_{label}.png"
+        plt.savefig(output_path, dpi=150)
+        plt.close()
+
+        return output_path
+
+    return None
+
+
 def save_results(output_dir, label, orig_tags, asym_tags, stats, box_size, redshift, scale_factor, description):
     """Save comparison results to JSON (no HDF5 to keep repo size small)."""
     # Save JSON summary only
@@ -307,6 +420,15 @@ def main():
         )
         print(f"  Saved: {json_path.name}")
 
+        # Generate comparison images
+        print("Generating images...")
+        img_path = create_comparison_image(SCRIPT_DIR, label, stats, asym_result, f"{time_label} - {description}")
+        print(f"  Saved: {img_path.name}")
+
+        slice_path = create_morphology_slice_image(SCRIPT_DIR, label, asym_result, grid_size, f"{time_label}")
+        if slice_path:
+            print(f"  Saved: {slice_path.name}")
+
         all_results[label] = stats
 
     # Save combined summary
@@ -350,5 +472,4 @@ def main():
 
 
 if __name__ == "__main__":
-    os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
     sys.exit(main())

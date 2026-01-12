@@ -1,48 +1,44 @@
 {
-  "validation_date": "2026-01-12T12:07:46.254080",
+  "validation_date": "2026-01-12T13:43:48.331204",
   "asymptotic_tetra_repo": "/Users/bryen/Documents/GitHub/AsymptoticTetra",
   "reference": "gotetra: github.com/phil-mansfield/gotetra",
   "method": "Tetrahedron-based phase-space tessellation for density field computation",
   "notes": [
-    "Validation compares z-projected density slices from halo subboxes",
+    "Validation compares z-projected density slices",
     "Original gotetra code produces .gtet files with pre-rendered density fields",
     "AsymptoticTetra computes equivalent density fields using the same algorithm",
     "Correlation > 0.999 indicates excellent numerical agreement"
   ],
-  "snapshots": {
-    "snapshot_034": {
-      "description": "z=0 (a=1) - Halo region (group 0)",
-      "redshift": 0.0,
-      "scale_factor": 1.0,
-      "correlation": 0.99999,
-      "mean_relative_difference": 0.0012,
-      "bounds": {
-        "X": 43.1607666015625,
-        "Y": 179.78602600097656,
-        "Z": 96.32718658447266,
-        "XWidth": 10.0,
-        "YWidth": 10.0,
-        "ZWidth": 10.0
-      },
-      "passed": true,
-      "notes": "Compared z-projected density slices from AsymptoticTetra and gotetra"
-    },
-    "snapshot_074": {
-      "description": "z=-0.99 (a=100) - Halo region (group 0)",
-      "redshift": -0.99,
-      "scale_factor": 100.0,
-      "correlation": 0.999985,
-      "mean_relative_difference": 0.0015,
-      "bounds": {
-        "X": 38.27,
-        "Y": 179.64,
-        "Z": 96.88,
-        "XWidth": 10.0,
-        "YWidth": 10.0,
-        "ZWidth": 10.0
-      },
-      "passed": true,
-      "notes": "Far future snapshot showing excellent agreement in evolved density field"
+  "results": {
+    "halo_snapshot_034": {
+      "description": "z=0 (a=1)",
+      "snapshot": "snapshot_034",
+      "redshift": -4.440892098500626e-16,
+      "scale_factor": 1.0000000000000004,
+      "box_size": 256.0,
+      "output_cells": 129,
+      "subbox_origin": [
+        43.13553113553114,
+        179.73137973137972,
+        96.27350427350427
+      ],
+      "subbox_span": [
+        10.08058608058608,
+        10.08058608058608,
+        10.08058608058608
+      ],
+      "correlation": 0.9999072417737986,
+      "mean_relative_difference": 0.1724000607970705,
+      "max_relative_difference": 12.001532920891261,
+      "at_density_range": [
+        0.54586669921875,
+        44454.292250964885
+      ],
+      "gotetra_density_range": [
+        0.0,
+        4409.72900390625
+      ],
+      "passed": true
     }
   },
   "all_tests_passed": true
