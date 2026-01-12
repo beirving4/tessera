@@ -1,5 +1,5 @@
 {
-  "validation_date": "2026-01-12T16:09:28.691672",
+  "validation_date": "2026-01-12T16:27:54.679545",
   "asymptotic_tetra_repo": "/Users/bryen/Documents/GitHub/AsymptoticTetra",
   "reference": "gotetra: github.com/phil-mansfield/gotetra",
   "method": "Tetrahedron-based phase-space tessellation for density field computation",
@@ -18,12 +18,12 @@
       "scale_factor": 1.0000000000000004,
       "box_size": 256.0,
       "output_cells": 256,
-      "correlation": 0.9999895932185993,
-      "mean_relative_difference": 0.0034835689414397662,
-      "max_relative_difference": 0.0240993195807528,
+      "correlation": 0.9999893275264808,
+      "mean_relative_difference": 0.0035048944733453873,
+      "max_relative_difference": 0.024342725350602053,
       "at_density_range": [
-        73.38333333333334,
-        7108.573333375977
+        72.99333333333337,
+        7106.563333375926
       ],
       "gotetra_density_range": [
         0.28498053550720215,
@@ -39,12 +39,12 @@
       "scale_factor": 100.0000000000001,
       "box_size": 256.0,
       "output_cells": 256,
-      "correlation": 0.9999985285935976,
-      "mean_relative_difference": 0.003957905600155477,
-      "max_relative_difference": 0.033324917899749416,
+      "correlation": 0.9999985135940793,
+      "mean_relative_difference": 0.00398086188779783,
+      "max_relative_difference": 0.03233489855116807,
       "at_density_range": [
-        48.836666666666694,
-        41666.90667311159
+        49.58666666666675,
+        41662.43333977773
       ],
       "gotetra_density_range": [
         0.19168612360954285,
@@ -60,12 +60,12 @@
       "scale_factor": 1.0000000000000004,
       "box_size": 256.0,
       "output_cells": 129,
-      "correlation": 0.9999012299912652,
-      "mean_relative_difference": 0.17062553098697708,
-      "max_relative_difference": 8.00082882011199,
+      "correlation": 0.9998945160882537,
+      "mean_relative_difference": 0.17138778448835476,
+      "max_relative_difference": 11.000608143280962,
       "at_density_range": [
         0.0,
-        44363.13251219538
+        44652.44186278117
       ],
       "gotetra_density_range": [
         0.0,
@@ -87,12 +87,12 @@
       "scale_factor": 100.0000000000001,
       "box_size": 256.0,
       "output_cells": 129,
-      "correlation": 0.9999993979915887,
-      "mean_relative_difference": 0.1472291597266225,
-      "max_relative_difference": 5.499567845372807,
+      "correlation": 0.9999993081682576,
+      "mean_relative_difference": 0.14679012399139263,
+      "max_relative_difference": 5.999283020420684,
       "at_density_range": [
         1.0917333984375,
-        2969702.0763221346
+        2971508.349230167
       ],
       "gotetra_density_range": [
         0.0541502945125103,

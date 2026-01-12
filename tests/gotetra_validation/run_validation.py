@@ -168,11 +168,17 @@ def compare_density_fields(at_density, gotetra_density):
 
 
 def create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_diff,
-                             title, output_path, stats):
-    """Create a 2x3 comparison figure."""
+                             title, output_path, stats, extent=None, coord_label='cMpc/h'):
+    """Create a 2x3 comparison figure.
+
+    Args:
+        extent: [xmin, xmax, ymin, ymax] for coordinate display, or None for pixel indices
+        coord_label: Label for coordinate units (e.g., 'cMpc/h' or 'Mpc/h')
+    """
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
+    from scipy import stats as scipy_stats
 
     fig, axes = plt.subplots(2, 3, figsize=(15, 10))
 
@@ -182,26 +188,37 @@ def create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_
     vmin = np.log10(np.maximum(at_norm, 0.01).min())
     vmax = np.log10(at_norm.max())
     im1 = axes[0, 0].imshow(np.log10(np.maximum(at_norm, 0.01)), origin='lower',
-                            cmap='magma', vmin=vmin, vmax=vmax)
+                            cmap='magma', vmin=vmin, vmax=vmax, extent=extent)
     axes[0, 0].set_title('AsymptoticTetra')
     plt.colorbar(im1, ax=axes[0, 0], label=r'$\log_{10}(1+\delta)$')
+    if extent is not None:
+        axes[0, 0].set_xlabel(coord_label)
+        axes[0, 0].set_ylabel(coord_label)
 
     # Top Middle: Gotetra density
     im2 = axes[0, 1].imshow(np.log10(np.maximum(gt_norm, 0.01)), origin='lower',
-                            cmap='magma', vmin=vmin, vmax=vmax)
+                            cmap='magma', vmin=vmin, vmax=vmax, extent=extent)
     axes[0, 1].set_title('Gotetra (Reference)')
     plt.colorbar(im2, ax=axes[0, 1], label=r'$\log_{10}(1+\delta)$')
+    if extent is not None:
+        axes[0, 1].set_xlabel(coord_label)
+        axes[0, 1].set_ylabel(coord_label)
 
-    # Top Right: Relative difference map
-    diff_clipped = np.clip(rel_diff, -0.1, 0.1)
-    im3 = axes[0, 2].imshow(diff_clipped, origin='lower', cmap='RdBu_r', vmin=-0.1, vmax=0.1)
+    # Top Right: Relative difference map (no clipping - use percentile-based limits)
+    # Use symmetric percentile limits to show the full distribution
+    diff_abs_max = np.percentile(np.abs(rel_diff[np.isfinite(rel_diff)]), 99)
+    im3 = axes[0, 2].imshow(rel_diff, origin='lower', cmap='RdBu_r',
+                            vmin=-diff_abs_max, vmax=diff_abs_max, extent=extent)
     axes[0, 2].set_title('Relative Difference')
     plt.colorbar(im3, ax=axes[0, 2], label='(AT - GT) / GT')
+    if extent is not None:
+        axes[0, 2].set_xlabel(coord_label)
+        axes[0, 2].set_ylabel(coord_label)
 
     # ===== Bottom Row: Statistical comparisons =====
 
     # Bottom Left: Overdensity PDF comparison
-    bins = np.logspace(-2, 3, 100)
+    bins = np.logspace(-2, 4, 100)  # Extended range for high overdensities
     at_flat = at_norm.flatten()
     gt_flat = gt_norm.flatten()
 
@@ -228,18 +245,26 @@ def create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_
             max(gt_flat[idx].max(), at_flat[idx].max())]
     axes[1, 1].plot(lims, lims, 'r-', linewidth=2, label='1:1')
 
+    # Compute Spearman correlation for comparison
+    spearman_r, _ = scipy_stats.spearmanr(at_flat, gt_flat)
+
     axes[1, 1].set_xscale('log')
     axes[1, 1].set_yscale('log')
     axes[1, 1].set_xlabel(r'Gotetra $1+\delta$')
     axes[1, 1].set_ylabel(r'AsymptoticTetra $1+\delta$')
-    axes[1, 1].set_title(f'One-to-One (r={stats["correlation"]:.6f})')
+    axes[1, 1].set_title(f'Pearson r={stats["correlation"]:.6f}, Spearman r={spearman_r:.4f}')
     axes[1, 1].legend()
 
-    # Bottom Right: Relative difference histogram
+    # Bottom Right: Relative difference histogram (use adaptive range)
     rel_diff_flat = rel_diff.flatten()
     valid_diff = rel_diff_flat[np.isfinite(rel_diff_flat) & (gt_flat > 0)]
 
-    axes[1, 2].hist(valid_diff, bins=100, range=(-0.5, 0.5), alpha=0.7,
+    # Use percentile-based range to show full distribution
+    hist_min = np.percentile(valid_diff, 1)
+    hist_max = np.percentile(valid_diff, 99)
+    hist_range = (min(hist_min, -0.5), max(hist_max, 0.5))
+
+    axes[1, 2].hist(valid_diff, bins=100, range=hist_range, alpha=0.7,
                     color='#27ae60', density=True)
     axes[1, 2].axvline(x=0, color='r', linestyle='--', linewidth=2)
     axes[1, 2].axvline(x=np.mean(valid_diff), color='blue', linestyle='-', linewidth=2,
@@ -352,11 +377,23 @@ def run_validation(config):
     print(f"  Max relative difference: {stats['max_relative_difference']:.4e}")
     print(f"  RESULT: {'PASS' if stats['passed'] else 'FAIL'}")
 
+    # Compute extent for coordinate display
+    if subbox is not None:
+        # Subbox: use origin and width
+        origin = subbox.get('origin', (0, 0, 0))
+        width = subbox['width']
+        extent = [origin[0], origin[0] + width, origin[1], origin[1] + width]
+        coord_label = 'cMpc/h'
+    else:
+        # Full box
+        extent = [0, box_size, 0, box_size]
+        coord_label = 'cMpc/h'
+
     # Create comparison figure
     image_path = SCRIPT_DIR / f"{name}_comparison.png"
     print(f"\nGenerating comparison figure...")
     create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_diff,
-                            description, image_path, stats)
+                            description, image_path, stats, extent=extent, coord_label=coord_label)
     print(f"  Saved: {image_path.name}")
 
     # Prepare result
