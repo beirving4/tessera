@@ -17,6 +17,8 @@ Usage:
 Reference: gotetra (https://github.com/phil-mansfield/gotetra)
 """
 
+
+import contextlib
 import numpy as np
 import h5py
 import argparse
@@ -247,6 +249,8 @@ def compute_3d_density(positions, particle_ids, box_size, grid_resolution=256,
     
     # Compute 3D density
     result = at.density.compute_tetra_density_3d(sorted_positions, config)
+    # C++ uses idx = x + y*N + z*N*N (x varies fastest)
+    # With NumPy C-order reshape, this gives density[z, y, x]
     density_3d = np.array(result.density).reshape(
         (grid_resolution, grid_resolution, grid_resolution)
     )
@@ -260,11 +264,11 @@ def compute_3d_density(positions, particle_ids, box_size, grid_resolution=256,
 def extract_halo_region(density_3d, cell_width, box_size, halo_pos, extraction_radius):
     """
     Extract a cubic region around a halo from the 3D density field.
-    
+
     Parameters
     ----------
     density_3d : ndarray
-        Full 3D density field
+        Full 3D density field (ordered as [z, y, x])
     cell_width : float
         Width of each cell
     box_size : float
@@ -273,11 +277,11 @@ def extract_halo_region(density_3d, cell_width, box_size, halo_pos, extraction_r
         Halo center position [x, y, z]
     extraction_radius : float
         Half-width of the extraction cube
-    
+
     Returns
     -------
     sub_density : ndarray
-        Extracted density sub-cube
+        Extracted density sub-cube (ordered as [z, y, x])
     sub_extent : dict
         Spatial extent of the sub-cube for each plane
     halo_local_pos : ndarray
@@ -285,40 +289,41 @@ def extract_halo_region(density_3d, cell_width, box_size, halo_pos, extraction_r
     """
     grid_resolution = density_3d.shape[0]
     halo_pos = np.array(halo_pos)
-    
+
     # Calculate cell indices for extraction bounds
     half_cells = int(np.ceil(extraction_radius / cell_width))
-    
-    # Center cell
+
+    # Center cell indices [x, y, z]
     center_idx = (halo_pos / cell_width).astype(int)
     center_idx = np.clip(center_idx, 0, grid_resolution - 1)
-    
-    # Extraction bounds (handle periodic wrapping)
+
+    # Extraction bounds (handle periodic wrapping) - still in [x, y, z] order
     idx_min = center_idx - half_cells
     idx_max = center_idx + half_cells
-    
+
     # Determine if we need to handle periodic boundaries
     needs_wrapping = np.any(idx_min < 0) or np.any(idx_max >= grid_resolution)
-    
+
     if needs_wrapping:
         # Extract with periodic wrapping
+        # Note: density_3d is [z, y, x], so reorder indices when accessing
         sub_size = 2 * half_cells
         sub_density = np.zeros((sub_size, sub_size, sub_size), dtype=density_3d.dtype)
-        
-        for ix, gx in enumerate(range(idx_min[0], idx_max[0])):
-            for iy, gy in enumerate(range(idx_min[1], idx_max[1])):
-                for iz, gz in enumerate(range(idx_min[2], idx_max[2])):
-                    sub_density[ix, iy, iz] = density_3d[
-                        gx % grid_resolution,
+
+        for iz, gz in enumerate(range(idx_min[2], idx_max[2])):  # z (first axis in [z,y,x])
+            for iy, gy in enumerate(range(idx_min[1], idx_max[1])):  # y (middle axis)
+                for ix, gx in enumerate(range(idx_min[0], idx_max[0])):  # x (last axis)
+                    sub_density[iz, iy, ix] = density_3d[
+                        gz % grid_resolution,
                         gy % grid_resolution,
-                        gz % grid_resolution
+                        gx % grid_resolution
                     ]
     else:
-        # Direct slicing
+        # Direct slicing - reorder from [x,y,z] index bounds to [z,y,x] array order
         sub_density = density_3d[
-            idx_min[0]:idx_max[0],
-            idx_min[1]:idx_max[1],
-            idx_min[2]:idx_max[2]
+            idx_min[2]:idx_max[2],  # z slice (first axis)
+            idx_min[1]:idx_max[1],  # y slice (middle axis)
+            idx_min[0]:idx_max[0]   # x slice (last axis)
         ].copy()
     
     # Compute spatial extent of sub-cube
@@ -392,7 +397,7 @@ def save_halo_density_hdf5(filename, sub_density, full_density_3d, header,
 
 
 def plot_halo_density(sub_density, halo_info, extraction_info, header,
-                      output_file=None, cmap='magma', log_scale=True,
+                      output_file=None, cmap='mako', log_scale=True,
                       vmin=None, vmax=None, overdensity=True):
     """
     Create tri-panel visualization of density slices through halo center.
@@ -403,51 +408,51 @@ def plot_halo_density(sub_density, halo_info, extraction_info, header,
         import matplotlib.pyplot as plt
         from matplotlib.colors import LogNorm
         from matplotlib.patches import Circle
-        try:
+        with contextlib.suppress(ImportError):
             import seaborn as sns
-        except ImportError:
-            pass
     except ImportError:
         print("matplotlib not available - skipping visualization")
         return
-    
+
     fig, axes = plt.subplots(1, 3, figsize=(15, 5), dpi=150)
-    
+
     # Get central slices
     center_idx = sub_density.shape[0] // 2
-    
+
     # XY slice (z=0), XZ slice (y=0), YZ slice (x=0)
+    # Note: density array is [z, y, x] (x varies fastest in flat indexing)
     slices = {
-        'XY': sub_density[:, :, center_idx].T,  # z=0 plane
-        'XZ': sub_density[:, center_idx, :].T,  # y=0 plane
-        'YZ': sub_density[center_idx, :, :].T,  # x=0 plane
+        'XY': sub_density[center_idx, :, :],  # z=const plane, shape [y, x]
+        'XZ': sub_density[:, center_idx, :],  # y=const plane, shape [z, x]
+        'YZ': sub_density[:, :, center_idx],  # x=const plane, shape [z, y]
     }
-    
+
     # Compute mean density for overdensity scaling
     mean_density = extraction_info.get('mean_3d_density', 1.0)
-    
+
     # R200c in local coordinates
     r200c = halo_info.get('r_crit200', 0)
     extraction_radius = extraction_info['extraction_radius']
-    
+
     # Extent for plotting (centered on halo)
     extent = (-extraction_radius, extraction_radius, -extraction_radius, extraction_radius)
-    
+
     axis_labels = {
         'XY': ('X', 'Y'),
         'XZ': ('X', 'Z'),
         'YZ': ('Y', 'Z'),
     }
-    
+
     for ax, (plane_name, slice_data) in zip(axes, slices.items()):
         plot_data = slice_data.copy()
-        
+
         if overdensity:
             plot_data = plot_data / mean_density
-            label = r'$\rho / \bar{\rho}$'
+            scale_factor = header.time
+            label = rf'$1 + \delta(a={scale_factor:.2f})$'
         else:
             label = r'$\rho$ (code units)'
-        
+
         if log_scale:
             # Avoid log(0)
             plot_data = np.maximum(plot_data, plot_data[plot_data > 0].min() * 0.1)
@@ -459,7 +464,7 @@ def plot_halo_density(sub_density, halo_info, extraction_info, header,
             vmax_val = vmax if vmax is not None else np.percentile(plot_data, 99)
             norm = None
             plot_data = np.clip(plot_data, vmin_val, vmax_val)
-        
+
         im = ax.imshow(
             plot_data,
             extent=extent,
@@ -468,43 +473,43 @@ def plot_halo_density(sub_density, halo_info, extraction_info, header,
             norm=norm,
             interpolation='nearest'
         )
-        
+
         # Mark halo center
         ax.plot(0, 0, 'w+', markersize=15, markeredgewidth=2)
-        
+
         # Draw R200c circle
         if r200c > 0:
             circle = Circle((0, 0), r200c, fill=False, color='white', 
                            linestyle='--', linewidth=1.5, label=f'R200c = {r200c:.2f}')
             ax.add_patch(circle)
-        
+
         ax.set_xlabel(f'{axis_labels[plane_name][0]} (code units)', fontsize=10)
         ax.set_ylabel(f'{axis_labels[plane_name][1]} (code units)', fontsize=10)
         ax.set_title(f'{plane_name} Plane', fontsize=12)
-        
+
         # Colorbar
         cbar = plt.colorbar(im, ax=ax, shrink=0.8)
         cbar.set_label(label, fontsize=9)
-    
+
     # Overall title
     halo_idx = halo_info.get('index', '?')
     halo_mass = halo_info.get('mass', 0)
     mass_str = f"{halo_mass:.2e}" if halo_mass > 0 else "N/A"
-    
+
     fig.suptitle(
         f"Halo {halo_idx} Density Field | z = {header.redshift:.3f} | "
         f"M = {mass_str} (10¹⁰ M☉/h)",
         fontsize=14, y=1.02
     )
-    
+
     plt.tight_layout()
-    
+
     if output_file:
         plt.savefig(output_file, dpi=150, bbox_inches='tight')
         print(f"Saved visualization to {output_file}")
     else:
         plt.show()
-    
+
     plt.close()
 
 

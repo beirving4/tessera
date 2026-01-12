@@ -270,34 +270,78 @@ static inline void unwrap_corners(
 }
 
 /**
+ * Periodic-aware bound function (from gotetra).
+ * Returns the position x relative to origin, wrapped to [0, width].
+ */
+static inline int cell_bound(int x, int origin, int width) {
+    int diff = x - origin;
+    if (diff < 0) return diff + width;
+    if (diff > width) return diff - width;
+    return diff;
+}
+
+/**
+ * Check if two cell bounds intersect with periodic boundaries (from gotetra).
+ * Both bounds are given as (origin, span) in cell units.
+ */
+static inline bool cell_bounds_intersect(
+    const int cb1_origin[3], const int cb1_span[3],
+    const int cb2_origin[3], const int cb2_span[3],
+    int cells)
+{
+    for (int d = 0; d < 3; ++d) {
+        int o_small, w_small, o_big, w_big;
+        if (cb1_span[d] < cb2_span[d]) {
+            o_small = cb1_origin[d]; w_small = cb1_span[d];
+            o_big = cb2_origin[d]; w_big = cb2_span[d];
+        } else {
+            o_small = cb2_origin[d]; w_small = cb2_span[d];
+            o_big = cb1_origin[d]; w_big = cb1_span[d];
+        }
+
+        int e_small = o_small + w_small;
+        int be_small = cell_bound(e_small, o_big, cells);
+        int bo_small = cell_bound(o_small, o_big, cells);
+
+        if (!(be_small < w_big || bo_small < w_big)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
  * Check if a tetrahedron potentially overlaps a sub-box.
- * Uses bounding box test for quick rejection.
+ * Uses gotetra's CellBounds intersection with periodic boundary handling.
  */
 static inline bool tetra_overlaps_subbox(
     const double corners[4][3],
-    const double subbox_min[3],
-    const double subbox_max[3],
-    double box_size)
+    const int subbox_origin_cells[3],
+    const int subbox_span_cells[3],
+    double cell_width,
+    int cells)
 {
-    // Find bounding box of tetrahedron
+    // Find bounding box of tetrahedron in cell units
     double tetra_min[3] = {corners[0][0], corners[0][1], corners[0][2]};
     double tetra_max[3] = {corners[0][0], corners[0][1], corners[0][2]};
-    
+
     for (int c = 1; c < 4; ++c) {
         for (int d = 0; d < 3; ++d) {
             tetra_min[d] = std::min(tetra_min[d], corners[c][d]);
             tetra_max[d] = std::max(tetra_max[d], corners[c][d]);
         }
     }
-    
-    // Check overlap (simple AABB test)
-    // Note: This doesn't handle periodic wrapping perfectly, but catches most cases
+
+    // Convert to cell bounds (following gotetra's CellBoundsAt)
+    int tetra_origin[3], tetra_span[3];
     for (int d = 0; d < 3; ++d) {
-        if (tetra_max[d] < subbox_min[d] || tetra_min[d] > subbox_max[d]) {
-            return false;
-        }
+        tetra_origin[d] = static_cast<int>(std::floor(tetra_min[d] / cell_width));
+        int tetra_end = 1 + static_cast<int>(std::floor(tetra_max[d] / cell_width));
+        tetra_span[d] = tetra_end - tetra_origin[d];
     }
-    return true;
+
+    return cell_bounds_intersect(tetra_origin, tetra_span,
+                                  subbox_origin_cells, subbox_span_cells, cells);
 }
 
 /**
@@ -317,28 +361,51 @@ static TetraDensityResult3D compute_density_3d_impl(
     double particle_mass = config.particle_mass;
     int n_samples = config.n_samples;
     
-    // Sub-box parameters
+    // Sub-box parameters (following gotetra's CellBounds approach)
     bool use_subbox = config.subbox_enabled;
     double subbox_origin[3] = {0, 0, 0};
     double subbox_width[3] = {box_size, box_size, box_size};
-    double subbox_min[3], subbox_max[3];
-    double render_width;  // Width of the rendered region (for cell calculations)
-    
+    int subbox_origin_cells[3] = {0, 0, 0};  // Origin in cell units
+    int subbox_span_cells[3];                 // Span in cell units
+
+    // Global cell width for the full simulation box
+    // In sub-box mode: output_cells is the desired LOCAL resolution for the sub-box
+    // gotetra computes: TotalPixels = output_cells * box_size / subbox_width
+    //                   cell_width = box_size / TotalPixels = subbox_width / output_cells
+    double global_cell_width;
+
+    // Total cells in the full simulation box (for periodic boundary handling)
+    int total_cells;
+
     if (use_subbox) {
         for (int d = 0; d < 3; ++d) {
             subbox_origin[d] = config.subbox_origin[d];
             subbox_width[d] = config.subbox_width[d];
-            subbox_min[d] = subbox_origin[d];
-            subbox_max[d] = subbox_origin[d] + subbox_width[d];
         }
-        // Use the maximum dimension for isotropic cell width
-        render_width = std::max({subbox_width[0], subbox_width[1], subbox_width[2]});
-    } else {
+
+        // Use the maximum sub-box dimension for isotropic cell width calculation
+        double max_subbox_width = std::max({subbox_width[0], subbox_width[1], subbox_width[2]});
+        // Cell width is determined by desired local resolution
+        global_cell_width = max_subbox_width / output_cells;
+
+        // Total cells in the full simulation box at this resolution
+        // (equivalent to gotetra's TotalPixels)
+        total_cells = static_cast<int>(std::ceil(box_size / global_cell_width));
+
+        // Convert to cell bounds (gotetra's CellBoundsAt logic)
         for (int d = 0; d < 3; ++d) {
-            subbox_min[d] = 0;
-            subbox_max[d] = box_size;
+            subbox_origin_cells[d] = static_cast<int>(std::floor(subbox_origin[d] / global_cell_width));
+            int subbox_end_cells = 1 + static_cast<int>(std::floor(
+                (subbox_origin[d] + subbox_width[d]) / global_cell_width));
+            subbox_span_cells[d] = subbox_end_cells - subbox_origin_cells[d];
         }
-        render_width = box_size;
+    } else {
+        global_cell_width = box_size / output_cells;
+        total_cells = output_cells;
+        for (int d = 0; d < 3; ++d) {
+            subbox_origin_cells[d] = 0;
+            subbox_span_cells[d] = output_cells;
+        }
     }
     
     // Verify particle count
@@ -374,13 +441,20 @@ static TetraDensityResult3D compute_density_3d_impl(
     // Each tetrahedron gets 1/6 of a particle's mass
     // Spread over n_samples points
     double mass_per_sample = particle_mass / static_cast<double>(n_samples) / 6.0;
-    
-    // Cell dimensions - for sub-box, cells span the sub-region
-    double cell_width = render_width / output_cells;
+
+    // Cell dimensions and output grid size
+    // For sub-box mode: use requested output_cells for grid dimensions
+    // but keep cell-aligned bounds for intersection tests
+    double cell_width = global_cell_width;
     double inv_cell_width = 1.0 / cell_width;
-    int64_t cells_sq = static_cast<int64_t>(output_cells) * output_cells;
-    int64_t cells_cu = cells_sq * output_cells;
-    
+
+    // Output grid dimensions - use the requested output_cells
+    // (gotetra's output size is also determined by the config, not cell alignment)
+    int64_t out_dim_x = output_cells;
+    int64_t out_dim_y = output_cells;
+    int64_t out_dim_z = output_cells;
+    int64_t cells_cu = static_cast<int64_t>(output_cells) * output_cells * output_cells;
+
     // Thread-local density grids (avoid atomics)
     std::vector<std::vector<double>> thread_grids(n_threads);
     for (int t = 0; t < n_threads; ++t) {
@@ -415,8 +489,10 @@ static TetraDensityResult3D compute_density_3d_impl(
             unwrap_corners(positions, idx, box_size, corners);
             
             // Sub-box optimization: skip tetrahedra that don't overlap
+            // Uses gotetra's CellBounds intersection with periodic boundary handling
             if (use_subbox) {
-                if (!tetra_overlaps_subbox(corners, subbox_min, subbox_max, box_size)) {
+                if (!tetra_overlaps_subbox(corners, subbox_origin_cells, subbox_span_cells,
+                                           global_cell_width, total_cells)) {
                     continue;
                 }
             }
@@ -433,38 +509,40 @@ static TetraDensityResult3D compute_density_3d_impl(
                 barycentric_to_physical(corners, sample_buf[si], box_size, px, py, pz);
                 
                 if (use_subbox) {
-                    // Check if sample is within sub-box (with periodic handling)
-                    // Convert to sub-box local coordinates
-                    double lx = px - subbox_origin[0];
-                    double ly = py - subbox_origin[1];
-                    double lz = pz - subbox_origin[2];
-                    
-                    // Handle periodic wrapping: sample might be on the other side of box
-                    if (lx < -box_size/2) lx += box_size;
-                    else if (lx > box_size/2) lx -= box_size;
-                    if (ly < -box_size/2) ly += box_size;
-                    else if (ly > box_size/2) ly -= box_size;
-                    if (lz < -box_size/2) lz += box_size;
-                    else if (lz > box_size/2) lz -= box_size;
-                    
-                    // Skip if outside sub-box
-                    if (lx < 0 || lx >= subbox_width[0] ||
-                        ly < 0 || ly >= subbox_width[1] ||
-                        lz < 0 || lz >= subbox_width[2]) {
+                    // Follow gotetra's ScaleVecsSegment approach:
+                    // 1. Scale physical coords to cell units: v *= (cells / boxWidth)
+                    // 2. Subtract sub-box origin in cell units
+                    // 3. Wrap negative values by adding total_cells
+
+                    // Scale to cell coordinates (global grid)
+                    double cx = px * inv_cell_width;
+                    double cy = py * inv_cell_width;
+                    double cz = pz * inv_cell_width;
+
+                    // Subtract sub-box origin (in cell units)
+                    cx -= subbox_origin_cells[0];
+                    cy -= subbox_origin_cells[1];
+                    cz -= subbox_origin_cells[2];
+
+                    // Periodic wrap: if negative, add total_cells (full box cell count)
+                    if (cx < 0) cx += total_cells;
+                    if (cy < 0) cy += total_cells;
+                    if (cz < 0) cz += total_cells;
+
+                    // Convert to integer cell indices
+                    int ix = static_cast<int>(cx);
+                    int iy = static_cast<int>(cy);
+                    int iz = static_cast<int>(cz);
+
+                    // Check if within output grid bounds
+                    if (ix >= output_cells || ix < 0 ||
+                        iy >= output_cells || iy < 0 ||
+                        iz >= output_cells || iz < 0) {
                         continue;
                     }
-                    
-                    // Convert to grid indices within sub-box
-                    int ix = static_cast<int>(lx * inv_cell_width);
-                    int iy = static_cast<int>(ly * inv_cell_width);
-                    int iz = static_cast<int>(lz * inv_cell_width);
-                    
-                    // Ensure indices are in bounds
-                    ix = std::max(0, std::min(output_cells - 1, ix));
-                    iy = std::max(0, std::min(output_cells - 1, iy));
-                    iz = std::max(0, std::min(output_cells - 1, iz));
-                    
-                    int64_t cell_idx = ix + iy * output_cells + iz * cells_sq;
+
+                    int64_t cell_idx = ix + iy * output_cells +
+                                       iz * static_cast<int64_t>(output_cells) * output_cells;
                     local_density[cell_idx] += mass_per_sample;
                 } else {
                     // Full-box mode: follow gotetra's approach
@@ -485,11 +563,11 @@ static TetraDensityResult3D compute_density_3d_impl(
 
                     // Clamp to valid range (handles floating-point edge case where
                     // px_wrapped could be exactly box_size due to precision)
-                    ix = std::min(ix, output_cells - 1);
-                    iy = std::min(iy, output_cells - 1);
-                    iz = std::min(iz, output_cells - 1);
+                    ix = std::min(ix, static_cast<int>(out_dim_x) - 1);
+                    iy = std::min(iy, static_cast<int>(out_dim_y) - 1);
+                    iz = std::min(iz, static_cast<int>(out_dim_z) - 1);
 
-                    int64_t cell_idx = ix + iy * output_cells + iz * cells_sq;
+                    int64_t cell_idx = ix + iy * out_dim_x + iz * out_dim_x * out_dim_y;
                     local_density[cell_idx] += mass_per_sample;
                 }
             }
@@ -515,11 +593,11 @@ static TetraDensityResult3D compute_density_3d_impl(
     
     // Compute statistics
     double total_mass = std::accumulate(density.begin(), density.end(), 0.0) * cell_volume;
-    double region_volume = use_subbox 
-        ? (subbox_width[0] * subbox_width[1] * subbox_width[2])
+    double region_volume = use_subbox
+        ? (static_cast<double>(out_dim_x) * out_dim_y * out_dim_z * cell_volume)
         : (box_size * box_size * box_size);
     double mean_density = total_mass / region_volume;
-    
+
     TetraDensityResult3D result;
     result.density = std::move(density);
     result.cells = output_cells;
@@ -527,7 +605,7 @@ static TetraDensityResult3D compute_density_3d_impl(
     result.total_mass = total_mass;
     result.mean_density = mean_density;
     result.n_tetrahedra = tetra_processed.load();
-    
+
     return result;
 }
 

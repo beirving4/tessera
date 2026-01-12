@@ -323,6 +323,8 @@ def compute_density_slice_tessellation(
     # Compute 3D density field
     print(f"Computing 3D tessellation density field ({grid_resolution}^3)...")
     result = at.density.compute_tetra_density_3d(sorted_positions, config)
+    # C++ uses idx = x + y*N + z*N*N (x varies fastest)
+    # With NumPy C-order reshape, this gives density[z, y, x]
     density_3d = np.array(result.density).reshape(
         (grid_resolution, grid_resolution, grid_resolution)
     )
@@ -341,12 +343,13 @@ def compute_density_slice_tessellation(
     print(f"Extracting slice from cells {slice_start_idx} to {slice_end_idx}...")
     
     # Sum density along projection axis and multiply by cell width to get surface density
-    if proj_axis == 0:  # x
-        density_2d = density_3d[slice_start_idx:slice_end_idx, :, :].sum(axis=0) * cell_width
-    elif proj_axis == 1:  # y
-        density_2d = density_3d[:, slice_start_idx:slice_end_idx, :].sum(axis=1) * cell_width
-    else:  # z
+    # Note: C++ uses idx = x + y*N + z*N*N, so after reshape the array is density[z, y, x]
+    if proj_axis == 0:  # x - slice and sum on last axis (x)
         density_2d = density_3d[:, :, slice_start_idx:slice_end_idx].sum(axis=2) * cell_width
+    elif proj_axis == 1:  # y - slice and sum on middle axis (y)
+        density_2d = density_3d[:, slice_start_idx:slice_end_idx, :].sum(axis=1) * cell_width
+    else:  # z - slice and sum on first axis (z)
+        density_2d = density_3d[slice_start_idx:slice_end_idx, :, :].sum(axis=0) * cell_width
     
     extent = (0, box_size, 0, box_size)
     
@@ -431,11 +434,11 @@ def plot_density_slice(
     slice_info,
     header,
     output_file=None,
-    cmap='ocean',
+    cmap='mako',
     log_scale=True,
     vmin_percentile=1,
     vmax_percentile=99.9,
-    overdensity=False,
+    overdensity=True,
     vmin=None,
     vmax=None
 ):
@@ -486,7 +489,8 @@ def plot_density_slice(
     if overdensity:
         mean_density = slice_info['mean_surface_density']
         plot_data = plot_data / mean_density  # This gives 1 + delta
-        density_label = r'$1 + \delta$ (overdensity)'
+        scale_factor = header.time
+        density_label = rf'$1 + \delta(a={scale_factor:.2f})$'
     else:
         density_label = 'Surface Density'
     
@@ -579,8 +583,8 @@ Examples:
                         help='Output image filename (optional)')
     parser.add_argument('--cmap', type=str, default='mako',
                         help='Colormap for visualization (default: mako)')
-    parser.add_argument('--overdensity', action='store_true',
-                        help='Plot 1+delta (density/mean) instead of raw density')
+    parser.add_argument('--use_surface_density', action='store_true',
+                        help='Plot raw surface density instead of 1+delta (density/mean)')
     parser.add_argument('--vmin', type=float, default=None,
                         help='Minimum value for colorbar (overrides percentile)')
     parser.add_argument('--vmax', type=float, default=None,
@@ -676,7 +680,7 @@ Examples:
     # Print overdensity stats
     if slice_info['mean_surface_density'] > 0:
         overdensity_field = density / slice_info['mean_surface_density']
-        print(f"\nOverdensity (1+delta) statistics:")
+        print("\nOverdensity (1+delta) statistics:")
         print(f"  Min: {overdensity_field.min():.4f}")
         print(f"  Max: {overdensity_field.max():.4f}")
         print(f"  Mean: {overdensity_field.mean():.4f}")
@@ -691,7 +695,7 @@ Examples:
             density, extent, slice_info, header,
             output_file=args.plot,
             cmap=args.cmap,
-            overdensity=args.overdensity,
+            overdensity=not args.use_surface_density,
             vmin=args.vmin,
             vmax=args.vmax
         )

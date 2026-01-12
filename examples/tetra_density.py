@@ -360,8 +360,10 @@ def compute_tetra_density_field_python(
         )
     
     positions = np.asarray(positions, dtype=np.float64)
-    
+
     # Initialize density grid
+    # Convention: density[z, y, x] where x varies fastest in flat indexing
+    # This matches gotetra's idx = x + y*N + z*N*N convention
     density = np.zeros((output_cells, output_cells, output_cells), dtype=np.float64)
     cell_width = box_size / output_cells
     
@@ -552,12 +554,13 @@ def project_density_slice(
     idx_max = min(n_cells, int(np.ceil(slice_max / cell_width)))
     
     # Extract and sum along projection axis
-    if proj_axis == 0:
-        density_2d = density_3d[idx_min:idx_max, :, :].sum(axis=0)
-    elif proj_axis == 1:
-        density_2d = density_3d[:, idx_min:idx_max, :].sum(axis=1)
-    else:
+    # Note: density array is [z, y, x] (x varies fastest in flat indexing)
+    if proj_axis == 0:  # x - slice and sum on last axis (x)
         density_2d = density_3d[:, :, idx_min:idx_max].sum(axis=2)
+    elif proj_axis == 1:  # y - slice and sum on middle axis (y)
+        density_2d = density_3d[:, idx_min:idx_max, :].sum(axis=1)
+    else:  # z - slice and sum on first axis (z)
+        density_2d = density_3d[idx_min:idx_max, :, :].sum(axis=0)
     
     # Multiply by cell width to get surface density
     density_2d *= cell_width
