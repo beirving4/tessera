@@ -15,6 +15,27 @@ option(BUILD_WITH_HDF5 "Build with HDF5 support for GADGET-4" ON)
 # Find threads
 find_package(Threads REQUIRED)
 
+# Find OpenMP (for ORIGAMI and density computation)
+if(APPLE)
+    # On macOS, we need to help CMake find libomp from Homebrew
+    execute_process(
+        COMMAND brew --prefix libomp
+        OUTPUT_VARIABLE LIBOMP_PREFIX
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    if(LIBOMP_PREFIX)
+        set(OpenMP_C_FLAGS "-Xclang -fopenmp")
+        set(OpenMP_CXX_FLAGS "-Xclang -fopenmp")
+        set(OpenMP_C_LIB_NAMES "omp")
+        set(OpenMP_CXX_LIB_NAMES "omp")
+        set(OpenMP_omp_LIBRARY "${LIBOMP_PREFIX}/lib/libomp.dylib")
+        include_directories("${LIBOMP_PREFIX}/include")
+        link_directories("${LIBOMP_PREFIX}/lib")
+    endif()
+endif()
+find_package(OpenMP)
+
 # Find HDF5 (for GADGET-4 I/O)
 if(BUILD_WITH_HDF5)
     find_package(HDF5 REQUIRED COMPONENTS C)
@@ -56,6 +77,7 @@ file(GLOB_RECURSE IO_SOURCES "src/io/*.cpp")
 file(GLOB_RECURSE RENDER_SOURCES "src/render/*.cpp")
 file(GLOB_RECURSE HALO_SOURCES "src/halo/*.cpp")
 file(GLOB_RECURSE STATS_SOURCES "src/stats/*.cpp")
+file(GLOB_RECURSE ORIGAMI_SOURCES "src/origami/*.cpp")
 
 set(ALL_SOURCES
     ${MATH_SOURCES}
@@ -65,6 +87,7 @@ set(ALL_SOURCES
     ${RENDER_SOURCES}
     ${HALO_SOURCES}
     ${STATS_SOURCES}
+    ${ORIGAMI_SOURCES}
 )
 
 # Core library
@@ -74,6 +97,16 @@ target_include_directories(asymptotic_tetra_core PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(asymptotic_tetra_core PUBLIC Threads::Threads)
+
+# Link OpenMP if available
+if(APPLE AND LIBOMP_PREFIX)
+    # Manual OpenMP linking for macOS - more reliable than CMake's OpenMP detection
+    target_compile_options(asymptotic_tetra_core PUBLIC -Xclang -fopenmp)
+    target_include_directories(asymptotic_tetra_core PUBLIC "${LIBOMP_PREFIX}/include")
+    target_link_libraries(asymptotic_tetra_core PUBLIC "${LIBOMP_PREFIX}/lib/libomp.dylib")
+elseif(OpenMP_CXX_FOUND)
+    target_link_libraries(asymptotic_tetra_core PUBLIC OpenMP::OpenMP_CXX)
+endif()
 
 # Link HDF5 if enabled
 if(BUILD_WITH_HDF5)
@@ -117,6 +150,7 @@ if(BUILD_PYTHON_BINDINGS)
         python/bindings/cosmo_bindings.cpp
         python/bindings/halo_bindings.cpp
         python/bindings/stats_bindings.cpp
+        python/bindings/origami_bindings.cpp
     )
     target_link_libraries(_asymptotic_tetra PRIVATE asymptotic_tetra_core)
     target_include_directories(_asymptotic_tetra PRIVATE ${Python3_NumPy_INCLUDE_DIRS})

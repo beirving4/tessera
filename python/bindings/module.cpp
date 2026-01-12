@@ -14,6 +14,7 @@ void bind_render(py::module& m);
 void bind_cosmo(py::module& m);
 void bind_halo(py::module& m);
 void bind_stats(py::module_& m);
+void bind_origami(py::module& m);
 
 PYBIND11_MODULE(_asymptotic_tetra, m) {
     m.doc() = R"pbdoc(
@@ -32,6 +33,7 @@ PYBIND11_MODULE(_asymptotic_tetra, m) {
             cosmo - Cosmological calculations
             halo - Halo finding and analysis
             stats - Statistical functions (histograms, PDFs)
+            origami - ORIGAMI morphology classification (cosmic web)
     )pbdoc";
 
     // Create submodules
@@ -53,6 +55,7 @@ PYBIND11_MODULE(_asymptotic_tetra, m) {
     bind_cosmo(cosmo_m);
     bind_halo(halo_m);
     bind_stats(m);  // Creates its own submodule
+    bind_origami(m);  // Creates origami submodule
 
     // Version info
     m.attr("__version__") = "1.0.0";
