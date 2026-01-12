@@ -76,6 +76,12 @@ struct OrigamiResult {
     double f_filament;   ///< Filament mass fraction
     double f_halo;       ///< Halo mass fraction
 
+    // Volume fractions (computed from grid, filled by deposit_to_grid)
+    double v_void;       ///< Void volume fraction
+    double v_wall;       ///< Wall volume fraction
+    double v_filament;   ///< Filament volume fraction
+    double v_halo;       ///< Halo volume fraction
+
     // Per-particle density (optional, filled by sample_density_at_particles)
     std::vector<double> particle_density;
 

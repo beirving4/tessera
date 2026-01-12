@@ -104,6 +104,10 @@ void bind_origami(py::module& m) {
         .def_readonly("f_wall", &OrigamiResult::f_wall)
         .def_readonly("f_filament", &OrigamiResult::f_filament)
         .def_readonly("f_halo", &OrigamiResult::f_halo)
+        .def_readonly("v_void", &OrigamiResult::v_void)
+        .def_readonly("v_wall", &OrigamiResult::v_wall)
+        .def_readonly("v_filament", &OrigamiResult::v_filament)
+        .def_readonly("v_halo", &OrigamiResult::v_halo)
         .def_readonly("grid_cells", &OrigamiResult::grid_cells)
         .def_property_readonly("morphology", [](const OrigamiResult& r) {
             return py::array_t<uint8_t>(
@@ -192,7 +196,10 @@ void bind_origami(py::module& m) {
         }, "Particle counts as tuple (n_void, n_wall, n_filament, n_halo)")
         .def_property_readonly("fractions", [](const OrigamiResult& r) {
             return std::array<double, 4>{r.f_void, r.f_wall, r.f_filament, r.f_halo};
-        }, "Mass fractions as tuple (f_void, f_wall, f_filament, f_halo)");
+        }, "Mass fractions as tuple (f_void, f_wall, f_filament, f_halo)")
+        .def_property_readonly("volume_fractions", [](const OrigamiResult& r) {
+            return std::array<double, 4>{r.v_void, r.v_wall, r.v_filament, r.v_halo};
+        }, "Volume fractions as tuple (v_void, v_wall, v_filament, v_halo)");
 
     // compute_morphology
     origami_m.def("compute_morphology",

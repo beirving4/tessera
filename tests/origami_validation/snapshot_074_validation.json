@@ -1,0 +1,54 @@
+{
+  "snapshot": "snapshot_074",
+  "description": "Far future",
+  "box_size": 256.0,
+  "redshift": -0.99,
+  "scale_factor": 100.0000000000001,
+  "created": "2026-01-12T12:14:07.711791",
+  "total_particles": 16777216,
+  "matches": 16777216,
+  "match_rate": 1.0,
+  "perfect_match": true,
+  "mass_fractions": {
+    "void": 0.2179882526397705,
+    "wall": 0.17342108488082886,
+    "filament": 0.18503910303115845,
+    "halo": 0.4235515594482422
+  },
+  "volume_fractions": {
+    "void": 0.8195843696594238,
+    "wall": 0.12555313110351562,
+    "filament": 0.04129362106323242,
+    "halo": 0.013568878173828125
+  },
+  "per_class": {
+    "void": {
+      "original_count": 3657236,
+      "asymptotic_count": 3657236,
+      "agreement": 3657236,
+      "original_fraction": 0.2179882526397705,
+      "asymptotic_fraction": 0.2179882526397705
+    },
+    "wall": {
+      "original_count": 2909523,
+      "asymptotic_count": 2909523,
+      "agreement": 2909523,
+      "original_fraction": 0.17342108488082886,
+      "asymptotic_fraction": 0.17342108488082886
+    },
+    "filament": {
+      "original_count": 3104441,
+      "asymptotic_count": 3104441,
+      "agreement": 3104441,
+      "original_fraction": 0.18503910303115845,
+      "asymptotic_fraction": 0.18503910303115845
+    },
+    "halo": {
+      "original_count": 7106016,
+      "asymptotic_count": 7106016,
+      "agreement": 7106016,
+      "original_fraction": 0.4235515594482422,
+      "asymptotic_fraction": 0.4235515594482422
+    }
+  }
+}

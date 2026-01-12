@@ -1,0 +1,41 @@
+{
+  "validation_date": "2026-01-12T12:14:07.712082",
+  "origami_binary": "/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/origami/code/origamitag",
+  "asymptotic_tetra_repo": "/Users/bryen/Documents/GitHub/AsymptoticTetra",
+  "reference": "Falck, Neyrinck & Szalay 2012, ApJ 754, 126",
+  "snapshots": {
+    "snapshot_034": {
+      "match_rate": 1.0,
+      "perfect_match": true,
+      "mass_fractions": {
+        "void": 0.3321072459220886,
+        "wall": 0.18493574857711792,
+        "filament": 0.17415374517440796,
+        "halo": 0.3088032603263855
+      },
+      "volume_fractions": {
+        "void": 0.8475852012634277,
+        "wall": 0.09461164474487305,
+        "filament": 0.036965370178222656,
+        "halo": 0.020837783813476562
+      }
+    },
+    "snapshot_074": {
+      "match_rate": 1.0,
+      "perfect_match": true,
+      "mass_fractions": {
+        "void": 0.2179882526397705,
+        "wall": 0.17342108488082886,
+        "filament": 0.18503910303115845,
+        "halo": 0.4235515594482422
+      },
+      "volume_fractions": {
+        "void": 0.8195843696594238,
+        "wall": 0.12555313110351562,
+        "filament": 0.04129362106323242,
+        "halo": 0.013568878173828125
+      }
+    }
+  },
+  "all_tests_passed": true
+}

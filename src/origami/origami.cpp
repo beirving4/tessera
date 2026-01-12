@@ -486,6 +486,22 @@ void deposit_morphology_to_grid(
             result.morphology_grid[c] = dominant;
         }
     }
+
+    // Compute volume fractions based on dominant class per cell
+    int64_t vol_void = 0, vol_wall = 0, vol_filament = 0, vol_halo = 0;
+    for (int64_t c = 0; c < n_cells_total; ++c) {
+        switch (result.morphology_grid[c]) {
+            case 0: ++vol_void; break;
+            case 1: ++vol_wall; break;
+            case 2: ++vol_filament; break;
+            case 3: ++vol_halo; break;
+        }
+    }
+    double inv_n_cells = 1.0 / static_cast<double>(n_cells_total);
+    result.v_void = static_cast<double>(vol_void) * inv_n_cells;
+    result.v_wall = static_cast<double>(vol_wall) * inv_n_cells;
+    result.v_filament = static_cast<double>(vol_filament) * inv_n_cells;
+    result.v_halo = static_cast<double>(vol_halo) * inv_n_cells;
 }
 
 } // namespace origami
