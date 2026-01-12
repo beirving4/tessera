@@ -1,0 +1,22 @@
+{
+  "created": "2026-01-12T16:09:20.786292",
+  "name": "snap074_fullbox",
+  "description": "Full Box (a=100, z=-0.99)",
+  "snapshot": "snapshot_074",
+  "redshift": -0.99,
+  "scale_factor": 100.0000000000001,
+  "box_size": 256.0,
+  "output_cells": 256,
+  "correlation": 0.9999985285935976,
+  "mean_relative_difference": 0.003957905600155477,
+  "max_relative_difference": 0.033324917899749416,
+  "at_density_range": [
+    48.836666666666694,
+    41666.90667311159
+  ],
+  "gotetra_density_range": [
+    0.19168612360954285,
+    162.05311584472656
+  ],
+  "passed": true
+}

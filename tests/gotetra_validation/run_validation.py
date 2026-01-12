@@ -51,6 +51,13 @@ VALIDATIONS = [
         'subbox': None,  # Full box, no subbox
     },
     {
+        'name': 'snap074_fullbox',
+        'snapshot': 'snapshot_074',
+        'gotetra_ref': GOTETRA_BASE / 'gotetra_validation_refs' / 'snap074_fullbox' / 'full_box.gtet',
+        'description': 'Full Box (a=100, z=-0.99)',
+        'subbox': None,  # Full box, no subbox
+    },
+    {
         'name': 'snap034_halo',
         'snapshot': 'snapshot_034',
         'gotetra_ref': GOTETRA_BASE / 'halo_comparison_results' / 'gotetra_snap034' / 'halo_density.gtet',

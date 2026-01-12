@@ -1,5 +1,5 @@
 {
-  "created": "2026-01-12T15:59:24.775023",
+  "created": "2026-01-12T16:09:28.691540",
   "name": "snap074_halo",
   "description": "Group 0 Halo (a=100, z=-0.99)",
   "snapshot": "snapshot_074",
@@ -7,12 +7,12 @@
   "scale_factor": 100.0000000000001,
   "box_size": 256.0,
   "output_cells": 129,
-  "correlation": 0.9999996263598411,
-  "mean_relative_difference": 0.1478982644278526,
-  "max_relative_difference": 5.999964728509449,
+  "correlation": 0.9999993979915887,
+  "mean_relative_difference": 0.1472291597266225,
+  "max_relative_difference": 5.499567845372807,
   "at_density_range": [
-    0.54586669921875,
-    2971110.4124064078
+    1.0917333984375,
+    2969702.0763221346
   ],
   "gotetra_density_range": [
     0.0541502945125103,
