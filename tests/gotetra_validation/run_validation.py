@@ -6,10 +6,12 @@ This script validates the AsymptoticTetra tetrahedron-based density computation
 by comparing its output against pre-rendered gotetra density fields.
 
 The validation compares:
-1. Full box z-projection density fields
-2. Halo subbox z-projection density fields
+1. Full box z-projection density fields for snap034 (a=1) and snap074 (a=100)
+2. Halo subbox (10 cMpc/h) z-projection density fields tracking Group 0 across time
 
-Results are saved as JSON summaries and comparison images.
+Results are saved as JSON summaries and 2x3 comparison images showing:
+- Top row: AsymptoticTetra density, gotetra density, relative difference
+- Bottom row: Overdensity PDF comparison, scatter plot, relative difference histogram
 """
 
 import os
@@ -34,10 +36,40 @@ sys.path.insert(0, str(REPO_ROOT / 'python'))
 # Paths to simulation data
 SNAPSHOT_BASE = Path("/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/Uniform_L256_N256_primary_sandbox/gadget4/output")
 
-# Paths to gotetra reference files
-GOTETRA_FULL_BOX = Path("/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/gotetra_test/output/full_z_projection.gtet")
-GOTETRA_HALO_034 = Path("/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/halo_comparison_results/gotetra_snap034/halo_density.gtet")
-GOTETRA_HALO_074 = Path("/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/halo_comparison_results/gotetra_snap074/halo_density.gtet")
+# Base path for gotetra reference files
+GOTETRA_BASE = Path("/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly")
+
+# Validation configurations
+# - Use original gotetra reference files that were validated to work
+# - Subbox parameters are read from gotetra headers to ensure exact match
+VALIDATIONS = [
+    {
+        'name': 'snap034_fullbox',
+        'snapshot': 'snapshot_034',
+        'gotetra_ref': GOTETRA_BASE / 'gotetra_test' / 'output' / 'full_z_projection.gtet',
+        'description': 'Full Box (a=1, z=0)',
+        'subbox': None,  # Full box, no subbox
+    },
+    {
+        'name': 'snap034_halo',
+        'snapshot': 'snapshot_034',
+        'gotetra_ref': GOTETRA_BASE / 'halo_comparison_results' / 'gotetra_snap034' / 'halo_density.gtet',
+        'description': 'Group 0 Halo (a=1, z=0)',
+        'subbox': 'from_header',  # Read subbox params from gotetra header
+    },
+    {
+        'name': 'snap074_halo',
+        'snapshot': 'snapshot_074',
+        'gotetra_ref': GOTETRA_BASE / 'halo_comparison_results' / 'gotetra_snap074' / 'halo_density.gtet',
+        'description': 'Group 0 Halo (a=100, z=-0.99)',
+        # Note: gotetra header has incorrect origin (pixel alignment issue)
+        # Use bounds.cfg origin and computed width = 129 * pixel_width = 10.0806
+        'subbox': {
+            'origin': (147.52755737304688, 146.6825408935547, 75.38079071044922),
+            'width': 10.080586080586081,  # 129 * (256/3276) = 129 * 0.07814408
+        },
+    },
+]
 
 
 def load_snapshot(snapshot_path):
@@ -74,8 +106,15 @@ def compute_asymptotic_density_2d(sorted_positions, box_size, grid_size, output_
 
     if subbox is not None:
         config.subbox_enabled = True
-        config.subbox_origin = subbox['origin']
-        config.subbox_width = subbox['span']
+        width = subbox['width']
+        # Use exact origin from gotetra header if available, otherwise compute from center
+        if 'origin' in subbox:
+            origin = subbox['origin']
+            config.subbox_origin = (origin[0], origin[1], origin[2])
+        else:
+            center = subbox['center']
+            config.subbox_origin = (center[0] - width/2, center[1] - width/2, center[2] - width/2)
+        config.subbox_width = (width, width, width)
 
     # Use Z-axis projection (axis=2)
     result = at.density.compute_tetra_density_2d_projection(sorted_positions, config, 2)
@@ -92,7 +131,7 @@ def read_gotetra_reference(gtet_path):
 
 def compare_density_fields(at_density, gotetra_density):
     """Compare two density fields and compute statistics."""
-    # Normalize both fields
+    # Normalize both fields (convert to overdensity: 1 + delta)
     at_norm = at_density / np.mean(at_density)
     gt_norm = gotetra_density / np.mean(gotetra_density)
 
@@ -104,13 +143,12 @@ def compare_density_fields(at_density, gotetra_density):
     correlation = np.corrcoef(at_flat, gt_flat)[0, 1]
 
     # Compute relative differences (only where gotetra > 0)
-    with np.errstate(divide='ignore', invalid='ignore'):
-        mask = gt_norm > 0
-        rel_diff = np.zeros_like(at_norm)
-        rel_diff[mask] = np.abs(at_norm[mask] - gt_norm[mask]) / gt_norm[mask]
+    mask = gt_norm > 0
+    rel_diff = np.zeros_like(at_norm)
+    rel_diff[mask] = (at_norm[mask] - gt_norm[mask]) / gt_norm[mask]
 
-    mean_rel_diff = np.mean(rel_diff[mask]) if np.any(mask) else 0.0
-    max_rel_diff = np.max(rel_diff[mask]) if np.any(mask) else 0.0
+    mean_rel_diff = np.mean(np.abs(rel_diff[mask])) if np.any(mask) else 0.0
+    max_rel_diff = np.max(np.abs(rel_diff[mask])) if np.any(mask) else 0.0
 
     return {
         'correlation': float(correlation),
@@ -118,146 +156,115 @@ def compare_density_fields(at_density, gotetra_density):
         'max_relative_difference': float(max_rel_diff),
         'at_density_range': [float(at_density.min()), float(at_density.max())],
         'gotetra_density_range': [float(gotetra_density.min()), float(gotetra_density.max())],
-        'passed': bool(correlation > 0.999)  # Ensure native Python bool
-    }
+        'passed': bool(correlation > 0.999)
+    }, at_norm, gt_norm, rel_diff
 
 
-def create_comparison_image(at_density, gotetra_density, title, output_path, stats):
-    """Create a comparison image showing both density fields."""
+def create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_diff,
+                             title, output_path, stats):
+    """Create a 2x3 comparison figure."""
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
 
-    # Normalize for display
-    at_norm = at_density / np.mean(at_density)
-    gt_norm = gotetra_density / np.mean(gotetra_density)
+    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    # ===== Top Row: Density comparison =====
 
-    # AsymptoticTetra
-    im1 = axes[0].imshow(np.log10(at_norm + 0.01), origin='lower', cmap='magma')
-    axes[0].set_title('AsymptoticTetra')
-    plt.colorbar(im1, ax=axes[0], label='log10(1+δ)')
+    # Top Left: AsymptoticTetra density
+    vmin = np.log10(np.maximum(at_norm, 0.01).min())
+    vmax = np.log10(at_norm.max())
+    im1 = axes[0, 0].imshow(np.log10(np.maximum(at_norm, 0.01)), origin='lower',
+                            cmap='magma', vmin=vmin, vmax=vmax)
+    axes[0, 0].set_title('AsymptoticTetra')
+    plt.colorbar(im1, ax=axes[0, 0], label=r'$\log_{10}(1+\delta)$')
 
-    # Gotetra
-    im2 = axes[1].imshow(np.log10(gt_norm + 0.01), origin='lower', cmap='magma')
-    axes[1].set_title('Gotetra (Reference)')
-    plt.colorbar(im2, ax=axes[1], label='log10(1+δ)')
+    # Top Middle: Gotetra density
+    im2 = axes[0, 1].imshow(np.log10(np.maximum(gt_norm, 0.01)), origin='lower',
+                            cmap='magma', vmin=vmin, vmax=vmax)
+    axes[0, 1].set_title('Gotetra (Reference)')
+    plt.colorbar(im2, ax=axes[0, 1], label=r'$\log_{10}(1+\delta)$')
 
-    # Residual
-    residual = (at_norm - gt_norm) / gt_norm
-    residual = np.clip(residual, -0.1, 0.1)
-    im3 = axes[2].imshow(residual, origin='lower', cmap='RdBu_r', vmin=-0.1, vmax=0.1)
-    axes[2].set_title('Relative Difference')
-    plt.colorbar(im3, ax=axes[2], label='(AT - GT) / GT')
+    # Top Right: Relative difference map
+    diff_clipped = np.clip(rel_diff, -0.1, 0.1)
+    im3 = axes[0, 2].imshow(diff_clipped, origin='lower', cmap='RdBu_r', vmin=-0.1, vmax=0.1)
+    axes[0, 2].set_title('Relative Difference')
+    plt.colorbar(im3, ax=axes[0, 2], label='(AT - GT) / GT')
 
-    plt.suptitle(f'{title}\nCorrelation: {stats["correlation"]:.6f}, Mean Rel. Diff: {stats["mean_relative_difference"]:.4e}')
+    # ===== Bottom Row: Statistical comparisons =====
+
+    # Bottom Left: Overdensity PDF comparison
+    bins = np.logspace(-2, 3, 100)
+    at_flat = at_norm.flatten()
+    gt_flat = gt_norm.flatten()
+
+    axes[1, 0].hist(at_flat[at_flat > 0], bins=bins, alpha=0.7, label='AsymptoticTetra',
+                    color='#e74c3c', density=True)
+    axes[1, 0].hist(gt_flat[gt_flat > 0], bins=bins, alpha=0.7, label='Gotetra',
+                    color='#3498db', density=True)
+    axes[1, 0].set_xscale('log')
+    axes[1, 0].set_yscale('log')
+    axes[1, 0].set_xlabel(r'$1+\delta$')
+    axes[1, 0].set_ylabel('PDF')
+    axes[1, 0].set_title('Overdensity PDF')
+    axes[1, 0].legend()
+
+    # Bottom Middle: Scatter plot (one-to-one comparison)
+    # Subsample for performance
+    n_sample = min(10000, len(at_flat))
+    idx = np.random.choice(len(at_flat), n_sample, replace=False)
+
+    axes[1, 1].scatter(gt_flat[idx], at_flat[idx], s=1, alpha=0.5, c='#2c3e50')
+
+    # Add 1:1 line
+    lims = [min(gt_flat[idx].min(), at_flat[idx].min()),
+            max(gt_flat[idx].max(), at_flat[idx].max())]
+    axes[1, 1].plot(lims, lims, 'r-', linewidth=2, label='1:1')
+
+    axes[1, 1].set_xscale('log')
+    axes[1, 1].set_yscale('log')
+    axes[1, 1].set_xlabel(r'Gotetra $1+\delta$')
+    axes[1, 1].set_ylabel(r'AsymptoticTetra $1+\delta$')
+    axes[1, 1].set_title(f'One-to-One (r={stats["correlation"]:.6f})')
+    axes[1, 1].legend()
+
+    # Bottom Right: Relative difference histogram
+    rel_diff_flat = rel_diff.flatten()
+    valid_diff = rel_diff_flat[np.isfinite(rel_diff_flat) & (gt_flat > 0)]
+
+    axes[1, 2].hist(valid_diff, bins=100, range=(-0.5, 0.5), alpha=0.7,
+                    color='#27ae60', density=True)
+    axes[1, 2].axvline(x=0, color='r', linestyle='--', linewidth=2)
+    axes[1, 2].axvline(x=np.mean(valid_diff), color='blue', linestyle='-', linewidth=2,
+                       label=f'Mean: {np.mean(valid_diff):.4f}')
+    axes[1, 2].set_xlabel('Relative Difference (AT - GT) / GT')
+    axes[1, 2].set_ylabel('PDF')
+    axes[1, 2].set_title(f'Diff Distribution (σ={np.std(valid_diff):.4f})')
+    axes[1, 2].legend()
+
+    # Overall title
+    status = "PASS" if stats['passed'] else "FAIL"
+    plt.suptitle(f'{title}\nCorrelation: {stats["correlation"]:.6f} | {status}', fontsize=14)
+
     plt.tight_layout()
-    plt.savefig(output_path, dpi=150)
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
 
 
-def run_full_box_validation():
-    """Run full box z-projection validation."""
-    print("\n" + "=" * 70)
-    print("Full Box Z-Projection Validation")
+def run_validation(config):
+    """Run a single validation test."""
+    name = config['name']
+    snapshot_name = config['snapshot']
+    gotetra_ref = config['gotetra_ref']
+    description = config['description']
+    subbox_config = config['subbox']
+
+    print(f"\n{'=' * 70}")
+    print(f"Validation: {name} - {description}")
     print("=" * 70)
 
-    if not GOTETRA_FULL_BOX.exists():
-        print(f"  WARNING: Reference file not found: {GOTETRA_FULL_BOX}")
-        return None
-
-    # Load snapshot (use snapshot_034 for z=0)
-    snapshot_path = SNAPSHOT_BASE / "snapshot_034.hdf5"
-    if not snapshot_path.exists():
-        print(f"  WARNING: Snapshot not found: {snapshot_path}")
-        return None
-
-    print("Loading snapshot...")
-    positions, particle_ids, box_size, redshift, scale_factor = load_snapshot(snapshot_path)
-    n_particles = len(positions)
-    grid_size = int(round(n_particles ** (1/3)))
-
-    print(f"  Particles: {n_particles:,}")
-    print(f"  Grid: {grid_size}^3")
-    print(f"  Box size: {box_size}")
-
-    # Read gotetra reference to get exact parameters
-    print("Reading gotetra reference...")
-    gotetra_density, header = read_gotetra_reference(GOTETRA_FULL_BOX)
-    output_cells = gotetra_density.shape[0]
-
-    # Check if this is truly full box or a subbox
-    is_full_box = (header.loc.origin == np.zeros(3)).all() and np.allclose(header.loc.span, box_size)
-
-    print(f"  Reference shape: {gotetra_density.shape}")
-    print(f"  Reference range: [{gotetra_density.min():.4e}, {gotetra_density.max():.4e}]")
-    print(f"  Origin: {header.loc.origin}")
-    print(f"  Span: {header.loc.span}")
-
-    # Sort positions
-    print("Sorting positions to Lagrangian order...")
-    sorted_positions = sort_positions_lagrangian(positions, particle_ids, grid_size)
-
-    # Compute AsymptoticTetra density
-    print(f"Computing AsymptoticTetra density ({output_cells}x{output_cells})...")
-
-    # Use subbox if gotetra header indicates a specific region
-    subbox = None
-    if not is_full_box:
-        subbox = {
-            'origin': tuple(header.loc.origin),
-            'span': tuple(header.loc.span)
-        }
-
-    at_density = compute_asymptotic_density_2d(sorted_positions, box_size, grid_size, output_cells, subbox=subbox)
-    print(f"  AT shape: {at_density.shape}")
-    print(f"  AT range: [{at_density.min():.4e}, {at_density.max():.4e}]")
-
-    # Compare
-    print("Comparing density fields...")
-    stats = compare_density_fields(at_density, gotetra_density)
-
-    print(f"\n  Correlation: {stats['correlation']:.6f}")
-    print(f"  Mean relative difference: {stats['mean_relative_difference']:.4e}")
-    print(f"  Max relative difference: {stats['max_relative_difference']:.4e}")
-    print(f"  RESULT: {'PASS' if stats['passed'] else 'FAIL'}")
-
-    # Create comparison image
-    image_path = SCRIPT_DIR / "full_box_comparison.png"
-    create_comparison_image(at_density, gotetra_density, "Full Box Z-Projection (z=0)", image_path, stats)
-    print(f"\n  Saved: {image_path.name}")
-
-    result = {
-        'description': 'Full box z-projection at z=0',
-        'snapshot': 'snapshot_034',
-        'redshift': redshift,
-        'scale_factor': scale_factor,
-        'box_size': box_size,
-        'output_cells': output_cells,
-        **stats
-    }
-
-    # Save JSON
-    json_path = SCRIPT_DIR / "full_box_validation.json"
-    with open(json_path, 'w') as f:
-        json.dump({
-            'created': datetime.now().isoformat(),
-            **result
-        }, f, indent=2)
-    print(f"  Saved: {json_path.name}")
-
-    return result
-
-
-def run_halo_validation(snapshot_name, gotetra_path, description):
-    """Run halo subbox z-projection validation."""
-    print("\n" + "=" * 70)
-    print(f"Halo Subbox Validation: {description}")
-    print("=" * 70)
-
-    if not gotetra_path.exists():
-        print(f"  WARNING: Reference file not found: {gotetra_path}")
+    if not gotetra_ref.exists():
+        print(f"  WARNING: Reference file not found: {gotetra_ref}")
         return None
 
     snapshot_path = SNAPSHOT_BASE / f"{snapshot_name}.hdf5"
@@ -265,6 +272,40 @@ def run_halo_validation(snapshot_name, gotetra_path, description):
         print(f"  WARNING: Snapshot not found: {snapshot_path}")
         return None
 
+    # Read gotetra reference first to get parameters
+    print("Reading gotetra reference...")
+    gotetra_density, header = read_gotetra_reference(gotetra_ref)
+    output_cells = gotetra_density.shape[0]
+    print(f"  Reference shape: {gotetra_density.shape}")
+    print(f"  Reference range: [{gotetra_density.min():.4e}, {gotetra_density.max():.4e}]")
+
+    # Extract subbox parameters
+    subbox = None
+    if subbox_config == 'from_header':
+        # Read subbox parameters from gotetra header
+        origin = header.loc.origin
+        span = header.loc.span
+        width = float(span[0])
+        center = (origin[0] + width/2, origin[1] + width/2, origin[2] + width/2)
+        subbox = {'center': center, 'width': width, 'origin': tuple(origin), 'span': tuple(span)}
+        print(f"  Subbox from header:")
+        print(f"    Origin: ({origin[0]:.6f}, {origin[1]:.6f}, {origin[2]:.6f})")
+        print(f"    Span: ({span[0]:.6f}, {span[1]:.6f}, {span[2]:.6f})")
+        print(f"    Pixel width: {header.pw:.8f}")
+        print(f"    Using width: {width:.6f}")
+    elif subbox_config is not None:
+        # Use explicit subbox parameters
+        subbox = subbox_config.copy()
+        if 'origin' in subbox and 'center' not in subbox:
+            # Convert origin to center for reporting
+            width = subbox['width']
+            origin = subbox['origin']
+            subbox['center'] = (origin[0] + width/2, origin[1] + width/2, origin[2] + width/2)
+        print(f"  Subbox (explicit):")
+        print(f"    Origin: ({subbox.get('origin', 'N/A')})")
+        print(f"    Width: {subbox['width']:.6f}")
+
+    # Load snapshot
     print("Loading snapshot...")
     positions, particle_ids, box_size, redshift, scale_factor = load_snapshot(snapshot_path)
     n_particles = len(positions)
@@ -273,61 +314,62 @@ def run_halo_validation(snapshot_name, gotetra_path, description):
     print(f"  Particles: {n_particles:,}")
     print(f"  Grid: {grid_size}^3")
     print(f"  Box size: {box_size}")
-
-    # Read gotetra reference to get exact subbox parameters
-    print("Reading gotetra reference...")
-    gotetra_density, header = read_gotetra_reference(gotetra_path)
-    output_cells = gotetra_density.shape[0]
-
-    # Use exact bounds from gotetra header
-    subbox = {
-        'origin': tuple(header.loc.origin),
-        'span': tuple(header.loc.span)
-    }
-
-    print(f"  Subbox origin: ({subbox['origin'][0]:.2f}, {subbox['origin'][1]:.2f}, {subbox['origin'][2]:.2f})")
-    print(f"  Subbox span: ({subbox['span'][0]:.2f}, {subbox['span'][1]:.2f}, {subbox['span'][2]:.2f})")
-    print(f"  Reference shape: {gotetra_density.shape}")
-    print(f"  Reference range: [{gotetra_density.min():.4e}, {gotetra_density.max():.4e}]")
+    print(f"  Redshift: {redshift:.4f}")
+    print(f"  Scale factor: {scale_factor:.4f}")
 
     # Sort positions
     print("Sorting positions to Lagrangian order...")
     sorted_positions = sort_positions_lagrangian(positions, particle_ids, grid_size)
 
+    # For full box comparisons, gotetra outputs N+1 pixels with boundary zeros
+    # We need to trim the gotetra output and use N output cells for AT
+    if subbox is None:
+        # Full box: trim gotetra's boundary row/col of zeros
+        gotetra_density = gotetra_density[:-1, :-1]
+        output_cells = gotetra_density.shape[0]
+        print(f"  Trimmed gotetra to {output_cells}x{output_cells} (removed boundary zeros)")
+
     # Compute AsymptoticTetra density
     print(f"Computing AsymptoticTetra density ({output_cells}x{output_cells})...")
-    at_density = compute_asymptotic_density_2d(sorted_positions, box_size, grid_size, output_cells, subbox=subbox)
+    at_density = compute_asymptotic_density_2d(sorted_positions, box_size, grid_size,
+                                                output_cells, subbox=subbox)
     print(f"  AT shape: {at_density.shape}")
     print(f"  AT range: [{at_density.min():.4e}, {at_density.max():.4e}]")
 
     # Compare
     print("Comparing density fields...")
-    stats = compare_density_fields(at_density, gotetra_density)
+    stats, at_norm, gt_norm, rel_diff = compare_density_fields(at_density, gotetra_density)
 
     print(f"\n  Correlation: {stats['correlation']:.6f}")
     print(f"  Mean relative difference: {stats['mean_relative_difference']:.4e}")
     print(f"  Max relative difference: {stats['max_relative_difference']:.4e}")
     print(f"  RESULT: {'PASS' if stats['passed'] else 'FAIL'}")
 
-    # Create comparison image
-    image_path = SCRIPT_DIR / f"halo_comparison_{snapshot_name}.png"
-    create_comparison_image(at_density, gotetra_density, f"Halo Subbox ({description})", image_path, stats)
-    print(f"\n  Saved: {image_path.name}")
+    # Create comparison figure
+    image_path = SCRIPT_DIR / f"{name}_comparison.png"
+    print(f"\nGenerating comparison figure...")
+    create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_diff,
+                            description, image_path, stats)
+    print(f"  Saved: {image_path.name}")
 
+    # Prepare result
     result = {
+        'name': name,
         'description': description,
         'snapshot': snapshot_name,
         'redshift': redshift,
         'scale_factor': scale_factor,
         'box_size': box_size,
         'output_cells': output_cells,
-        'subbox_origin': list(subbox['origin']),
-        'subbox_span': list(subbox['span']),
         **stats
     }
 
+    if subbox:
+        result['subbox_center'] = list(subbox['center'])
+        result['subbox_width'] = subbox['width']
+
     # Save JSON
-    json_path = SCRIPT_DIR / f"halo_validation_{snapshot_name}.json"
+    json_path = SCRIPT_DIR / f"{name}_validation.json"
     with open(json_path, 'w') as f:
         json.dump({
             'created': datetime.now().isoformat(),
@@ -344,29 +386,13 @@ def main():
     print("=" * 70)
     print(f"Output directory: {SCRIPT_DIR}")
     print()
-    print("NOTE: Full box validation skipped - reference file uses different sheet data.")
-    print("      Halo subbox validations provide verified comparison results.")
-    print()
 
     all_results = {}
 
-    # Skip full box validation - reference file doesn't match simulation data
-    # The gotetra_test/output file was generated from gotetra_sheets_test
-    # which may not correspond to the Uniform_L256_N256 simulation
-    # result = run_full_box_validation()
-    # if result:
-    #     all_results['full_box'] = result
-
-    # Run halo validations - these use verified sheet data
-    result = run_halo_validation('snapshot_034', GOTETRA_HALO_034, "z=0 (a=1)")
-    if result:
-        all_results['halo_snapshot_034'] = result
-
-    # Note: snap074 gotetra reference was regenerated with different halo location
-    # Original validation used halo near (38.27, 179.64, 96.88) with 0.999985 correlation
-    # Current reference is for location (147.5, 146.7, 75.3) - different halo
-    # Skipping until reference is regenerated with matching halo location
-    print("\n  NOTE: snapshot_074 validation skipped - gotetra reference location mismatch")
+    for config in VALIDATIONS:
+        result = run_validation(config)
+        if result:
+            all_results[config['name']] = result
 
     # Save summary
     all_passed = all(r.get('passed', False) for r in all_results.values())
@@ -377,8 +403,8 @@ def main():
         'method': 'Tetrahedron-based phase-space tessellation for density field computation',
         'notes': [
             'Validation compares z-projected density slices',
-            'Original gotetra code produces .gtet files with pre-rendered density fields',
-            'AsymptoticTetra computes equivalent density fields using the same algorithm',
+            'Full box comparisons use 256^3 output grid',
+            'Halo comparisons use 10 cMpc/h subbox centered on Group 0 halo',
             'Correlation > 0.999 indicates excellent numerical agreement'
         ],
         'results': all_results,
@@ -389,14 +415,14 @@ def main():
     with open(summary_path, 'w') as f:
         json.dump(summary, f, indent=2)
 
-    print("\n" + "=" * 70)
+    print(f"\n{'=' * 70}")
     print("VALIDATION COMPLETE")
     print("=" * 70)
     print(f"\nResults saved to: {SCRIPT_DIR}")
     print("\nSummary:")
-    for label, result in all_results.items():
+    for name, result in all_results.items():
         status = "PASS" if result['passed'] else "FAIL"
-        print(f"  {label}: {status} (r={result['correlation']:.6f})")
+        print(f"  {name}: {status} (r={result['correlation']:.6f})")
 
     print(f"\nOverall: {'ALL TESTS PASSED' if all_passed else 'SOME TESTS FAILED'}")
 

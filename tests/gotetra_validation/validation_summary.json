@@ -1,44 +1,89 @@
 {
-  "validation_date": "2026-01-12T13:43:48.331204",
+  "validation_date": "2026-01-12T15:59:24.775158",
   "asymptotic_tetra_repo": "/Users/bryen/Documents/GitHub/AsymptoticTetra",
   "reference": "gotetra: github.com/phil-mansfield/gotetra",
   "method": "Tetrahedron-based phase-space tessellation for density field computation",
   "notes": [
     "Validation compares z-projected density slices",
-    "Original gotetra code produces .gtet files with pre-rendered density fields",
-    "AsymptoticTetra computes equivalent density fields using the same algorithm",
+    "Full box comparisons use 256^3 output grid",
+    "Halo comparisons use 10 cMpc/h subbox centered on Group 0 halo",
     "Correlation > 0.999 indicates excellent numerical agreement"
   ],
   "results": {
-    "halo_snapshot_034": {
-      "description": "z=0 (a=1)",
+    "snap034_fullbox": {
+      "name": "snap034_fullbox",
+      "description": "Full Box (a=1, z=0)",
+      "snapshot": "snapshot_034",
+      "redshift": -4.440892098500626e-16,
+      "scale_factor": 1.0000000000000004,
+      "box_size": 256.0,
+      "output_cells": 256,
+      "correlation": 0.9999896497371747,
+      "mean_relative_difference": 0.0034754867000496626,
+      "max_relative_difference": 0.02343419390824732,
+      "at_density_range": [
+        73.61666666666675,
+        7106.9366667092545
+      ],
+      "gotetra_density_range": [
+        0.28498053550720215,
+        27.652620315551758
+      ],
+      "passed": true
+    },
+    "snap034_halo": {
+      "name": "snap034_halo",
+      "description": "Group 0 Halo (a=1, z=0)",
       "snapshot": "snapshot_034",
       "redshift": -4.440892098500626e-16,
       "scale_factor": 1.0000000000000004,
       "box_size": 256.0,
       "output_cells": 129,
-      "subbox_origin": [
-        43.13553113553114,
-        179.73137973137972,
-        96.27350427350427
-      ],
-      "subbox_span": [
-        10.08058608058608,
-        10.08058608058608,
-        10.08058608058608
-      ],
-      "correlation": 0.9999072417737986,
-      "mean_relative_difference": 0.1724000607970705,
-      "max_relative_difference": 12.001532920891261,
+      "correlation": 0.999901637553527,
+      "mean_relative_difference": 0.17071288262840673,
+      "max_relative_difference": 10.001669001584602,
       "at_density_range": [
         0.54586669921875,
-        44454.292250964885
+        44254.50503905073
       ],
       "gotetra_density_range": [
         0.0,
         4409.72900390625
       ],
-      "passed": true
+      "passed": true,
+      "subbox_center": [
+        48.175824175824175,
+        184.77167277167277,
+        101.31379731379731
+      ],
+      "subbox_width": 10.08058608058608
+    },
+    "snap074_halo": {
+      "name": "snap074_halo",
+      "description": "Group 0 Halo (a=100, z=-0.99)",
+      "snapshot": "snapshot_074",
+      "redshift": -0.99,
+      "scale_factor": 100.0000000000001,
+      "box_size": 256.0,
+      "output_cells": 129,
+      "correlation": 0.9999996263598411,
+      "mean_relative_difference": 0.1478982644278526,
+      "max_relative_difference": 5.999964728509449,
+      "at_density_range": [
+        0.54586669921875,
+        2971110.4124064078
+      ],
+      "gotetra_density_range": [
+        0.0541502945125103,
+        294669.375
+      ],
+      "passed": true,
+      "subbox_center": [
+        152.56785041333993,
+        151.72283393384774,
+        80.42108375074226
+      ],
+      "subbox_width": 10.08058608058608
     }
   },
   "all_tests_passed": true
