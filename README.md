@@ -273,7 +273,9 @@ See `tests/gotetra_validation/` for validation scripts and results.
 
 - **gotetra**: Mansfield, P. - [github.com/phil-mansfield/gotetra](https://github.com/phil-mansfield/gotetra)
 - **ORIGAMI**: Falck, B., Neyrinck, M. C., & Szalay, A. S. 2012, ApJ, 754, 126
-- **Tetrahedron sampling**: Rocchini, C. & Cignoni, P. 2001, Journal of Graphics Tools
+- **Phase-space tessellation**: Abel, T., Hahn, O., & Kaehler, R. 2012, MNRAS, 427, 61 - [Tracing the dark matter sheet in phase space](https://academic.oup.com/mnras/article/427/1/61/1032914)
+- **Visualization**: Kaehler, R., Hahn, O., & Abel, T. 2012, IEEE TVCG, 18, 2078 - [A Novel Approach to Visualizing Dark Matter Simulations](https://ieeexplore.ieee.org/document/6327223)
+- **Sheet simulation**: Hahn, O., Abel, T., & Kaehler, R. 2013, MNRAS, 434, 1171 - [A new approach to simulating collisionless dark matter fluids](https://academic.oup.com/mnras/article/434/2/1171/1064908)
 
 ## License
 
