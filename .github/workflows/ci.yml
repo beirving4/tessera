@@ -12,7 +12,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # macOS disabled until HighFive dependency is updated for CMake 4.x
+        os: [ubuntu-latest]
         python-version: ['3.10', '3.11', '3.12']
 
     steps:
