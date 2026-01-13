@@ -86,6 +86,11 @@ file(GLOB_RECURSE HALO_SOURCES "src/halo/*.cpp")
 file(GLOB_RECURSE STATS_SOURCES "src/stats/*.cpp")
 file(GLOB_RECURSE ORIGAMI_SOURCES "src/origami/*.cpp")
 
+# Remove HDF5-dependent files when HDF5 is disabled
+if(NOT BUILD_WITH_HDF5)
+    list(FILTER IO_SOURCES EXCLUDE REGEX "gadget4\\.cpp$")
+endif()
+
 set(ALL_SOURCES
     ${MATH_SOURCES}
     ${GEOM_SOURCES}
