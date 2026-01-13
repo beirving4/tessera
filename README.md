@@ -38,7 +38,25 @@ The library also includes **ORIGAMI morphological classification** (Falck, Neyri
 - HDF5 (optional, for GADGET-4 I/O)
 - pybind11 (fetched automatically)
 
-### Building from Source
+### Quick Install (pip)
+
+The easiest way to install tessera is via pip:
+
+```bash
+git clone https://github.com/beirving4/tessera.git
+cd tessera
+pip install .
+```
+
+This will build the C++ extension and install it as a Python package. Verify the installation:
+
+```bash
+python -c "import tessera; print('Modules:', tessera.available_modules())"
+```
+
+### Building from Source (Development)
+
+For development or if you need more control over the build:
 
 ```bash
 git clone https://github.com/beirving4/tessera.git
@@ -48,13 +66,10 @@ cmake .. -DBUILD_PYTHON_BINDINGS=ON -DBUILD_WITH_HDF5=ON
 make -j4
 ```
 
-### Setting Up Python
+Then add the build directory to your Python path:
 
 ```bash
-# Add build directory to Python path
 export PYTHONPATH=/path/to/tessera/build:$PYTHONPATH
-
-# Verify installation
 python -c "import _tessera as ts; print('Modules:', [m for m in dir(ts) if not m.startswith('_')])"
 ```
 
