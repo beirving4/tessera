@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(AsymptoticTetra VERSION 1.0.0 LANGUAGES CXX)
+project(tessera VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -91,34 +91,34 @@ set(ALL_SOURCES
 )
 
 # Core library
-add_library(asymptotic_tetra_core ${ALL_SOURCES})
-target_include_directories(asymptotic_tetra_core PUBLIC
+add_library(tessera_core ${ALL_SOURCES})
+target_include_directories(tessera_core PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
-target_link_libraries(asymptotic_tetra_core PUBLIC Threads::Threads)
+target_link_libraries(tessera_core PUBLIC Threads::Threads)
 
 # Link OpenMP if available
 if(APPLE AND LIBOMP_PREFIX)
     # Manual OpenMP linking for macOS - more reliable than CMake's OpenMP detection
-    target_compile_options(asymptotic_tetra_core PUBLIC -Xclang -fopenmp)
-    target_include_directories(asymptotic_tetra_core PUBLIC "${LIBOMP_PREFIX}/include")
-    target_link_libraries(asymptotic_tetra_core PUBLIC "${LIBOMP_PREFIX}/lib/libomp.dylib")
+    target_compile_options(tessera_core PUBLIC -Xclang -fopenmp)
+    target_include_directories(tessera_core PUBLIC "${LIBOMP_PREFIX}/include")
+    target_link_libraries(tessera_core PUBLIC "${LIBOMP_PREFIX}/lib/libomp.dylib")
 elseif(OpenMP_CXX_FOUND)
-    target_link_libraries(asymptotic_tetra_core PUBLIC OpenMP::OpenMP_CXX)
+    target_link_libraries(tessera_core PUBLIC OpenMP::OpenMP_CXX)
 endif()
 
 # Link HDF5 if enabled
 if(BUILD_WITH_HDF5)
-    target_link_libraries(asymptotic_tetra_core PUBLIC HighFive)
-    target_compile_definitions(asymptotic_tetra_core PUBLIC ASYMPTOTIC_TETRA_HAS_HDF5)
+    target_link_libraries(tessera_core PUBLIC HighFive)
+    target_compile_definitions(tessera_core PUBLIC TESSERA_HAS_HDF5)
 endif()
 
 # Set compiler flags
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
-    target_compile_options(asymptotic_tetra_core PRIVATE -Wall -Wextra -O3 -ffast-math)
+    target_compile_options(tessera_core PRIVATE -Wall -Wextra -O3 -ffast-math)
 elseif(MSVC)
-    target_compile_options(asymptotic_tetra_core PRIVATE /W4 /O2 /fp:fast)
+    target_compile_options(tessera_core PRIVATE /W4 /O2 /fp:fast)
 endif()
 
 # Python bindings
@@ -139,7 +139,7 @@ if(BUILD_PYTHON_BINDINGS)
     endif()
     
     # Python module
-    pybind11_add_module(_asymptotic_tetra
+    pybind11_add_module(_tessera
         python/bindings/module.cpp
         python/bindings/geom_bindings.cpp
         python/bindings/math_bindings.cpp
@@ -152,17 +152,17 @@ if(BUILD_PYTHON_BINDINGS)
         python/bindings/stats_bindings.cpp
         python/bindings/origami_bindings.cpp
     )
-    target_link_libraries(_asymptotic_tetra PRIVATE asymptotic_tetra_core)
-    target_include_directories(_asymptotic_tetra PRIVATE ${Python3_NumPy_INCLUDE_DIRS})
-    
+    target_link_libraries(_tessera PRIVATE tessera_core)
+    target_include_directories(_tessera PRIVATE ${Python3_NumPy_INCLUDE_DIRS})
+
     # Copy Python package to build directory
-    add_custom_command(TARGET _asymptotic_tetra POST_BUILD
+    add_custom_command(TARGET _tessera POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/python/asymptotic_tetra
-            ${CMAKE_CURRENT_BINARY_DIR}/asymptotic_tetra
+            ${CMAKE_CURRENT_SOURCE_DIR}/python/tessera
+            ${CMAKE_CURRENT_BINARY_DIR}/tessera
         COMMAND ${CMAKE_COMMAND} -E copy
-            $<TARGET_FILE:_asymptotic_tetra>
-            ${CMAKE_CURRENT_BINARY_DIR}/asymptotic_tetra/
+            $<TARGET_FILE:_tessera>
+            ${CMAKE_CURRENT_BINARY_DIR}/tessera/
     )
 endif()
 
@@ -173,8 +173,8 @@ if(BUILD_TESTS)
 endif()
 
 # Installation
-install(TARGETS asymptotic_tetra_core
-    EXPORT AsymptoticTetraTargets
+install(TARGETS tessera_core
+    EXPORT TesseraTargets
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin

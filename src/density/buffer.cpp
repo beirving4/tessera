@@ -2,7 +2,7 @@
 #include "geom/deriv.h"
 #include <stdexcept>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace density {
 
 // ScalarBuffer implementation
@@ -246,4 +246,4 @@ std::unique_ptr<Buffer> wrapper_density_buffer(std::vector<double>& rhos) {
 }
 
 } // namespace density
-} // namespace asymptotic_tetra
+} // namespace tessera

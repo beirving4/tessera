@@ -1,27 +1,27 @@
 """
-AsymptoticTetra - High-performance phase-space tessellation for cosmological simulations.
+tessera - High-performance phase-space tessellation for cosmological simulations.
 
 This package provides Python bindings to a C++ library for computing density fields
 from N-body simulation data using tetrahedron-based Monte Carlo integration.
 
 Example usage:
-    >>> import asymptotic_tetra as at
-    >>> 
+    >>> import tessera as ts
+    >>>
     >>> # Create a random number generator
-    >>> gen = at.math.Generator.new_time_seed()
+    >>> gen = ts.math.Generator.new_time_seed()
     >>> print(gen.uniform(0, 1))
-    >>> 
+    >>>
     >>> # Work with geometry primitives
-    >>> v1 = at.geom.Vec3f(1.0, 2.0, 3.0)
-    >>> v2 = at.geom.Vec3f(4.0, 5.0, 6.0)
+    >>> v1 = ts.geom.Vec3f(1.0, 2.0, 3.0)
+    >>> v2 = ts.geom.Vec3f(4.0, 5.0, 6.0)
     >>> print(v1.dot(v2))
-    >>> 
+    >>>
     >>> # Create tetrahedra
-    >>> tet = at.geom.Tetra(
-    ...     at.geom.Vec3f(0, 0, 0),
-    ...     at.geom.Vec3f(1, 0, 0),
-    ...     at.geom.Vec3f(0, 1, 0),
-    ...     at.geom.Vec3f(0, 0, 1)
+    >>> tet = ts.geom.Tetra(
+    ...     ts.geom.Vec3f(0, 0, 0),
+    ...     ts.geom.Vec3f(1, 0, 0),
+    ...     ts.geom.Vec3f(0, 1, 0),
+    ...     ts.geom.Vec3f(0, 0, 1)
     ... )
     >>> print(tet.volume())
 
@@ -36,7 +36,7 @@ Modules:
 """
 
 try:
-    from ._asymptotic_tetra import (
+    from ._tessera import (
         geom,
         math,
         density,

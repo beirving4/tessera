@@ -4,7 +4,7 @@
 #include <cmath>
 #include <cstdint>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace geom {
 
 /**
@@ -199,4 +199,4 @@ public:
 };
 
 } // namespace geom
-} // namespace asymptotic_tetra
+} // namespace tessera

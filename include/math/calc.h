@@ -3,7 +3,7 @@
 #include <vector>
 #include <stdexcept>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace math {
 
 /**
@@ -151,4 +151,4 @@ inline std::vector<double> gradient(const std::vector<double>& ys, double dx) {
 }
 
 } // namespace math
-} // namespace asymptotic_tetra
+} // namespace tessera

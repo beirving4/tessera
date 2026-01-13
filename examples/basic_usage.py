@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Example: Basic usage of asymptotic_tetra
+Example: Basic usage of tessera
 
 This script demonstrates the core functionality of the library including
 vectors, tetrahedra, random number generation, and interpolation.
 """
 
-import asymptotic_tetra as at
+import tessera as ts
 
 # =============================================================================
 # Vectors (Vec3f and Vec3d)

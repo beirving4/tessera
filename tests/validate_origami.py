@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Validation script to compare AsymptoticTetra ORIGAMI implementation
+Validation script to compare tessera ORIGAMI implementation
 against the original ORIGAMI code from Falck et al.
 
 This script:
@@ -80,8 +80,8 @@ def run_original_origami(origami_path, params_path):
     return result
 
 def run_asymptotic_origami(positions, box_size, grid_size):
-    """Run AsymptoticTetra ORIGAMI implementation."""
-    import _asymptotic_tetra as at
+    """Run tessera ORIGAMI implementation."""
+    import _tessera as ts
 
     config = at.origami.OrigamiConfig()
     config.lagrangian_grid_size = grid_size
@@ -161,7 +161,7 @@ def compare_results(original_tags, asymptotic_tags):
     n = len(original_tags)
 
     if len(asymptotic_tags) != n:
-        print(f"  ERROR: Length mismatch! Original: {n}, AsymptoticTetra: {len(asymptotic_tags)}")
+        print(f"  ERROR: Length mismatch! Original: {n}, tessera: {len(asymptotic_tags)}")
         return False, {}
 
     # Count matches
@@ -259,11 +259,11 @@ def main():
 
             original_tags = read_tag_file(tag_file)
 
-            # Run AsymptoticTetra ORIGAMI
+            # Run tessera ORIGAMI
             try:
                 asymptotic_tags = run_asymptotic_origami(positions, box_size, grid_size)
             except Exception as e:
-                print(f"  ERROR running AsymptoticTetra: {e}")
+                print(f"  ERROR running tessera: {e}")
                 all_passed = False
                 continue
 
@@ -274,7 +274,7 @@ def main():
             class_names = ['Void', 'Wall', 'Filament', 'Halo']
             print(f"  Match rate: {stats['match_rate']:.4%} ({stats['matches']:,}/{stats['total']:,})")
             print()
-            print(f"  {'Class':<10} {'Original':>12} {'AsymptoticTetra':>16} {'Agreement':>12}")
+            print(f"  {'Class':<10} {'Original':>12} {'tessera':>16} {'Agreement':>12}")
             print(f"  {'-'*10} {'-'*12} {'-'*16} {'-'*12}")
             for cls in range(4):
                 s = stats['per_class'][cls]

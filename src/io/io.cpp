@@ -3,7 +3,7 @@
 #include <fstream>
 #include <stdexcept>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace io {
 
 bool is_system_little_endian() {
@@ -88,4 +88,4 @@ ByteOrder endianness_from_flag(int32_t flag) {
 }
 
 } // namespace io
-} // namespace asymptotic_tetra
+} // namespace tessera

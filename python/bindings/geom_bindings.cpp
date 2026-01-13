@@ -7,7 +7,7 @@
 #include "geom/tetra.h"
 
 namespace py = pybind11;
-using namespace asymptotic_tetra::geom;
+using namespace tessera::geom;
 
 void bind_geom(py::module& m) {
     // Vec3f binding

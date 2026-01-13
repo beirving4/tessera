@@ -4,7 +4,7 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ## Project Overview
 
-AsymptoticTetra is a high-performance C++ library with Python bindings for phase-space tessellation of cosmological N-body simulations. It is a modern C++17 rewrite of [gotetra](https://github.com/phil-mansfield/gotetra) with Python as the primary interface via pybind11.
+tessera is a high-performance C++ library with Python bindings for phase-space tessellation of cosmological N-body simulations. It is a modern C++17 rewrite of [gotetra](https://github.com/phil-mansfield/gotetra) with Python as the primary interface via pybind11.
 
 ## Build Commands
 
@@ -26,12 +26,12 @@ make -j$(sysctl -n hw.ncpu)
 
 After building, add the build directory to PYTHONPATH:
 ```bash
-export PYTHONPATH=/path/to/AsymptoticTetra/build:$PYTHONPATH
+export PYTHONPATH=/path/to/tessera/build:$PYTHONPATH
 ```
 
 Import and use:
 ```python
-import asymptotic_tetra as at
+import tessera as at
 ```
 
 ## Architecture
@@ -39,11 +39,11 @@ import asymptotic_tetra as at
 ### Layer Structure
 1. **C++ Core** (`include/`, `src/`) - High-performance computational core
 2. **pybind11 Bindings** (`python/bindings/`) - Bridge to Python
-3. **Python Package** (`python/asymptotic_tetra/`) - Pythonic interface and backward compatibility
+3. **Python Package** (`python/tessera/`) - Pythonic interface and backward compatibility
 
 ### C++ Module Organization
 
-The library is organized into namespaces under `asymptotic_tetra::`:
+The library is organized into namespaces under `tessera::`:
 
 - **`geom`** - Geometry primitives with periodic boundary support
   - `Vec3f/Vec3d`: 3D vectors with periodic boundary operations (`sub()` handles wrapping)
@@ -88,17 +88,17 @@ The library is organized into namespaces under `asymptotic_tetra::`:
 
 Each C++ module has a corresponding `*_bindings.cpp` file in `python/bindings/`. The main module (`module.cpp`) creates submodules and calls `bind_*()` functions.
 
-Top-level convenience imports are re-exported in `python/asymptotic_tetra/__init__.py`:
+Top-level convenience imports are re-exported in `python/tessera/__init__.py`:
 ```python
-import asymptotic_tetra as at
+import tessera as at
 at.Vec3f, at.Tetra, at.Generator, at.Quantity  # etc.
 ```
 
 ### Backward Compatibility
 
-`python/asymptotic_tetra/gotetra_compat.py` provides the original gotetra.py API:
+`python/tessera/gotetra_compat.py` provides the original gotetra.py API:
 ```python
-from asymptotic_tetra.gotetra_compat import read_header, read_grid
+from tessera.gotetra_compat import read_header, read_grid
 ```
 
 This reads `.gtet` files with automatic endianness detection and supports both v1 and v2 file formats.

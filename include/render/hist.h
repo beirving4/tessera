@@ -12,7 +12,7 @@
 #include "geom/tetra.h"
 #include "io/headers.h"
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace render {
 
 /**
@@ -239,4 +239,4 @@ private:
 };
 
 } // namespace render
-} // namespace asymptotic_tetra
+} // namespace tessera

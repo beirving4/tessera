@@ -6,8 +6,8 @@
 #include "halo/io.h"
 
 namespace py = pybind11;
-using namespace asymptotic_tetra::halo;
-using namespace asymptotic_tetra;
+using namespace tessera::halo;
+using namespace tessera;
 
 void bind_halo(py::module& m) {
     // RadiusType enum
@@ -295,7 +295,7 @@ void bind_halo(py::module& m) {
         
         Example
         -------
-        >>> from asymptotic_tetra import halo, io
+        >>> from tessera import halo, io
         >>> 
         >>> # Set up cosmology
         >>> cosmo = io.CosmologyHeader()

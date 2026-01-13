@@ -2,7 +2,7 @@
 #include "cosmo/cosmo.h"
 
 namespace py = pybind11;
-using namespace asymptotic_tetra::cosmo;
+using namespace tessera::cosmo;
 
 void bind_cosmo(py::module& m) {
     // Physical constants
@@ -94,7 +94,7 @@ void bind_cosmo(py::module& m) {
             
         Example
         -------
-        >>> from asymptotic_tetra import cosmo
+        >>> from tessera import cosmo
         >>> # Calculate critical density at z=0 for Planck cosmology
         >>> rho_c = cosmo.rho_critical(H0=67.4, omega_m=0.315, omega_l=0.685, z=0)
         >>> print(f"Critical density: {rho_c:.2e} M_sun/Mpc^3 h^2")

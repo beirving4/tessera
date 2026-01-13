@@ -12,7 +12,7 @@ The key idea:
 4. This properly handles stream crossing and multi-valued velocity fields
 
 This Python implementation serves as a reference. For production use, prefer
-the C++ implementation via `asymptotic_tetra.density.compute_tetra_density_3d()`.
+the C++ implementation via `tessera.density.compute_tetra_density_3d()`.
 """
 
 import numpy as np
@@ -29,11 +29,11 @@ if _build_dir.exists():
     sys.path.insert(0, str(_build_dir))
 
 try:
-    import _asymptotic_tetra as at
+    import _tessera as ts
     HAS_CPP = True
 except ImportError:
     try:
-        import asymptotic_tetra as _at
+        import tessera as _at
         at = _at
         HAS_CPP = True
     except ImportError:

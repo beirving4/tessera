@@ -1,10 +1,10 @@
-# AsymptoticTetra
+# tessera
 
 A high-performance C++ library with Python bindings for phase-space tessellation of cosmological N-body simulations. This is a modern rewrite of [gotetra](https://github.com/phil-mansfield/gotetra) with C++ as the computational core and Python as the primary interface.
 
 ## Overview
 
-AsymptoticTetra computes density fields from N-body simulations using tetrahedron-based phase-space tessellation. Unlike traditional particle-mesh methods, this approach:
+tessera computes density fields from N-body simulations using tetrahedron-based phase-space tessellation. Unlike traditional particle-mesh methods, this approach:
 
 - **Handles stream crossing**: Properly resolves multi-stream regions where particle trajectories cross
 - **Preserves phase-space structure**: Uses the Lagrangian-to-Eulerian mapping encoded in particle IDs
@@ -35,8 +35,8 @@ The library also includes **ORIGAMI morphological classification** (Falck, Neyri
 ### Building from Source
 
 ```bash
-git clone https://github.com/beirving4/AsymptoticTetra.git
-cd AsymptoticTetra
+git clone https://github.com/beirving4/tessera.git
+cd tessera
 mkdir build && cd build
 cmake .. -DBUILD_PYTHON_BINDINGS=ON -DBUILD_WITH_HDF5=ON
 make -j4
@@ -46,10 +46,10 @@ make -j4
 
 ```bash
 # Add build directory to Python path
-export PYTHONPATH=/path/to/AsymptoticTetra/build:$PYTHONPATH
+export PYTHONPATH=/path/to/tessera/build:$PYTHONPATH
 
 # Verify installation
-python -c "import _asymptotic_tetra as at; print('Modules:', [m for m in dir(at) if not m.startswith('_')])"
+python -c "import _tessera as ts; print('Modules:', [m for m in dir(ts) if not m.startswith('_')])"
 ```
 
 ## Quick Start
@@ -59,7 +59,7 @@ python -c "import _asymptotic_tetra as at; print('Modules:', [m for m in dir(at)
 ```python
 import numpy as np
 import h5py
-import _asymptotic_tetra as at
+import _tessera as ts
 
 # Load GADGET-4 snapshot
 with h5py.File('snapshot_034.hdf5', 'r') as f:
@@ -72,10 +72,10 @@ n_particles = len(positions)
 grid_size = int(round(n_particles ** (1/3)))
 
 # Sort particles by Lagrangian ID (required for tetrahedron construction)
-sorted_positions = at.density.sort_by_lagrangian_id(positions, particle_ids, grid_size)
+sorted_positions = ts.density.sort_by_lagrangian_id(positions, particle_ids, grid_size)
 
 # Configure density computation
-config = at.density.TetraDensityConfig()
+config = ts.density.TetraDensityConfig()
 config.lagrangian_grid_size = grid_size  # Particles per dimension
 config.box_size = box_size
 config.output_cells = 256                 # Output grid resolution
@@ -85,7 +85,7 @@ config.periodic = True                    # Periodic boundary conditions
 config.particle_mass = 1.0                # Mass per particle
 
 # Compute 3D density
-result = at.density.compute_tetra_density_3d(sorted_positions, config)
+result = ts.density.compute_tetra_density_3d(sorted_positions, config)
 density_3d = np.array(result.density).reshape(256, 256, 256)
 ```
 
@@ -93,7 +93,7 @@ density_3d = np.array(result.density).reshape(256, 256, 256)
 
 ```python
 # 2D z-projection (integrate along z-axis)
-result_2d = at.density.compute_tetra_density_2d_projection(sorted_positions, config, axis=2)
+result_2d = ts.density.compute_tetra_density_2d_projection(sorted_positions, config, axis=2)
 density_2d = np.array(result_2d.density).reshape(256, 256)
 ```
 
@@ -106,7 +106,7 @@ config.subbox_origin = (halo_x - 5.0, halo_y - 5.0, halo_z - 5.0)
 config.subbox_width = (10.0, 10.0, 10.0)
 config.output_cells = 128
 
-result = at.density.compute_tetra_density_3d(sorted_positions, config)
+result = ts.density.compute_tetra_density_3d(sorted_positions, config)
 ```
 
 ### Physical Space Density (for a > 1 simulations)
@@ -126,21 +126,21 @@ if config.subbox_enabled:
     config.subbox_width = tuple(w * scale_factor for w in config.subbox_width)
 
 # Compute density in physical space
-result = at.density.compute_tetra_density_3d(positions_physical, config)
+result = ts.density.compute_tetra_density_3d(positions_physical, config)
 ```
 
 ### ORIGAMI Morphology Classification
 
 ```python
 # Configure ORIGAMI
-origami_config = at.origami.OrigamiConfig()
+origami_config = ts.origami.OrigamiConfig()
 origami_config.lagrangian_grid_size = grid_size
 origami_config.box_size = box_size
 origami_config.n_threads = 1
 origami_config.n_split = 1
 
 # Compute morphology (0=void, 1=wall, 2=filament, 3=halo)
-result = at.origami.compute_morphology(sorted_positions, origami_config)
+result = ts.origami.compute_morphology(sorted_positions, origami_config)
 
 print(f"Void:     {result.n_void:,} particles ({result.f_void:.1%})")
 print(f"Wall:     {result.n_wall:,} particles ({result.f_wall:.1%})")
@@ -155,7 +155,7 @@ morphology = np.array(result.morphology)  # uint8 array, values 0-3
 
 ```python
 # After computing 3D density, sample at particle locations
-at.origami.sample_density_at_particles(
+ts.origami.sample_density_at_particles(
     density_3d,        # 3D density array [z, y, x]
     sorted_positions,  # Particle positions
     box_size,
@@ -186,21 +186,21 @@ python examples/origami_morphology.py snapshot_034.hdf5 -o origami.h5 --plot ori
 
 ## Modules
 
-### `at.density` - Tetrahedron Density Fields
+### `ts.density` - Tetrahedron Density Fields
 
 - `TetraDensityConfig`: Configuration for density computation
 - `compute_tetra_density_3d()`: Full 3D density field
 - `compute_tetra_density_2d_projection()`: 2D projection along an axis
 - `sort_by_lagrangian_id()`: Sort particles to Lagrangian grid order
 
-### `at.origami` - Morphological Classification
+### `ts.origami` - Morphological Classification
 
 - `OrigamiConfig`: Configuration for ORIGAMI algorithm
 - `compute_morphology()`: Classify particles as void/wall/filament/halo
 - `sample_density_at_particles()`: Interpolate density grid at particle positions
 - `deposit_morphology_to_grid()`: Create grid-based morphology fields
 
-### `at.io` - File I/O
+### `ts.io` - File I/O
 
 - `read_gadget4_header()`: Read GADGET-4 HDF5 header
 - `read_gadget4_positions()`: Read particle coordinates
@@ -208,18 +208,18 @@ python examples/origami_morphology.py snapshot_034.hdf5 -o origami.h5 --plot ori
 - `read_fof_catalog()`: Read Friends-of-Friends group catalog
 - `read_subfind_catalog()`: Read Subfind subhalo catalog
 
-### `at.geom` - Geometry Primitives
+### `ts.geom` - Geometry Primitives
 
 - `Vec3f`, `Vec3d`: 3D vectors with periodic operations
 - `Tetra`: Tetrahedron with volume, containment, Monte Carlo sampling
 - `CellBounds`: Axis-aligned bounding boxes
 
-### `at.math` - Random Number Generation
+### `ts.math` - Random Number Generation
 
 - `Generator`: High-quality RNG (Tausworthe, Xorshift, Mersenne Twister)
 - Efficient batch generation for Monte Carlo sampling
 
-### `at.cosmo` - Cosmology
+### `ts.cosmo` - Cosmology
 
 - `critical_density()`: Critical density at redshift z
 - `average_density()`: Mean matter density
@@ -263,10 +263,10 @@ MIT License - see LICENSE file for details.
 If you use this software in your research, please cite:
 
 ```bibtex
-@software{asymptotic_tetra,
+@software{tessera,
   author = {Irving, Bryen and Mansfield, Phil},
-  title = {AsymptoticTetra: Phase-space tessellation for cosmological simulations},
-  url = {https://github.com/beirving4/AsymptoticTetra},
+  title = {tessera: Phase-space tessellation for cosmological simulations},
+  url = {https://github.com/beirving4/tessera},
   note = {Based on gotetra by Phil Mansfield}
 }
 ```

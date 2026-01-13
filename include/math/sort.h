@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace math {
 
 /**
@@ -180,4 +180,4 @@ inline double percentile(std::vector<double>& xs, double p) {
 }
 
 } // namespace math
-} // namespace asymptotic_tetra
+} // namespace tessera

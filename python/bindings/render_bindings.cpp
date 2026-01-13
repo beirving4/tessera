@@ -6,8 +6,8 @@
 #include "render/hist.h"
 
 namespace py = pybind11;
-using namespace asymptotic_tetra::render;
-using namespace asymptotic_tetra;
+using namespace tessera::render;
+using namespace tessera;
 
 void bind_render(py::module& m) {
     // BoxConfig
@@ -173,7 +173,7 @@ void bind_render(py::module& m) {
         
         Example usage::
         
-            from asymptotic_tetra import render, density
+            from tessera import render, density
             
             # Create a box configuration
             config = render.BoxConfig()

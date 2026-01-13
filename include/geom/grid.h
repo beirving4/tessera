@@ -5,7 +5,7 @@
 #include <cmath>
 #include "vec.h"
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace geom {
 
 /**
@@ -256,4 +256,4 @@ inline int int_floor(float x) {
 }
 
 } // namespace geom
-} // namespace asymptotic_tetra
+} // namespace tessera

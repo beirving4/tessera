@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-ORIGAMI Validation: Compare AsymptoticTetra against original ORIGAMI code.
+ORIGAMI Validation: Compare tessera against original ORIGAMI code.
 
-This script validates the AsymptoticTetra ORIGAMI implementation by comparing
+This script validates the tessera ORIGAMI implementation by comparing
 its output against the original ORIGAMI code from Falck, Neyrinck & Szalay (2012).
 
 Results are saved to this directory for reproducibility and documentation.
@@ -145,8 +145,8 @@ def run_original_origami(sorted_positions, box_size, grid_size):
 
 
 def run_asymptotic_origami(sorted_positions, box_size, grid_size):
-    """Run AsymptoticTetra ORIGAMI implementation."""
-    import _asymptotic_tetra as at
+    """Run tessera ORIGAMI implementation."""
+    import _tessera as ts
 
     config = at.origami.OrigamiConfig()
     config.lagrangian_grid_size = grid_size
@@ -240,7 +240,7 @@ def create_comparison_image(output_dir, label, stats, asym_result, description):
     asym_counts = [stats['per_class'][n.lower()]['asymptotic_fraction'] * 100 for n in class_names]
 
     bars1 = axes[2].bar(x - width/2, orig_counts, width, label='Original ORIGAMI', color='#2c3e50')
-    bars2 = axes[2].bar(x + width/2, asym_counts, width, label='AsymptoticTetra', color='#e67e22')
+    bars2 = axes[2].bar(x + width/2, asym_counts, width, label='tessera', color='#e67e22')
     axes[2].set_ylabel('Fraction (%)')
     axes[2].set_xticks(x)
     axes[2].set_xticklabels(class_names)
@@ -333,7 +333,7 @@ def save_results(output_dir, label, orig_tags, asym_tags, stats, box_size, redsh
 
 def main():
     print("=" * 70)
-    print("ORIGAMI Validation: AsymptoticTetra vs Original Code")
+    print("ORIGAMI Validation: tessera vs Original Code")
     print("=" * 70)
     print(f"Output directory: {SCRIPT_DIR}")
     print()
@@ -377,8 +377,8 @@ def main():
         print("Running original ORIGAMI code...")
         orig_tags = run_original_origami(sorted_positions, box_size, grid_size)
 
-        # Run AsymptoticTetra ORIGAMI
-        print("Running AsymptoticTetra ORIGAMI...")
+        # Run tessera ORIGAMI
+        print("Running tessera ORIGAMI...")
         asym_tags, asym_result = run_asymptotic_origami(sorted_positions, box_size, grid_size)
 
         # Compare results
@@ -388,7 +388,7 @@ def main():
         # Print comparison
         print(f"\n  Match rate: {stats['match_rate']:.6%} ({stats['matches']:,}/{stats['total_particles']:,})")
         print()
-        print(f"  {'Class':<10} {'Original':>14} {'AsymptoticTetra':>16} {'Agreement':>12}")
+        print(f"  {'Class':<10} {'Original':>14} {'tessera':>16} {'Agreement':>12}")
         print(f"  {'-'*10} {'-'*14} {'-'*16} {'-'*12}")
 
         class_names = ['void', 'wall', 'filament', 'halo']
@@ -435,7 +435,7 @@ def main():
     summary = {
         'validation_date': datetime.now().isoformat(),
         'origami_binary': str(ORIGAMI_BIN),
-        'asymptotic_tetra_repo': str(REPO_ROOT),
+        'tessera_repo': str(REPO_ROOT),
         'reference': 'Falck, Neyrinck & Szalay 2012, ApJ 754, 126',
         'snapshots': {}
     }

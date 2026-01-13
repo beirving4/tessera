@@ -8,7 +8,7 @@
 #include "density/buffer.h"
 #include "math/rand.h"
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace density {
 
 /**
@@ -161,4 +161,4 @@ inline void cb_subtr(const geom::CellBounds& cb1, const geom::CellBounds& cb2,
 }
 
 } // namespace density
-} // namespace asymptotic_tetra
+} // namespace tessera

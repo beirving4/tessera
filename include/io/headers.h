@@ -6,7 +6,7 @@
 #include "geom/vec.h"
 #include "geom/grid.h"
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace io {
 
 /**
@@ -125,4 +125,4 @@ bool is_system_little_endian();
 ByteOrder system_byte_order();
 
 } // namespace io
-} // namespace asymptotic_tetra
+} // namespace tessera

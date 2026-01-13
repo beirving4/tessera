@@ -7,7 +7,7 @@
 #include <cctype>
 #include <random>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace render {
 
 // ============================================================================
@@ -479,4 +479,4 @@ void HistManager::histogram(const std::vector<double>& x,
 }
 
 } // namespace render
-} // namespace asymptotic_tetra
+} // namespace tessera

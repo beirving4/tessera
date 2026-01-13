@@ -10,7 +10,7 @@
 #include "density/tetra_density.h"
 
 namespace py = pybind11;
-using namespace asymptotic_tetra::density;
+using namespace tessera::density;
 
 void bind_tetra_density(py::module& m) {
     // TetraDensityConfig

@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace cosmo {
 
 // Physical constants in MKS units
@@ -70,4 +70,4 @@ inline double rho_average(double H0, double omega_m, double omega_l, double z) {
 }
 
 } // namespace cosmo
-} // namespace asymptotic_tetra
+} // namespace tessera

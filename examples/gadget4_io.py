@@ -3,12 +3,12 @@
 Example: Reading GADGET-4 HDF5 files
 
 This script demonstrates how to read GADGET-4 snapshot and halo catalog files
-using the asymptotic_tetra library. The unified interface functions
+using the tessera library. The unified interface functions
 `read_gadget4_snapshot` and `read_gadget4_halo_catalog` automatically detect
 whether you're reading a single file or a distributed multi-file output.
 """
 
-import asymptotic_tetra as at
+import tessera as ts
 
 # Check if HDF5 support is available
 print("HDF5 support:", at.io.HAS_HDF5)

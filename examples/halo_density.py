@@ -26,7 +26,7 @@ import sys
 import re
 from pathlib import Path
 
-# Try to find the asymptotic_tetra module
+# Try to find the tessera module
 _script_dir = Path(__file__).parent.resolve()
 _repo_root = _script_dir.parent
 _build_dir = _repo_root / 'build'
@@ -35,11 +35,11 @@ if _build_dir.exists():
 
 # Try to import C++ module
 try:
-    import _asymptotic_tetra as at
+    import _tessera as ts
     HAS_CPP = True
 except ImportError:
     try:
-        import asymptotic_tetra as at
+        import tessera as ts
         HAS_CPP = hasattr(at, 'density')
     except ImportError:
         HAS_CPP = False
@@ -116,15 +116,15 @@ def find_halo_catalog(snapshot_path, snapshot_num=None):
 def load_snapshot(path, snapshot_num=None, particle_type=1, read_ids=True):
     """Load particle positions from a GADGET-4 snapshot."""
     try:
-        import _asymptotic_tetra
-        io = _asymptotic_tetra.io
+        import _tessera
+        io = _tessera.io
     except ImportError:
         try:
-            import asymptotic_tetra as _at
+            import tessera as _at
             io = _at.io
         except (ImportError, AttributeError):
             raise ImportError(
-                "Could not import asymptotic_tetra. Make sure the build directory "
+                "Could not import tessera. Make sure the build directory "
                 "is in your PYTHONPATH or the package is installed."
             )
     
@@ -160,10 +160,10 @@ def load_snapshot(path, snapshot_num=None, particle_type=1, read_ids=True):
 def load_halo_catalog(catalog_path):
     """Load GADGET-4 halo catalog using C++ reader."""
     try:
-        import _asymptotic_tetra
-        io = _asymptotic_tetra.io
+        import _tessera
+        io = _tessera.io
     except ImportError:
-        import asymptotic_tetra as _at
+        import tessera as _at
         io = _at.io
     
     catalog = io.read_gadget4_halo_catalog(str(catalog_path))

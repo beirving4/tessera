@@ -1,7 +1,7 @@
 #include "render/box.h"
 #include <cmath>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace render {
 
 // ============================================================================
@@ -566,4 +566,4 @@ void DomainOverlap3D::interpolate(
 }
 
 } // namespace render
-} // namespace asymptotic_tetra
+} // namespace tessera

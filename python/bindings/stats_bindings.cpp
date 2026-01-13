@@ -6,7 +6,7 @@
 #include "stats/histogram.h"
 
 namespace py = pybind11;
-using namespace asymptotic_tetra::stats;
+using namespace tessera::stats;
 
 void bind_stats(py::module_& m) {
     auto stats = m.def_submodule("stats", "Statistical functions for density field analysis");

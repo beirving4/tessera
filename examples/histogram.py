@@ -6,7 +6,7 @@ This script demonstrates how to use the histogram module to compute
 mass-weighted density histograms from phase-space sheet data.
 """
 
-import asymptotic_tetra as at
+import tessera as ts
 
 # =============================================================================
 # Histogram Configuration

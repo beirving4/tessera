@@ -7,7 +7,7 @@
 #include <memory>
 #include "geom/vec.h"
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace io {
 
 /**
@@ -401,4 +401,4 @@ Gadget4HaloCatalog read_gadget4_halo_catalog(
 );
 
 } // namespace io
-} // namespace asymptotic_tetra
+} // namespace tessera

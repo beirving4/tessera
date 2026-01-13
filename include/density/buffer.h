@@ -7,7 +7,7 @@
 #include "geom/vec.h"
 #include "geom/grid.h"
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace density {
 
 /**
@@ -235,4 +235,4 @@ std::unique_ptr<Buffer> create_buffer(Quantity q, size_t len, size_t wlen,
 std::unique_ptr<Buffer> wrapper_density_buffer(std::vector<double>& rhos);
 
 } // namespace density
-} // namespace asymptotic_tetra
+} // namespace tessera

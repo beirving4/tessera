@@ -7,7 +7,7 @@
 #include "io/headers.h"
 #include "cosmo/cosmo.h"
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace halo {
 
 /**
@@ -160,4 +160,4 @@ inline bool rockstar_is_mass(RadiusType r) {
 }
 
 } // namespace halo
-} // namespace asymptotic_tetra
+} // namespace tessera

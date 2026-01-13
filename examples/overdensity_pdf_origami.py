@@ -32,7 +32,7 @@ REPO_ROOT = SCRIPT_DIR.parent.parent
 sys.path.insert(0, str(REPO_ROOT / 'build'))
 sys.path.insert(0, str(REPO_ROOT / 'python'))
 
-import _asymptotic_tetra as at
+import _tessera as ts
 
 # Paths
 SNAPSHOT_BASE = Path("/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/Uniform_L256_N256_primary_sandbox/gadget4/output")

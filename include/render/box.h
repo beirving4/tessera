@@ -8,7 +8,7 @@
 #include "density/interpolator.h"
 #include "io/headers.h"
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace render {
 
 // Forward declarations
@@ -276,4 +276,4 @@ inline int bound(int x, int cells) {
 }
 
 } // namespace render
-} // namespace asymptotic_tetra
+} // namespace tessera

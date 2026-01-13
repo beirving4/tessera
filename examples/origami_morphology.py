@@ -21,24 +21,24 @@ import argparse
 import sys
 from pathlib import Path
 
-# Try to find the asymptotic_tetra module
+# Try to find the tessera module
 _script_dir = Path(__file__).parent.resolve()
 _repo_root = _script_dir.parent
 _build_dir = _repo_root / 'build'
 if _build_dir.exists():
     sys.path.insert(0, str(_build_dir))
 
-# Import asymptotic_tetra
+# Import tessera
 try:
-    import _asymptotic_tetra as at
+    import _tessera as ts
     HAS_AT = True
 except ImportError:
     try:
-        import asymptotic_tetra as at
+        import tessera as ts
         HAS_AT = True
     except ImportError:
         HAS_AT = False
-        print("Error: asymptotic_tetra not found. Build the project first.")
+        print("Error: tessera not found. Build the project first.")
         sys.exit(1)
 
 

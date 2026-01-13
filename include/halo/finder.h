@@ -5,7 +5,7 @@
 #include <algorithm>
 #include "halo/grid.h"
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace halo {
 
 /**
@@ -155,4 +155,4 @@ private:
 std::vector<double> cumulative_max(const std::vector<double>& xs);
 
 } // namespace halo
-} // namespace asymptotic_tetra
+} // namespace tessera

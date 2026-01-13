@@ -4,7 +4,7 @@
 #include <array>
 #include "grid.h"
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace geom {
 
 /**
@@ -55,4 +55,4 @@ void curl(const GridLocation& g, const std::array<std::vector<float>, 3>& vecs,
           std::array<std::vector<float>, 3>& out, const DerivOptions& opt);
 
 } // namespace geom
-} // namespace asymptotic_tetra
+} // namespace tessera

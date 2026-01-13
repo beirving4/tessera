@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <numeric>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace halo {
 
 std::vector<double> cumulative_max(const std::vector<double>& xs) {
@@ -227,4 +227,4 @@ void SubhaloFinder::cross_match() {
 }
 
 } // namespace halo
-} // namespace asymptotic_tetra
+} // namespace tessera

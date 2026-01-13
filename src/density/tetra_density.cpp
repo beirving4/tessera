@@ -20,7 +20,7 @@
 #include <omp.h>
 #endif
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace density {
 
 // Direction lookup table for tetrahedron configurations (from gotetra)
@@ -749,4 +749,4 @@ TetraDensityResult2D compute_tetra_density_2d_slice(
 }
 
 } // namespace density
-} // namespace asymptotic_tetra
+} // namespace tessera

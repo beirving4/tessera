@@ -16,14 +16,14 @@ void bind_halo(py::module& m);
 void bind_stats(py::module_& m);
 void bind_origami(py::module& m);
 
-PYBIND11_MODULE(_asymptotic_tetra, m) {
+PYBIND11_MODULE(_tessera, m) {
     m.doc() = R"pbdoc(
-        AsymptoticTetra - C++ library for phase-space tessellation
-        
+        tessera - C++ library for phase-space tessellation
+
         This module provides high-performance routines for computing
         density fields from cosmological N-body simulations using
         tetrahedron-based Monte Carlo integration.
-        
+
         Submodules:
             geom - Geometry primitives (Vec3f, Tetra, Grid, CellBounds)
             math - Random number generation

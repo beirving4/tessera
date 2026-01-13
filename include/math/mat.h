@@ -5,7 +5,7 @@
 #include <cmath>
 #include <algorithm>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace math {
 
 /**
@@ -323,4 +323,4 @@ inline std::vector<double> solve(const Matrix& m, const std::vector<double>& b) 
 }
 
 } // namespace math
-} // namespace asymptotic_tetra
+} // namespace tessera

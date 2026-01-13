@@ -9,7 +9,7 @@
 #include <omp.h>
 #endif
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace stats {
 
 namespace {
@@ -478,4 +478,4 @@ std::vector<double> bin_centers(const std::vector<double>& bin_edges, bool log_s
 }
 
 } // namespace stats
-} // namespace asymptotic_tetra
+} // namespace tessera

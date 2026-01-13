@@ -7,7 +7,7 @@
 #include <chrono>
 #include <cmath>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace math {
 
 constexpr size_t DEFAULT_BUF_SIZE = 1 << 10;
@@ -119,4 +119,4 @@ private:
 };
 
 } // namespace math
-} // namespace asymptotic_tetra
+} // namespace tessera

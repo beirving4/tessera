@@ -7,7 +7,7 @@
 #include "vec.h"
 #include "grid.h"
 
-namespace asymptotic_tetra {
+namespace tessera {
 
 // Forward declaration
 namespace math { class Generator; }
@@ -191,4 +191,4 @@ inline void mod_coord(std::vector<Vec3f>& buf, int j, float width) {
 }
 
 } // namespace geom
-} // namespace asymptotic_tetra
+} // namespace tessera

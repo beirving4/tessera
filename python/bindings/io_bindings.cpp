@@ -4,12 +4,12 @@
 
 #include "io/headers.h"
 
-#ifdef ASYMPTOTIC_TETRA_HAS_HDF5
+#ifdef TESSERA_HAS_HDF5
 #include "io/gadget4.h"
 #endif
 
 namespace py = pybind11;
-using namespace asymptotic_tetra::io;
+using namespace tessera::io;
 
 void bind_io(py::module& m) {
     // ByteOrder enum
@@ -74,7 +74,7 @@ void bind_io(py::module& m) {
     m.def("system_byte_order", &system_byte_order,
           "Get system's native byte order");
 
-#ifdef ASYMPTOTIC_TETRA_HAS_HDF5
+#ifdef TESSERA_HAS_HDF5
     // =========================================================================
     // GADGET-4 HDF5 I/O
     // =========================================================================

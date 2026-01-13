@@ -10,7 +10,7 @@
 #include "origami/origami.h"
 
 namespace py = pybind11;
-using namespace asymptotic_tetra::origami;
+using namespace tessera::origami;
 
 void bind_origami(py::module& m) {
     // Create origami submodule

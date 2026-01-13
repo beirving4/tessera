@@ -16,7 +16,7 @@
 #include <omp.h>
 #endif
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace origami {
 
 namespace {
@@ -505,4 +505,4 @@ void deposit_morphology_to_grid(
 }
 
 } // namespace origami
-} // namespace asymptotic_tetra
+} // namespace tessera

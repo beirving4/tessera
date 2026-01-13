@@ -13,7 +13,7 @@
 #include <vector>
 #include <cstdint>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace stats {
 
 /**
@@ -130,4 +130,4 @@ std::vector<double> histogram_to_pdf(const HistogramResult& hist);
 std::vector<double> bin_centers(const std::vector<double>& bin_edges, bool log_space = false);
 
 } // namespace stats
-} // namespace asymptotic_tetra
+} // namespace tessera

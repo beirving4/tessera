@@ -5,10 +5,10 @@ This module provides the same API as the original gotetra.py file,
 allowing existing code to work with the new C++ backend.
 
 Usage:
-    from asymptotic_tetra.gotetra_compat import read_header, read_grid
-    
+    from tessera.gotetra_compat import read_header, read_grid
+
     # Or for full compatibility:
-    import asymptotic_tetra.gotetra_compat as gotetra
+    import tessera.gotetra_compat as gotetra
     header = gotetra.read_header("file.gtet")
     grid = gotetra.read_grid("file.gtet")
 """

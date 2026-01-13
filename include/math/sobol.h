@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <stdexcept>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace math {
 
 /**
@@ -187,4 +187,4 @@ private:
 };
 
 } // namespace math
-} // namespace asymptotic_tetra
+} // namespace tessera

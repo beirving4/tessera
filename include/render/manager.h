@@ -14,7 +14,7 @@
 #include "render/box.h"
 #include "io/headers.h"
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace render {
 
 constexpr int UNIT_BUF_COUNT = 64;  // 1 << 6
@@ -139,4 +139,4 @@ private:
 std::vector<std::vector<geom::Vec3f>> generate_unit_bufs(int n_unit, int pts);
 
 } // namespace render
-} // namespace asymptotic_tetra
+} // namespace tessera

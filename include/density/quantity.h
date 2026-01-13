@@ -3,7 +3,7 @@
 #include <string>
 #include <optional>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace density {
 
 /**
@@ -86,4 +86,4 @@ inline bool is_vector(Quantity q) {
 }
 
 } // namespace density
-} // namespace asymptotic_tetra
+} // namespace tessera

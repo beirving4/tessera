@@ -7,7 +7,7 @@
 #include "io/headers.h"
 #include "halo/radius.h"
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace halo {
 
 /**
@@ -211,4 +211,4 @@ std::vector<std::vector<double>> read_binary_table(
 );
 
 } // namespace halo
-} // namespace asymptotic_tetra
+} // namespace tessera

@@ -25,7 +25,7 @@ import argparse
 import sys
 from pathlib import Path
 
-# Try to find the asymptotic_tetra module
+# Try to find the tessera module
 _script_dir = Path(__file__).parent.resolve()
 _repo_root = _script_dir.parent
 _build_dir = _repo_root / 'build'
@@ -34,11 +34,11 @@ if _build_dir.exists():
 
 # Import the C++ module
 try:
-    import _asymptotic_tetra as at
+    import _tessera as ts
     HAS_CPP = True
 except ImportError:
     try:
-        import asymptotic_tetra as at
+        import tessera as ts
         HAS_CPP = hasattr(at, 'density')
     except ImportError:
         HAS_CPP = False
@@ -56,10 +56,10 @@ def load_snapshot(path, particle_type=1):
     header : Gadget4Header
     """
     try:
-        import _asymptotic_tetra
-        io = _asymptotic_tetra.io
+        import _tessera
+        io = _tessera.io
     except ImportError:
-        import asymptotic_tetra as _at
+        import tessera as _at
         io = _at.io
     
     particle_types = 1 << particle_type

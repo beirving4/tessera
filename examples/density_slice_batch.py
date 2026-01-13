@@ -33,7 +33,7 @@ import re
 from pathlib import Path
 from datetime import datetime
 
-# Try to find the asymptotic_tetra module
+# Try to find the tessera module
 _script_dir = Path(__file__).parent.resolve()
 _repo_root = _script_dir.parent
 _build_dir = _repo_root / 'build'

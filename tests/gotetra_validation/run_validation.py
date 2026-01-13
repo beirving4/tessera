@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Gotetra Validation: Compare AsymptoticTetra against original gotetra code.
+Gotetra Validation: Compare tessera against original gotetra code.
 
-This script validates the AsymptoticTetra tetrahedron-based density computation
+This script validates the tessera tetrahedron-based density computation
 by comparing its output against pre-rendered gotetra density fields.
 
 The validation compares:
@@ -10,7 +10,7 @@ The validation compares:
 2. Halo subbox (10 cMpc/h) z-projection density fields tracking Group 0 across time
 
 Results are saved as JSON summaries and 2x3 comparison images showing:
-- Top row: AsymptoticTetra density, gotetra density, relative difference
+- Top row: tessera density, gotetra density, relative difference
 - Bottom row: Overdensity PDF comparison, scatter plot, relative difference histogram
 """
 
@@ -83,7 +83,7 @@ def load_snapshot(snapshot_path):
     """Load particle data from GADGET-4 snapshot."""
     import h5py
     with h5py.File(snapshot_path, 'r') as f:
-        # Convert to required dtypes for AsymptoticTetra
+        # Convert to required dtypes for tessera
         positions = np.ascontiguousarray(f['PartType1/Coordinates'][:], dtype=np.float64)
         particle_ids = np.ascontiguousarray(f['PartType1/ParticleIDs'][:], dtype=np.int64)
         box_size = float(f['Header'].attrs['BoxSize'])
@@ -94,13 +94,13 @@ def load_snapshot(snapshot_path):
 
 def sort_positions_lagrangian(positions, particle_ids, grid_size):
     """Sort positions by Lagrangian ID (x-major ordering for gotetra)."""
-    import _asymptotic_tetra as at
+    import _tessera as ts
     return at.density.sort_by_lagrangian_id(positions, particle_ids, grid_size)
 
 
 def compute_asymptotic_density_2d(sorted_positions, box_size, grid_size, output_cells,
                                    subbox=None, scale_factor=1.0):
-    """Compute 2D z-projected density field using AsymptoticTetra.
+    """Compute 2D z-projected density field using tessera.
 
     Args:
         sorted_positions: Particle positions sorted by Lagrangian ID (comoving coordinates)
@@ -116,7 +116,7 @@ def compute_asymptotic_density_2d(sorted_positions, box_size, grid_size, output_
     Returns:
         2D density array
     """
-    import _asymptotic_tetra as at
+    import _tessera as ts
 
     # Scale to physical coordinates if requested
     if scale_factor != 1.0:
@@ -168,7 +168,7 @@ def compute_asymptotic_density_2d(sorted_positions, box_size, grid_size, output_
 
 def read_gotetra_reference(gtet_path):
     """Read reference density field from gotetra .gtet file."""
-    from asymptotic_tetra.gotetra_compat import read_header, read_grid
+    from tessera.gotetra_compat import read_header, read_grid
     header = read_header(str(gtet_path))
     grid = read_grid(str(gtet_path))
     return grid, header
@@ -222,12 +222,12 @@ def create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_
 
     # ===== Top Row: Density comparison =====
 
-    # Top Left: AsymptoticTetra density
+    # Top Left: tessera density
     vmin = np.log10(np.maximum(at_norm, 0.01).min())
     vmax = np.log10(at_norm.max())
     im1 = axes[0, 0].imshow(np.log10(np.maximum(at_norm, 0.01)), origin='lower',
                             cmap='magma', vmin=vmin, vmax=vmax, extent=extent)
-    axes[0, 0].set_title('AsymptoticTetra')
+    axes[0, 0].set_title('tessera')
     plt.colorbar(im1, ax=axes[0, 0], label=r'$\log_{10}(1+\delta)$')
     if extent is not None:
         axes[0, 0].set_xlabel(coord_label)
@@ -260,7 +260,7 @@ def create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_
     at_flat = at_norm.flatten()
     gt_flat = gt_norm.flatten()
 
-    axes[1, 0].hist(at_flat[at_flat > 0], bins=bins, alpha=0.7, label='AsymptoticTetra',
+    axes[1, 0].hist(at_flat[at_flat > 0], bins=bins, alpha=0.7, label='tessera',
                     color='#e74c3c', density=True)
     axes[1, 0].hist(gt_flat[gt_flat > 0], bins=bins, alpha=0.7, label='Gotetra',
                     color='#3498db', density=True)
@@ -289,7 +289,7 @@ def create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_
     axes[1, 1].set_xscale('log')
     axes[1, 1].set_yscale('log')
     axes[1, 1].set_xlabel(r'Gotetra $1+\delta$')
-    axes[1, 1].set_ylabel(r'AsymptoticTetra $1+\delta$')
+    axes[1, 1].set_ylabel(r'tessera $1+\delta$')
     axes[1, 1].set_title(f'Pearson r={stats["correlation"]:.6f}, Spearman r={spearman_r:.4f}')
     axes[1, 1].legend()
 
@@ -399,8 +399,8 @@ def run_validation(config):
         output_cells = gotetra_density.shape[0]
         print(f"  Trimmed gotetra to {output_cells}x{output_cells} (removed boundary zeros)")
 
-    # Compute AsymptoticTetra density
-    print(f"Computing AsymptoticTetra density ({output_cells}x{output_cells})...")
+    # Compute tessera density
+    print(f"Computing tessera density ({output_cells}x{output_cells})...")
     at_density = compute_asymptotic_density_2d(sorted_positions, box_size, grid_size,
                                                 output_cells, subbox=subbox)
     print(f"  AT shape: {at_density.shape}")
@@ -464,7 +464,7 @@ def run_validation(config):
 
 def main():
     print("=" * 70)
-    print("Gotetra Validation: AsymptoticTetra vs Original Code")
+    print("Gotetra Validation: tessera vs Original Code")
     print("=" * 70)
     print(f"Output directory: {SCRIPT_DIR}")
     print()
@@ -480,7 +480,7 @@ def main():
     all_passed = all(r.get('passed', False) for r in all_results.values())
     summary = {
         'validation_date': datetime.now().isoformat(),
-        'asymptotic_tetra_repo': str(REPO_ROOT),
+        'tessera_repo': str(REPO_ROOT),
         'reference': 'gotetra: github.com/phil-mansfield/gotetra',
         'method': 'Tetrahedron-based phase-space tessellation for density field computation',
         'notes': [

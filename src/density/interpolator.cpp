@@ -1,7 +1,7 @@
 #include "density/interpolator.h"
 #include <cmath>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace density {
 
 MonteCarlo::MonteCarlo(
@@ -112,4 +112,4 @@ void MonteCarlo::interpolate(
 }
 
 } // namespace density
-} // namespace asymptotic_tetra
+} // namespace tessera

@@ -2,7 +2,7 @@
 #include <stdexcept>
 #include <cmath>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace geom {
 
 const DerivOptions DERIV_OPTIONS_DEFAULT = {false, DerivOp::None, 4};
@@ -244,4 +244,4 @@ void curl(const GridLocation& g, const std::array<std::vector<float>, 3>& vecs,
 }
 
 } // namespace geom
-} // namespace asymptotic_tetra
+} // namespace tessera

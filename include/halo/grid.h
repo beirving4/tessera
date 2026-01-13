@@ -3,7 +3,7 @@
 #include <vector>
 #include <cstdint>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace halo {
 
 constexpr int GRID_TAIL = -1;
@@ -137,4 +137,4 @@ public:
 };
 
 } // namespace halo
-} // namespace asymptotic_tetra
+} // namespace tessera

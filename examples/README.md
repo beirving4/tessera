@@ -1,13 +1,13 @@
-# AsymptoticTetra Examples
+# tessera Examples
 
-This directory contains example scripts demonstrating how to use the asymptotic_tetra library.
+This directory contains example scripts demonstrating how to use the tessera library.
 
 ## Prerequisites
 
 Build the library with Python bindings and HDF5 support:
 
 ```bash
-cd /path/to/AsymptoticTetra
+cd /path/to/tessera
 mkdir build && cd build
 cmake .. -DBUILD_PYTHON_BINDINGS=ON -DBUILD_WITH_HDF5=ON
 make -j4
@@ -16,7 +16,7 @@ make -j4
 Add the build directory to your Python path:
 
 ```bash
-export PYTHONPATH=/path/to/AsymptoticTetra/build:$PYTHONPATH
+export PYTHONPATH=/path/to/tessera/build:$PYTHONPATH
 ```
 
 ## Examples
@@ -147,21 +147,21 @@ Overdensity PDF computation:
 ## Quick Reference
 
 ```python
-import _asymptotic_tetra as at
+import _tessera as ts
 
 # List available modules
-print([m for m in dir(at) if not m.startswith('_')])
+print([m for m in dir(ts) if not m.startswith('_')])
 # ['cosmo', 'density', 'geom', 'halo', 'io', 'math', 'origami', 'render', 'stats']
 
 # Check HDF5 support
-print(f"HDF5 support: {at.io.HAS_HDF5}")
+print(f"HDF5 support: {ts.io.HAS_HDF5}")
 
 # Basic vector operations
-v = at.Vec3f(1, 2, 3)
+v = ts.Vec3f(1, 2, 3)
 print(f"Norm: {v.norm()}")
 
 # Tetrahedron
-tet = at.Tetra(at.Vec3f(0,0,0), at.Vec3f(1,0,0), at.Vec3f(0,1,0), at.Vec3f(0,0,1))
+tet = ts.Tetra(ts.Vec3f(0,0,0), ts.Vec3f(1,0,0), ts.Vec3f(0,1,0), ts.Vec3f(0,0,1))
 print(f"Volume: {tet.volume()}")
 ```
 

@@ -27,7 +27,7 @@ import argparse
 import sys
 from pathlib import Path
 
-# Try to find the asymptotic_tetra module
+# Try to find the tessera module
 # First check if we're in the examples directory and add build to path
 _script_dir = Path(__file__).parent.resolve()
 _repo_root = _script_dir.parent
@@ -37,11 +37,11 @@ if _build_dir.exists():
 
 # Try to import C++ module for tessellation
 try:
-    import _asymptotic_tetra as at
+    import _tessera as ts
     HAS_CPP = True
 except ImportError:
     try:
-        import asymptotic_tetra as at
+        import tessera as ts
         HAS_CPP = hasattr(at, 'density')
     except ImportError:
         HAS_CPP = False
@@ -75,16 +75,16 @@ def load_snapshot(path, snapshot_num=None, particle_type=1, read_ids=False):
     # Try importing the module in various ways depending on how it's installed
     try:
         # Direct import of compiled module (when build dir is in PYTHONPATH)
-        import _asymptotic_tetra
-        io = _asymptotic_tetra.io
+        import _tessera
+        io = _tessera.io
     except ImportError:
         try:
             # Installed package
-            import asymptotic_tetra as _at
+            import tessera as _at
             io = _at.io
         except (ImportError, AttributeError):
             raise ImportError(
-                "Could not import asymptotic_tetra. Make sure the build directory "
+                "Could not import tessera. Make sure the build directory "
                 "is in your PYTHONPATH or the package is installed."
             )
     

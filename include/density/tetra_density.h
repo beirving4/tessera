@@ -24,7 +24,7 @@
 #include <cstdint>
 #include <memory>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace density {
 
 /**
@@ -222,4 +222,4 @@ void sort_by_lagrangian_id(
 );
 
 } // namespace density
-} // namespace asymptotic_tetra
+} // namespace tessera

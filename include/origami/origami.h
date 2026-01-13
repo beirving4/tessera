@@ -27,7 +27,7 @@
 #include <array>
 #include <cstdint>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace origami {
 
 /**
@@ -184,4 +184,4 @@ inline const char* morphology_name(uint8_t cls) {
 }
 
 } // namespace origami
-} // namespace asymptotic_tetra
+} // namespace tessera

@@ -1,7 +1,7 @@
 #include "math/rand.h"
 #include <stdexcept>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace math {
 
 // XorshiftGenerator implementation
@@ -163,4 +163,4 @@ double Generator::gaussian() {
 }
 
 } // namespace math
-} // namespace asymptotic_tetra
+} // namespace tessera

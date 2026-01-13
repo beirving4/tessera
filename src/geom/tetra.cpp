@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <algorithm>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace geom {
 
 // Direction lookup tables
@@ -386,4 +386,4 @@ void distribute_unit(std::vector<Vec3f>& vec_buf) {
 }
 
 } // namespace geom
-} // namespace asymptotic_tetra
+} // namespace tessera

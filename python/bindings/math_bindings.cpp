@@ -10,7 +10,7 @@
 #include "math/calc.h"
 
 namespace py = pybind11;
-using namespace asymptotic_tetra::math;
+using namespace tessera::math;
 
 void bind_math(py::module& m) {
     // GeneratorType enum

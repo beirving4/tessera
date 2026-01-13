@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <mutex>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace render {
 
 std::vector<std::vector<geom::Vec3f>> generate_unit_bufs(int n_unit, int pts) {
@@ -239,4 +239,4 @@ void Manager::chan_interpolate(int id, Renderer& r, std::vector<int>& out) {
 }
 
 } // namespace render
-} // namespace asymptotic_tetra
+} // namespace tessera

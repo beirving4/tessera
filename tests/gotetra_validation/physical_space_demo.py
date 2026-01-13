@@ -75,7 +75,7 @@ def compute_density_2d(positions, particle_ids, box_size, grid_size, output_cell
     Returns:
         2D density array
     """
-    import _asymptotic_tetra as at
+    import _tessera as ts
 
     # Sort positions by Lagrangian ID
     sorted_positions = at.density.sort_by_lagrangian_id(positions, particle_ids, grid_size)

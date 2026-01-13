@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <numeric>
 
-namespace asymptotic_tetra {
+namespace tessera {
 namespace halo {
 
 std::vector<std::vector<double>> read_table(
@@ -327,4 +327,4 @@ void read_rockstar(
 }
 
 } // namespace halo
-} // namespace asymptotic_tetra
+} // namespace tessera
