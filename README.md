@@ -212,7 +212,7 @@ python examples/origami_morphology.py snapshot_034.hdf5 -o origami.h5 --plot ori
 
 ### Time-Series Visualization
 
-Create Diemer-style cosmic evolution visualizations where the x-axis represents cosmic time:
+Create cosmic evolution visualizations where the x-axis represents cosmic time:
 
 ```bash
 # Full pipeline: projections → static image → animation
