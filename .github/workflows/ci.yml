@@ -104,19 +104,17 @@ jobs:
     steps:
       - name: Configure CentOS vault mirrors (EOL workaround)
         run: |
-          # CentOS 7 is EOL - switch to vault mirrors
-          sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*.repo
-          sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*.repo
+          # CentOS 7 is EOL - switch to vault mirrors for all repos
+          sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/*.repo
+          sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/*.repo
 
       - name: Install SCL and EPEL repos
         run: |
           yum install -y centos-release-scl epel-release
-
-      - name: Configure SCL vault mirrors
-        run: |
-          # SCL repos also need vault mirrors after EOL
-          sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-SCLo-*.repo
-          sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-SCLo-*.repo
+          # Fix newly installed SCL repos to use vault mirrors
+          sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/*.repo
+          sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/*.repo
+          yum clean all
 
       - name: Install build dependencies
         run: |
