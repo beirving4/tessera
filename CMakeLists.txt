@@ -90,8 +90,8 @@ set(ALL_SOURCES
     ${ORIGAMI_SOURCES}
 )
 
-# Core library
-add_library(tessera_core ${ALL_SOURCES})
+# Core library (static for embedding in Python extension)
+add_library(tessera_core STATIC ${ALL_SOURCES})
 target_include_directories(tessera_core PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
@@ -123,8 +123,8 @@ endif()
 
 # Python bindings
 if(BUILD_PYTHON_BINDINGS)
-    find_package(Python3 COMPONENTS Interpreter Development NumPy REQUIRED)
-    
+    find_package(Python3 COMPONENTS Interpreter Development.Module REQUIRED)
+
     # Try to find pybind11
     find_package(pybind11 CONFIG QUIET)
     if(NOT pybind11_FOUND)
@@ -137,7 +137,19 @@ if(BUILD_PYTHON_BINDINGS)
         )
         FetchContent_MakeAvailable(pybind11)
     endif()
-    
+
+    # Find NumPy include directory
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}" -c "import numpy; print(numpy.get_include())"
+        OUTPUT_VARIABLE NUMPY_INCLUDE_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE NUMPY_NOT_FOUND
+    )
+    if(NUMPY_NOT_FOUND)
+        message(FATAL_ERROR "NumPy not found")
+    endif()
+    message(STATUS "NumPy include dir: ${NUMPY_INCLUDE_DIR}")
+
     # Python module
     pybind11_add_module(_tessera
         python/bindings/module.cpp
@@ -153,9 +165,9 @@ if(BUILD_PYTHON_BINDINGS)
         python/bindings/origami_bindings.cpp
     )
     target_link_libraries(_tessera PRIVATE tessera_core)
-    target_include_directories(_tessera PRIVATE ${Python3_NumPy_INCLUDE_DIRS})
+    target_include_directories(_tessera PRIVATE ${NUMPY_INCLUDE_DIR})
 
-    # Copy Python package to build directory
+    # Copy Python package to build directory (for local development)
     add_custom_command(TARGET _tessera POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/python/tessera
@@ -164,6 +176,12 @@ if(BUILD_PYTHON_BINDINGS)
             $<TARGET_FILE:_tessera>
             ${CMAKE_CURRENT_BINARY_DIR}/tessera/
     )
+
+    # Install Python module (for pip install)
+    install(TARGETS _tessera LIBRARY DESTINATION .)
+    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/python/tessera/
+            DESTINATION .
+            FILES_MATCHING PATTERN "*.py")
 endif()
 
 # Tests

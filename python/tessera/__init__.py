@@ -33,20 +33,41 @@ Modules:
     render - Rendering interface
     cosmo - Cosmological calculations (rho_critical, rho_average)
     halo - Halo finding and analysis (SubhaloFinder, RadiusType)
+    origami - ORIGAMI morphology classification
+    stats - Statistical functions
 """
 
-try:
-    from ._tessera import (
-        geom,
-        math,
-        density,
-        io,
-        render,
-        cosmo,
-        halo,
-    )
-    __version__ = "1.0.0"
+__version__ = "1.0.0"
 
+# Try to import the native module
+_native_available = False
+
+try:
+    # Try relative import first (for pip installed package)
+    from ._tessera import geom, math, density, io, render, cosmo, halo
+    _native_available = True
+except ImportError:
+    try:
+        # Fall back to absolute import (for development with PYTHONPATH)
+        from _tessera import geom, math, density, io, render, cosmo, halo
+        _native_available = True
+    except ImportError:
+        pass
+
+# Import origami and stats (they may be in different submodules)
+origami = None
+stats = None
+
+if _native_available:
+    try:
+        from ._tessera import origami, stats
+    except ImportError:
+        try:
+            from _tessera import origami, stats
+        except ImportError:
+            pass
+
+if _native_available:
     # Convenience imports at top level from submodules
     Vec3f = geom.Vec3f
     Tetra = geom.Tetra
@@ -68,11 +89,9 @@ try:
     SubhaloFinder = halo.SubhaloFinder
     HaloData = halo.HaloData
     Val = halo.Val
-except ImportError as e:
-    # Fallback if native module not available
+else:
     import warnings
-    warnings.warn(f"Native module not available: {e}. Some functionality will be limited.")
-    __version__ = "1.0.0"
+    warnings.warn("Native module not available. Some functionality will be limited.")
     geom = None
     math = None
     density = None
@@ -84,17 +103,19 @@ except ImportError as e:
 __all__ = [
     # Submodules
     "geom",
-    "math", 
+    "math",
     "density",
     "io",
     "render",
     "cosmo",
     "halo",
+    "origami",
+    "stats",
     # Geometry
     "Vec3f",
     "Tetra",
     "Grid",
-    "GridLocation", 
+    "GridLocation",
     "CellBounds",
     "TetraIdxs",
     # Math

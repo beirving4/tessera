@@ -1,0 +1,59 @@
+[build-system]
+requires = ["scikit-build-core>=0.5", "pybind11>=2.11", "numpy>=1.20"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "tessera"
+version = "1.0.0"
+description = "High-performance phase-space tessellation for cosmological N-body simulations"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Bryen Irving"},
+    {name = "Phil Mansfield"},
+]
+keywords = ["cosmology", "n-body", "simulation", "density", "tessellation", "origami"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: C++",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "numpy>=1.20",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "matplotlib",
+    "h5py",
+]
+all = [
+    "matplotlib",
+    "h5py",
+    "attrs",
+]
+
+[project.urls]
+Homepage = "https://github.com/beirving4/tessera"
+Repository = "https://github.com/beirving4/tessera"
+Issues = "https://github.com/beirving4/tessera/issues"
+
+[tool.scikit-build]
+cmake.args = ["-DBUILD_PYTHON_BINDINGS=ON", "-DBUILD_WITH_HDF5=ON"]
+wheel.packages = ["python/tessera"]
+build-dir = "build/{wheel_tag}"
+
+[tool.scikit-build.cmake.define]
+BUILD_PYTHON_BINDINGS = "ON"
+BUILD_WITH_HDF5 = "ON"
