@@ -113,10 +113,6 @@ jobs:
           git clone --depth 1 https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git .
           git checkout ${{ github.sha }}
 
-      - name: Install HDF5
-        run: |
-          yum install -y hdf5-devel
-
       - name: Install Python dependencies
         run: |
           /opt/python/cp310-cp310/bin/python -m pip install numpy pytest scikit-build-core pybind11
@@ -124,7 +120,8 @@ jobs:
       - name: Build and install
         run: |
           # manylinux2014 has devtoolset-10 in PATH by default
-          /opt/python/cp310-cp310/bin/python -m pip install -v .
+          # Build without HDF5 since manylinux2014 has HDF5 1.8.x but HighFive requires 1.10+
+          /opt/python/cp310-cp310/bin/python -m pip install -v . --config-settings=cmake.args="-DBUILD_WITH_HDF5=OFF"
 
       - name: Test import
         run: |
