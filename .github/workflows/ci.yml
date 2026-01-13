@@ -102,12 +102,21 @@ jobs:
       image: centos:7
 
     steps:
+      - name: Configure CentOS vault mirrors (EOL workaround)
+        run: |
+          # CentOS 7 is EOL - switch to vault mirrors
+          sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*.repo
+          sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*.repo
+
       - name: Install base dependencies
         run: |
           yum install -y centos-release-scl epel-release
+          # SCL also needs vault mirrors
+          sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-SCLo-*.repo || true
+          sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-SCLo-*.repo || true
           yum install -y devtoolset-10-gcc devtoolset-10-gcc-c++ \
                          cmake3 make git hdf5-devel openssl-devel \
-                         bzip2-devel libffi-devel zlib-devel
+                         bzip2-devel libffi-devel zlib-devel curl
 
       - uses: actions/checkout@v4
 
