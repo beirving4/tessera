@@ -45,7 +45,7 @@ if(BUILD_WITH_HDF5)
     FetchContent_Declare(
         HighFive
         GIT_REPOSITORY https://github.com/BlueBrain/HighFive.git
-        GIT_TAG v2.9.0
+        GIT_TAG v2.10.1
     )
     set(HIGHFIVE_USE_BOOST OFF CACHE BOOL "" FORCE)
     set(HIGHFIVE_UNIT_TESTS OFF CACHE BOOL "" FORCE)
