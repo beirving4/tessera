@@ -103,7 +103,8 @@ jobs:
       image: quay.io/pypa/manylinux2014_x86_64
 
     steps:
-      - uses: actions/checkout@v4
+      # Use v3 because manylinux2014 has glibc 2.17, but v4 requires glibc 2.27+
+      - uses: actions/checkout@v3
 
       - name: Install HDF5
         run: |
