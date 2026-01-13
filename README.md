@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/beirving4/tessera/actions/workflows/ci.yml/badge.svg)](https://github.com/beirving4/tessera/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue)](https://www.python.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 <p align="center">
   <img src="docs/time_series_example.png" alt="Cosmic structure evolution from a=0.01 to a=100" width="100%">
