@@ -42,6 +42,13 @@ if(BUILD_WITH_HDF5)
     
     # Fetch HighFive (modern C++ HDF5 wrapper)
     include(FetchContent)
+
+    # HighFive has cmake_minimum_required(VERSION 3.1) which CMake 4.x rejects
+    # Set policy minimum to allow it to configure
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
+        set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+    endif()
+
     FetchContent_Declare(
         HighFive
         GIT_REPOSITORY https://github.com/BlueBrain/HighFive.git
