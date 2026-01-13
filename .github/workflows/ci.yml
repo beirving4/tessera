@@ -109,6 +109,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          git config --global --add safe.directory /__w/tessera/tessera
           git clone --depth 1 https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git .
           git checkout ${{ github.sha }}
 
