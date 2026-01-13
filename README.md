@@ -4,6 +4,10 @@
 [![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12%20|%203.13%20|%203.14-blue)](https://www.python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+> **tes·ser·a** /ˈtesərə/ *noun*
+>
+> A small block of stone, tile, glass, or other material used in the construction of a mosaic. From Latin *tessera*, from Greek *tessares* "four" — referring to the four corners of the tiles used to tessellate a surface.
+
 <p align="center">
   <img src="docs/time_series_example.png" alt="Cosmic structure evolution from a=0.01 to a=100" width="100%">
   <br>
