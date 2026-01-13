@@ -154,16 +154,16 @@ def run_asymptotic_origami(sorted_positions, box_size, grid_size):
     """Run tessera ORIGAMI implementation."""
     import _tessera as ts
 
-    config = at.origami.OrigamiConfig()
+    config = ts.origami.OrigamiConfig()
     config.lagrangian_grid_size = grid_size
     config.box_size = float(box_size)
     config.n_threads = 1
     config.n_split = 1
 
-    result = at.origami.compute_morphology(sorted_positions, config)
+    result = ts.origami.compute_morphology(sorted_positions, config)
 
     # Deposit to grid to compute volume fractions
-    at.origami.deposit_morphology_to_grid(sorted_positions, box_size, 128, result)
+    ts.origami.deposit_morphology_to_grid(sorted_positions, box_size, 128, result)
 
     return np.array(result.morphology), result
 
@@ -216,9 +216,13 @@ def create_comparison_image(output_dir, label, stats, asym_result, description):
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
 
+    # Enable LaTeX-style rendering
+    plt.rcParams['mathtext.fontset'] = 'stix'
+    plt.rcParams['font.family'] = 'STIXGeneral'
+
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
-    class_names = ['Void', 'Wall', 'Filament', 'Halo']
+    class_names = [r'${\rm Void}$', r'${\rm Wall}$', r'${\rm Filament}$', r'${\rm Halo}$']
     colors = ['#3498db', '#2ecc71', '#e74c3c', '#9b59b6']
 
     # Mass fractions pie chart
@@ -228,7 +232,7 @@ def create_comparison_image(output_dir, label, stats, asym_result, description):
                   stats['mass_fractions']['halo']]
     axes[0].pie(mass_fracs, labels=class_names, colors=colors, autopct='%.1f%%',
                 startangle=90)
-    axes[0].set_title('Mass Fractions')
+    axes[0].set_title(r'${\rm Mass\ Fractions}$')
 
     # Volume fractions pie chart
     vol_fracs = [stats['volume_fractions']['void'],
@@ -237,28 +241,29 @@ def create_comparison_image(output_dir, label, stats, asym_result, description):
                  stats['volume_fractions']['halo']]
     axes[1].pie(vol_fracs, labels=class_names, colors=colors, autopct='%.1f%%',
                 startangle=90)
-    axes[1].set_title('Volume Fractions')
+    axes[1].set_title(r'${\rm Volume\ Fractions}$')
 
     # Per-class comparison bar chart
     x = np.arange(4)
     width = 0.35
-    orig_counts = [stats['per_class'][n.lower()]['original_fraction'] * 100 for n in class_names]
-    asym_counts = [stats['per_class'][n.lower()]['asymptotic_fraction'] * 100 for n in class_names]
+    class_names_plain = ['Void', 'Wall', 'Filament', 'Halo']
+    orig_counts = [stats['per_class'][n.lower()]['original_fraction'] * 100 for n in class_names_plain]
+    asym_counts = [stats['per_class'][n.lower()]['asymptotic_fraction'] * 100 for n in class_names_plain]
 
-    bars1 = axes[2].bar(x - width/2, orig_counts, width, label='Original ORIGAMI', color='#2c3e50')
-    bars2 = axes[2].bar(x + width/2, asym_counts, width, label='tessera', color='#e67e22')
-    axes[2].set_ylabel('Fraction (%)')
+    bars1 = axes[2].bar(x - width/2, orig_counts, width, label=r'${\rm Original\ ORIGAMI}$', color='#2c3e50')
+    bars2 = axes[2].bar(x + width/2, asym_counts, width, label=r'${\rm tessera}$', color='#e67e22')
+    axes[2].set_ylabel(r'${\rm Fraction\ (\%)}$')
     axes[2].set_xticks(x)
     axes[2].set_xticklabels(class_names)
     axes[2].legend()
-    axes[2].set_title('Classification Comparison')
+    axes[2].set_title(r'${\rm Classification\ Comparison}$')
 
     match_rate = stats['match_rate'] * 100
-    plt.suptitle(f"ORIGAMI Validation: {description}\nMatch Rate: {match_rate:.2f}%")
+    plt.suptitle(r'${\rm ORIGAMI\ Validation:\ ' + description.replace(' ', r'\ ').replace('(', r'(').replace(')', r')').replace('=', r'=').replace(',', r',') + r'}$' + '\n' + r'${\rm Match\ Rate:}\ ' + f'{match_rate:.2f}' + r'\%$')
     plt.tight_layout()
 
     output_path = output_dir / f"origami_{label}.png"
-    plt.savefig(output_path, dpi=150)
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
 
     return output_path
@@ -270,6 +275,11 @@ def create_morphology_slice_image(output_dir, label, asym_result, grid_size, des
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     from matplotlib.colors import ListedColormap
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+    # Enable LaTeX-style rendering
+    plt.rcParams['mathtext.fontset'] = 'stix'
+    plt.rcParams['font.family'] = 'STIXGeneral'
 
     # Create colormap for morphology classes
     colors = ['#3498db', '#2ecc71', '#e74c3c', '#9b59b6']  # Void, Wall, Filament, Halo
@@ -285,33 +295,41 @@ def create_morphology_slice_image(output_dir, label, asym_result, grid_size, des
         # X-Y slice (z=middle)
         z_mid = n_cells // 2
         im0 = axes[0].imshow(morph_grid[z_mid, :, :], cmap=cmap, vmin=0, vmax=3, origin='lower')
-        axes[0].set_title(f'X-Y Slice (z={z_mid})')
-        axes[0].set_xlabel('X')
-        axes[0].set_ylabel('Y')
+        axes[0].set_title(r'${\rm X\text{-}Y\ Slice}\ (z=' + str(z_mid) + r')$')
+        axes[0].set_xlabel(r'$X$')
+        axes[0].set_ylabel(r'$Y$')
+        divider0 = make_axes_locatable(axes[0])
+        cax0 = divider0.append_axes("right", size="5%", pad=0.05)
+        cbar0 = plt.colorbar(im0, cax=cax0, ticks=[0.375, 1.125, 1.875, 2.625])
+        cbar0.ax.set_yticklabels([r'${\rm Void}$', r'${\rm Wall}$', r'${\rm Filament}$', r'${\rm Halo}$'])
 
         # X-Z slice (y=middle)
         y_mid = n_cells // 2
         im1 = axes[1].imshow(morph_grid[:, y_mid, :], cmap=cmap, vmin=0, vmax=3, origin='lower')
-        axes[1].set_title(f'X-Z Slice (y={y_mid})')
-        axes[1].set_xlabel('X')
-        axes[1].set_ylabel('Z')
+        axes[1].set_title(r'${\rm X\text{-}Z\ Slice}\ (y=' + str(y_mid) + r')$')
+        axes[1].set_xlabel(r'$X$')
+        axes[1].set_ylabel(r'$Z$')
+        divider1 = make_axes_locatable(axes[1])
+        cax1 = divider1.append_axes("right", size="5%", pad=0.05)
+        cbar1 = plt.colorbar(im1, cax=cax1, ticks=[0.375, 1.125, 1.875, 2.625])
+        cbar1.ax.set_yticklabels([r'${\rm Void}$', r'${\rm Wall}$', r'${\rm Filament}$', r'${\rm Halo}$'])
 
         # Y-Z slice (x=middle)
         x_mid = n_cells // 2
         im2 = axes[2].imshow(morph_grid[:, :, x_mid], cmap=cmap, vmin=0, vmax=3, origin='lower')
-        axes[2].set_title(f'Y-Z Slice (x={x_mid})')
-        axes[2].set_xlabel('Y')
-        axes[2].set_ylabel('Z')
+        axes[2].set_title(r'${\rm Y\text{-}Z\ Slice}\ (x=' + str(x_mid) + r')$')
+        axes[2].set_xlabel(r'$Y$')
+        axes[2].set_ylabel(r'$Z$')
+        divider2 = make_axes_locatable(axes[2])
+        cax2 = divider2.append_axes("right", size="5%", pad=0.05)
+        cbar2 = plt.colorbar(im2, cax=cax2, ticks=[0.375, 1.125, 1.875, 2.625])
+        cbar2.ax.set_yticklabels([r'${\rm Void}$', r'${\rm Wall}$', r'${\rm Filament}$', r'${\rm Halo}$'])
 
-        # Colorbar
-        cbar = fig.colorbar(im0, ax=axes, ticks=[0.375, 1.125, 1.875, 2.625], shrink=0.6)
-        cbar.ax.set_yticklabels(['Void', 'Wall', 'Filament', 'Halo'])
-
-        plt.suptitle(f"Morphology Grid: {description}")
+        plt.suptitle(r'${\rm Morphology\ Grid:\ ' + description.replace(' ', r'\ ').replace('(', r'(').replace(')', r')').replace('=', r'=').replace(',', r',') + r'}$')
         plt.tight_layout()
 
         output_path = output_dir / f"morphology_slices_{label}.png"
-        plt.savefig(output_path, dpi=150)
+        plt.savefig(output_path, dpi=150, bbox_inches='tight')
         plt.close()
 
         return output_path

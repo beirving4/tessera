@@ -102,7 +102,7 @@ def load_snapshot(snapshot_path):
 def sort_positions_lagrangian(positions, particle_ids, grid_size):
     """Sort positions by Lagrangian ID (x-major ordering for gotetra)."""
     import _tessera as ts
-    return at.density.sort_by_lagrangian_id(positions, particle_ids, grid_size)
+    return ts.density.sort_by_lagrangian_id(positions, particle_ids, grid_size)
 
 
 def compute_asymptotic_density_2d(sorted_positions, box_size, grid_size, output_cells,
@@ -134,7 +134,7 @@ def compute_asymptotic_density_2d(sorted_positions, box_size, grid_size, output_
         positions_scaled = sorted_positions
         box_size_scaled = box_size
 
-    config = at.density.TetraDensityConfig()
+    config = ts.density.TetraDensityConfig()
     config.lagrangian_grid_size = grid_size
     config.box_size = box_size_scaled
     config.output_cells = output_cells
@@ -169,7 +169,7 @@ def compute_asymptotic_density_2d(sorted_positions, box_size, grid_size, output_
         config.subbox_width = (width_scaled, width_scaled, width_scaled)
 
     # Use Z-axis projection (axis=2)
-    result = at.density.compute_tetra_density_2d_projection(positions_scaled, config, 2)
+    result = ts.density.compute_tetra_density_2d_projection(positions_scaled, config, 2)
     return result.density
 
 
@@ -223,7 +223,12 @@ def create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
     from scipy import stats as scipy_stats
+
+    # Enable LaTeX-style rendering
+    plt.rcParams['mathtext.fontset'] = 'stix'
+    plt.rcParams['font.family'] = 'STIXGeneral'
 
     fig, axes = plt.subplots(2, 3, figsize=(15, 10))
 
@@ -234,31 +239,37 @@ def create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_
     vmax = np.log10(at_norm.max())
     im1 = axes[0, 0].imshow(np.log10(np.maximum(at_norm, 0.01)), origin='lower',
                             cmap='magma', vmin=vmin, vmax=vmax, extent=extent)
-    axes[0, 0].set_title('tessera')
-    plt.colorbar(im1, ax=axes[0, 0], label=r'$\log_{10}(1+\delta)$')
+    axes[0, 0].set_title(r'${\rm tessera}$')
+    divider1 = make_axes_locatable(axes[0, 0])
+    cax1 = divider1.append_axes("right", size="5%", pad=0.05)
+    plt.colorbar(im1, cax=cax1, label=r'$\log_{10}(1+\delta)$')
     if extent is not None:
-        axes[0, 0].set_xlabel(coord_label)
-        axes[0, 0].set_ylabel(coord_label)
+        axes[0, 0].set_xlabel(r'${\rm ' + coord_label + r'}$')
+        axes[0, 0].set_ylabel(r'${\rm ' + coord_label + r'}$')
 
     # Top Middle: Gotetra density
     im2 = axes[0, 1].imshow(np.log10(np.maximum(gt_norm, 0.01)), origin='lower',
                             cmap='magma', vmin=vmin, vmax=vmax, extent=extent)
-    axes[0, 1].set_title('Gotetra (Reference)')
-    plt.colorbar(im2, ax=axes[0, 1], label=r'$\log_{10}(1+\delta)$')
+    axes[0, 1].set_title(r'${\rm Gotetra\ (Reference)}$')
+    divider2 = make_axes_locatable(axes[0, 1])
+    cax2 = divider2.append_axes("right", size="5%", pad=0.05)
+    plt.colorbar(im2, cax=cax2, label=r'$\log_{10}(1+\delta)$')
     if extent is not None:
-        axes[0, 1].set_xlabel(coord_label)
-        axes[0, 1].set_ylabel(coord_label)
+        axes[0, 1].set_xlabel(r'${\rm ' + coord_label + r'}$')
+        axes[0, 1].set_ylabel(r'${\rm ' + coord_label + r'}$')
 
     # Top Right: Relative difference map (no clipping - use percentile-based limits)
     # Use symmetric percentile limits to show the full distribution
     diff_abs_max = np.percentile(np.abs(rel_diff[np.isfinite(rel_diff)]), 99)
     im3 = axes[0, 2].imshow(rel_diff, origin='lower', cmap='RdBu_r',
                             vmin=-diff_abs_max, vmax=diff_abs_max, extent=extent)
-    axes[0, 2].set_title('Relative Difference')
-    plt.colorbar(im3, ax=axes[0, 2], label='(AT - GT) / GT')
+    axes[0, 2].set_title(r'${\rm Relative\ Difference}$')
+    divider3 = make_axes_locatable(axes[0, 2])
+    cax3 = divider3.append_axes("right", size="5%", pad=0.05)
+    plt.colorbar(im3, cax=cax3, label=r'${\rm (tessera - Gotetra) / Gotetra}$')
     if extent is not None:
-        axes[0, 2].set_xlabel(coord_label)
-        axes[0, 2].set_ylabel(coord_label)
+        axes[0, 2].set_xlabel(r'${\rm ' + coord_label + r'}$')
+        axes[0, 2].set_ylabel(r'${\rm ' + coord_label + r'}$')
 
     # ===== Bottom Row: Statistical comparisons =====
 
@@ -267,15 +278,15 @@ def create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_
     at_flat = at_norm.flatten()
     gt_flat = gt_norm.flatten()
 
-    axes[1, 0].hist(at_flat[at_flat > 0], bins=bins, alpha=0.7, label='tessera',
+    axes[1, 0].hist(at_flat[at_flat > 0], bins=bins, alpha=0.7, label=r'${\rm tessera}$',
                     color='#e74c3c', density=True)
-    axes[1, 0].hist(gt_flat[gt_flat > 0], bins=bins, alpha=0.7, label='Gotetra',
+    axes[1, 0].hist(gt_flat[gt_flat > 0], bins=bins, alpha=0.7, label=r'${\rm Gotetra}$',
                     color='#3498db', density=True)
     axes[1, 0].set_xscale('log')
     axes[1, 0].set_yscale('log')
     axes[1, 0].set_xlabel(r'$1+\delta$')
-    axes[1, 0].set_ylabel('PDF')
-    axes[1, 0].set_title('Overdensity PDF')
+    axes[1, 0].set_ylabel(r'${\rm PDF}$')
+    axes[1, 0].set_title(r'${\rm Overdensity\ PDF}$')
     axes[1, 0].legend()
 
     # Bottom Middle: Scatter plot (one-to-one comparison)
@@ -288,16 +299,16 @@ def create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_
     # Add 1:1 line
     lims = [min(gt_flat[idx].min(), at_flat[idx].min()),
             max(gt_flat[idx].max(), at_flat[idx].max())]
-    axes[1, 1].plot(lims, lims, 'r-', linewidth=2, label='1:1')
+    axes[1, 1].plot(lims, lims, 'r-', linewidth=2, label=r'$1:1$')
 
     # Compute Spearman correlation for comparison
     spearman_r, _ = scipy_stats.spearmanr(at_flat, gt_flat)
 
     axes[1, 1].set_xscale('log')
     axes[1, 1].set_yscale('log')
-    axes[1, 1].set_xlabel(r'Gotetra $1+\delta$')
-    axes[1, 1].set_ylabel(r'tessera $1+\delta$')
-    axes[1, 1].set_title(f'Pearson r={stats["correlation"]:.6f}, Spearman r={spearman_r:.4f}')
+    axes[1, 1].set_xlabel(r'${\rm Gotetra}\ (1+\delta)$')
+    axes[1, 1].set_ylabel(r'${\rm tessera}\ (1+\delta)$')
+    axes[1, 1].set_title(r'${\rm Pearson}\ r=' + f'{stats["correlation"]:.6f}' + r',\ {\rm Spearman}\ r=' + f'{spearman_r:.4f}' + r'$')
     axes[1, 1].legend()
 
     # Bottom Right: Relative difference histogram (use adaptive range)
@@ -313,15 +324,15 @@ def create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_
                     color='#27ae60', density=True)
     axes[1, 2].axvline(x=0, color='r', linestyle='--', linewidth=2)
     axes[1, 2].axvline(x=np.mean(valid_diff), color='blue', linestyle='-', linewidth=2,
-                       label=f'Mean: {np.mean(valid_diff):.4f}')
-    axes[1, 2].set_xlabel('Relative Difference (AT - GT) / GT')
-    axes[1, 2].set_ylabel('PDF')
-    axes[1, 2].set_title(f'Diff Distribution (σ={np.std(valid_diff):.4f})')
+                       label=r'${\rm Mean:}\ ' + f'{np.mean(valid_diff):.4f}' + r'$')
+    axes[1, 2].set_xlabel(r'${\rm Relative\ Difference}$')
+    axes[1, 2].set_ylabel(r'${\rm PDF}$')
+    axes[1, 2].set_title(r'${\rm Diff\ Distribution}\ (\sigma=' + f'{np.std(valid_diff):.4f}' + r')$')
     axes[1, 2].legend()
 
     # Overall title
     status = "PASS" if stats['passed'] else "FAIL"
-    plt.suptitle(f'{title}\nCorrelation: {stats["correlation"]:.6f} | {status}', fontsize=14)
+    plt.suptitle(r'${\rm ' + title.replace(' ', r'\ ') + r'}$' + '\n' + r'${\rm Correlation:}\ ' + f'{stats["correlation"]:.6f}' + r'\ |\ {\rm ' + status + r'}$', fontsize=14)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches='tight')

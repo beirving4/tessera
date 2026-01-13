@@ -1,5 +1,5 @@
 {
-  "created": "2026-01-12T16:27:46.726838",
+  "created": "2026-01-12T21:32:59.924557",
   "name": "snap074_fullbox",
   "description": "Full Box (a=100, z=-0.99)",
   "snapshot": "snapshot_074",
@@ -7,12 +7,12 @@
   "scale_factor": 100.0000000000001,
   "box_size": 256.0,
   "output_cells": 256,
-  "correlation": 0.9999985135940793,
-  "mean_relative_difference": 0.00398086188779783,
-  "max_relative_difference": 0.03233489855116807,
+  "correlation": 0.9999985428253605,
+  "mean_relative_difference": 0.003967884188539695,
+  "max_relative_difference": 0.02908784029284655,
   "at_density_range": [
-    49.58666666666675,
-    41662.43333977773
+    48.58000000000004,
+    41662.45333977804
   ],
   "gotetra_density_range": [
     0.19168612360954285,
