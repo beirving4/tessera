@@ -1,5 +1,11 @@
 # tessera
 
+<p align="center">
+  <img src="docs/time_series_example.png" alt="Cosmic structure evolution from a=0.01 to a=100" width="100%">
+  <br>
+  <em>Time-series visualization of cosmic structure evolution (a=0.01 → a=100) generated with tessera</em>
+</p>
+
 > **tes·ser·a** /ˈtesərə/ *noun*
 >
 > A small block of stone, tile, glass, or other material used in the construction of a mosaic. From Latin *tessera*, from Greek *tessares* "four" — referring to the four corners of the tiles used to tessellate a surface.
