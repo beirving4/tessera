@@ -10,7 +10,7 @@
   "correlation": 0.9998978191016252,
   "mean_relative_difference": 0.17125909119256028,
   "max_relative_difference": 10.000688647395823,
-  "at_density_range": [
+  "ts_density_range": [
     0.0,
     44588.02959227329
   ],

@@ -20,7 +20,7 @@
       "correlation": 0.9999891621421393,
       "mean_relative_difference": 0.0035151760328893306,
       "max_relative_difference": 0.023353555372473505,
-      "at_density_range": [
+      "ts_density_range": [
         73.56666666666679,
         7099.136666709721
       ],
@@ -41,7 +41,7 @@
       "correlation": 0.9999985428253605,
       "mean_relative_difference": 0.003967884188539695,
       "max_relative_difference": 0.02908784029284655,
-      "at_density_range": [
+      "ts_density_range": [
         48.58000000000004,
         41662.45333977804
       ],
@@ -62,7 +62,7 @@
       "correlation": 0.9998978191016252,
       "mean_relative_difference": 0.17125909119256028,
       "max_relative_difference": 10.000688647395823,
-      "at_density_range": [
+      "ts_density_range": [
         0.0,
         44588.02959227329
       ],
@@ -89,7 +89,7 @@
       "correlation": 0.999998996097298,
       "mean_relative_difference": 0.14793152922348754,
       "max_relative_difference": 6.999647649496446,
-      "at_density_range": [
+      "ts_density_range": [
         0.54586669921875,
         2970300.892091299
       ],
