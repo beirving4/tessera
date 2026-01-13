@@ -94,3 +94,90 @@ jobs:
           result = ts.origami.compute_morphology(positions, config)
           print(f'ORIGAMI test passed: {len(result.morphology)} particles classified')
           "
+
+  # CentOS 7 build (for HPC cluster compatibility)
+  build-centos7:
+    runs-on: ubuntu-latest
+    container:
+      image: centos:7
+
+    steps:
+      - name: Install base dependencies
+        run: |
+          yum install -y centos-release-scl epel-release
+          yum install -y devtoolset-10-gcc devtoolset-10-gcc-c++ \
+                         cmake3 make git hdf5-devel openssl-devel \
+                         bzip2-devel libffi-devel zlib-devel
+
+      - uses: actions/checkout@v4
+
+      - name: Install Python 3.10 from source
+        run: |
+          source /opt/rh/devtoolset-10/enable
+          cd /tmp
+          curl -O https://www.python.org/ftp/python/3.10.13/Python-3.10.13.tgz
+          tar xzf Python-3.10.13.tgz
+          cd Python-3.10.13
+          ./configure --enable-optimizations --prefix=/usr/local
+          make -j$(nproc)
+          make altinstall
+          /usr/local/bin/python3.10 -m pip install --upgrade pip
+
+      - name: Install Python dependencies
+        run: |
+          /usr/local/bin/python3.10 -m pip install numpy pytest scikit-build-core pybind11
+
+      - name: Build and install
+        run: |
+          source /opt/rh/devtoolset-10/enable
+          export CC=$(which gcc)
+          export CXX=$(which g++)
+          /usr/local/bin/python3.10 -m pip install -v .
+
+      - name: Test import
+        run: |
+          /usr/local/bin/python3.10 -c "
+          import tessera
+          print('tessera version:', tessera.__version__)
+          print('CentOS 7 build successful!')
+          "
+
+      - name: Test density module
+        run: |
+          /usr/local/bin/python3.10 -c "
+          import numpy as np
+          import _tessera as ts
+
+          config = ts.density.TetraDensityConfig()
+          config.lagrangian_grid_size = 8
+          config.box_size = 10.0
+          config.output_cells = 16
+          config.n_samples = 10
+          config.n_threads = 1
+          config.periodic = True
+
+          positions = np.random.uniform(0, 10, (8**3, 3)).astype(np.float64)
+          positions = np.ascontiguousarray(positions)
+
+          result = ts.density.compute_tetra_density_2d_projection(positions, config, 2)
+          print(f'2D projection test passed: {len(result.density)} cells')
+          "
+
+      - name: Test ORIGAMI module
+        run: |
+          /usr/local/bin/python3.10 -c "
+          import numpy as np
+          import _tessera as ts
+
+          config = ts.origami.OrigamiConfig()
+          config.lagrangian_grid_size = 8
+          config.box_size = 10.0
+          config.n_threads = 1
+          config.n_split = 1
+
+          positions = np.random.uniform(0, 10, (8**3, 3)).astype(np.float64)
+          positions = np.ascontiguousarray(positions)
+
+          result = ts.origami.compute_morphology(positions, config)
+          print(f'ORIGAMI test passed: {len(result.morphology)} particles classified')
+          "
