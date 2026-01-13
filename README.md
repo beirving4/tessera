@@ -24,6 +24,7 @@ The library also includes **ORIGAMI morphological classification** (Falck, Neyri
 - **Subbox extraction**: Compute density in regions centered on halos or other structures
 - **Physical space computation**: Option to compute density in physical (not comoving) coordinates
 - **ORIGAMI classification**: Identify void/wall/filament/halo morphology per particle
+- **Time-series visualization**: Diemer-style cosmic evolution images and animations
 - **GADGET-4 I/O**: Read HDF5 snapshots (single or distributed) and FOF/Subfind catalogs
 - **Multi-threaded**: Parallel computation with OpenMP
 - **Validated**: Tested against original gotetra with >0.999 correlation
@@ -199,11 +200,34 @@ The `examples/` directory contains complete scripts demonstrating various use ca
 | `halo_density.py` | Halo-centric density extraction with tri-panel plots |
 | `origami_morphology.py` | Full ORIGAMI workflow with conditional PDFs |
 | `overdensity_pdf_origami.py` | Overdensity distributions by morphological class |
+| `time_series_pipeline.py` | Complete Diemer-style time-series visualization |
+| `generate_projections.py` | Generate 2D density projections from snapshots |
+| `build_time_series.py` | Build static time-series image (x=time, y=space) |
+| `animate_evolution.py` | Create evolution animation with callout annotations |
 
 Run an example:
 ```bash
 python examples/origami_morphology.py snapshot_034.hdf5 -o origami.h5 --plot origami.png
 ```
+
+### Time-Series Visualization
+
+Create Diemer-style cosmic evolution visualizations where the x-axis represents cosmic time:
+
+```bash
+# Full pipeline: projections → static image → animation
+python examples/time_series_pipeline.py \
+    --snapshot-dir /path/to/snapshots \
+    --output-dir ./output \
+    --n-threads 4
+
+# Or run steps individually:
+python examples/generate_projections.py --snapshot-dir /path/to/snapshots --output-dir ./output
+python examples/build_time_series.py --projections ./output/density_projections.h5 --output time_series.png
+python examples/animate_evolution.py --projections ./output/density_projections.h5 --output evolution.mp4
+```
+
+The animation script supports callout annotations for labeling cosmic events—edit `CALLOUT_TEMPLATE` in `animate_evolution.py` to add custom annotations.
 
 ## Modules
 
