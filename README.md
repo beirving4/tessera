@@ -1,165 +1,262 @@
 # AsymptoticTetra
 
-A high-performance C++ library with Python bindings for phase-space tessellation of cosmological N-body simulations. This is a modern rewrite of [gotetra](https://github.com/phil-mansfield/gotetra) with the computational workhorse in C++ and Python as the primary interface.
+A high-performance C++ library with Python bindings for phase-space tessellation of cosmological N-body simulations. This is a modern rewrite of [gotetra](https://github.com/phil-mansfield/gotetra) with C++ as the computational core and Python as the primary interface.
+
+## Overview
+
+AsymptoticTetra computes density fields from N-body simulations using tetrahedron-based phase-space tessellation. Unlike traditional particle-mesh methods, this approach:
+
+- **Handles stream crossing**: Properly resolves multi-stream regions where particle trajectories cross
+- **Preserves phase-space structure**: Uses the Lagrangian-to-Eulerian mapping encoded in particle IDs
+- **Provides sub-grid resolution**: Monte Carlo sampling within tetrahedra captures structure below the grid scale
+
+The library also includes **ORIGAMI morphological classification** (Falck, Neyrinck & Szalay 2012) for identifying cosmic web structures (voids, walls, filaments, halos).
 
 ## Features
 
-- **High-performance C++ core**: Optimized implementations of tetrahedron-based Monte Carlo density estimation
-- **Python-first interface**: Clean, Pythonic API with NumPy integration
-- **Backward compatible**: Drop-in replacement for the original gotetra Python interface
-- **Multi-threaded**: Parallel rendering support for large simulations
-- **Flexible output**: Support for density, velocity, gradients, divergence, and curl fields
+- **Tetrahedron-based density fields**: 3D volumes and 2D z-projections with Monte Carlo sampling
+- **Subbox extraction**: Compute density in regions centered on halos or other structures
+- **Physical space computation**: Option to compute density in physical (not comoving) coordinates
+- **ORIGAMI classification**: Identify void/wall/filament/halo morphology per particle
+- **GADGET-4 I/O**: Read HDF5 snapshots (single or distributed) and FOF/Subfind catalogs
+- **Multi-threaded**: Parallel computation with OpenMP
+- **Validated**: Tested against original gotetra with >0.999 correlation
 
 ## Installation
 
 ### Prerequisites
 
 - CMake 3.15+
-- C++17 compatible compiler (GCC 8+, Clang 7+, MSVC 2019+)
+- C++17 compiler (GCC 8+, Clang 7+, MSVC 2019+)
 - Python 3.8+ with NumPy
-- pybind11 (automatically fetched if not installed)
+- HDF5 (optional, for GADGET-4 I/O)
+- pybind11 (fetched automatically)
 
 ### Building from Source
 
 ```bash
+git clone https://github.com/beirving4/AsymptoticTetra.git
 cd AsymptoticTetra
 mkdir build && cd build
-cmake .. -DBUILD_PYTHON_BINDINGS=ON
+cmake .. -DBUILD_PYTHON_BINDINGS=ON -DBUILD_WITH_HDF5=ON
 make -j4
 ```
 
-### Installing the Python Package
-
-After building, the Python package is available in `build/asymptotic_tetra/`:
+### Setting Up Python
 
 ```bash
-# Add to Python path or install
-export PYTHONPATH=/path/to/build:$PYTHONPATH
+# Add build directory to Python path
+export PYTHONPATH=/path/to/AsymptoticTetra/build:$PYTHONPATH
 
-# Or copy to site-packages
-cp -r build/asymptotic_tetra /path/to/python/site-packages/
+# Verify installation
+python -c "import _asymptotic_tetra as at; print('Modules:', [m for m in dir(at) if not m.startswith('_')])"
 ```
 
 ## Quick Start
 
-### Python Usage
+### Computing a 3D Density Field
 
 ```python
-import asymptotic_tetra as at
 import numpy as np
+import h5py
+import _asymptotic_tetra as at
 
-# Create vectors and tetrahedra
-v1 = at.Vec3f(0, 0, 0)
-v2 = at.Vec3f(1, 0, 0)
-v3 = at.Vec3f(0, 1, 0)
-v4 = at.Vec3f(0, 0, 1)
+# Load GADGET-4 snapshot
+with h5py.File('snapshot_034.hdf5', 'r') as f:
+    positions = np.ascontiguousarray(f['PartType1/Coordinates'][:], dtype=np.float64)
+    particle_ids = np.ascontiguousarray(f['PartType1/ParticleIDs'][:], dtype=np.int64)
+    box_size = float(f['Header'].attrs['BoxSize'])
 
-tet = at.Tetra(v1, v2, v3, v4)
-print(f"Volume: {tet.volume()}")
-print(f"Barycenter: {tet.barycenter()}")
+# Determine grid size from particle count (assumes N^3 particles)
+n_particles = len(positions)
+grid_size = int(round(n_particles ** (1/3)))
 
-# Check if a point is inside
-test_point = at.Vec3f(0.1, 0.1, 0.1)
-print(f"Contains point: {tet.contains(test_point)}")
+# Sort particles by Lagrangian ID (required for tetrahedron construction)
+sorted_positions = at.density.sort_by_lagrangian_id(positions, particle_ids, grid_size)
 
-# Random number generation
-gen = at.Generator.new_time_seed()
-samples = gen.uniform_array(0, 1, 1000)
+# Configure density computation
+config = at.density.TetraDensityConfig()
+config.lagrangian_grid_size = grid_size  # Particles per dimension
+config.box_size = box_size
+config.output_cells = 256                 # Output grid resolution
+config.n_samples = 100                    # Monte Carlo samples per tetrahedron
+config.n_threads = 4                      # OpenMP threads (0 = auto)
+config.periodic = True                    # Periodic boundary conditions
+config.particle_mass = 1.0                # Mass per particle
+
+# Compute 3D density
+result = at.density.compute_tetra_density_3d(sorted_positions, config)
+density_3d = np.array(result.density).reshape(256, 256, 256)
 ```
 
-### Reading gotetra Output Files
+### Computing a 2D Projected Density
 
 ```python
-# Backward compatible with original gotetra.py
-from asymptotic_tetra.gotetra_compat import read_header, read_grid
-
-# Read file header
-header = read_header("density_field.gtet")
-print(f"Redshift: {header.cosmo.redshift}")
-print(f"Box width: {header.cosmo.box_width} Mpc/h")
-print(f"Grid dimensions: {header.dim}")
-
-# Read density grid
-density = read_grid("density_field.gtet")
-print(f"Grid shape: {density.shape}")
+# 2D z-projection (integrate along z-axis)
+result_2d = at.density.compute_tetra_density_2d_projection(sorted_positions, config, axis=2)
+density_2d = np.array(result_2d.density).reshape(256, 256)
 ```
 
-### Working with Density Fields
+### Subbox Extraction (Halo-Centric Density)
 
 ```python
-from asymptotic_tetra.density import Quantity, create_buffer
+# Extract a 10 Mpc/h cube centered on a halo
+config.subbox_enabled = True
+config.subbox_origin = (halo_x - 5.0, halo_y - 5.0, halo_z - 5.0)
+config.subbox_width = (10.0, 10.0, 10.0)
+config.output_cells = 128
 
-# Create a density buffer
-buf = create_buffer(Quantity.Density, len=1000000)
-
-# Check quantity properties
-print(f"Requires velocity: {at.density.requires_velocity(Quantity.Velocity)}")
-print(f"Can project: {at.density.can_project(Quantity.Density)}")
+result = at.density.compute_tetra_density_3d(sorted_positions, config)
 ```
 
-## Architecture
+### Physical Space Density (for a > 1 simulations)
 
+For simulations run beyond a=1, you can compute density in physical coordinates while maintaining comoving grid extents:
+
+```python
+# Scale positions to physical coordinates
+scale_factor = 100.0  # a=100
+positions_physical = sorted_positions * scale_factor
+box_physical = box_size * scale_factor
+
+# Update config for physical box
+config.box_size = box_physical
+if config.subbox_enabled:
+    config.subbox_origin = tuple(o * scale_factor for o in config.subbox_origin)
+    config.subbox_width = tuple(w * scale_factor for w in config.subbox_width)
+
+# Compute density in physical space
+result = at.density.compute_tetra_density_3d(positions_physical, config)
 ```
-AsymptoticTetra/
-├── include/           # C++ headers
-│   ├── geom/          # Geometry (Vec, Tetra, Grid, CellBounds)
-│   ├── math/          # Random number generators
-│   ├── density/       # Density interpolation and buffers
-│   ├── io/            # File I/O (Gadget, Sheet formats)
-│   └── render/        # Rendering manager and boxes
-├── src/               # C++ implementation
-├── python/            # Python bindings and package
-│   ├── bindings/      # pybind11 bindings
-│   └── asymptotic_tetra/  # Python package
-└── tests/             # Unit tests
+
+### ORIGAMI Morphology Classification
+
+```python
+# Configure ORIGAMI
+origami_config = at.origami.OrigamiConfig()
+origami_config.lagrangian_grid_size = grid_size
+origami_config.box_size = box_size
+origami_config.n_threads = 1
+origami_config.n_split = 1
+
+# Compute morphology (0=void, 1=wall, 2=filament, 3=halo)
+result = at.origami.compute_morphology(sorted_positions, origami_config)
+
+print(f"Void:     {result.n_void:,} particles ({result.f_void:.1%})")
+print(f"Wall:     {result.n_wall:,} particles ({result.f_wall:.1%})")
+print(f"Filament: {result.n_filament:,} particles ({result.f_filament:.1%})")
+print(f"Halo:     {result.n_halo:,} particles ({result.f_halo:.1%})")
+
+# Get per-particle classification
+morphology = np.array(result.morphology)  # uint8 array, values 0-3
+```
+
+### Sampling Density at Particle Positions
+
+```python
+# After computing 3D density, sample at particle locations
+at.origami.sample_density_at_particles(
+    density_3d,        # 3D density array [z, y, x]
+    sorted_positions,  # Particle positions
+    box_size,
+    result             # ORIGAMI result object (modified in-place)
+)
+
+particle_density = np.array(result.particle_density)
+```
+
+## Examples
+
+The `examples/` directory contains complete scripts demonstrating various use cases:
+
+| Script | Description |
+|--------|-------------|
+| `basic_usage.py` | Core API: vectors, tetrahedra, random generators |
+| `gadget4_io.py` | Reading GADGET-4 snapshots and halo catalogs |
+| `tetra_density.py` | Reference implementation of density algorithm |
+| `density_slice.py` | 2D density projections with visualization |
+| `halo_density.py` | Halo-centric density extraction with tri-panel plots |
+| `origami_morphology.py` | Full ORIGAMI workflow with conditional PDFs |
+| `overdensity_pdf_origami.py` | Overdensity distributions by morphological class |
+
+Run an example:
+```bash
+python examples/origami_morphology.py snapshot_034.hdf5 -o origami.h5 --plot origami.png
 ```
 
 ## Modules
 
-### `geom` - Geometry Primitives
+### `at.density` - Tetrahedron Density Fields
 
-- `Vec3f`: 3D vector with periodic boundary operations
-- `Tetra`: Tetrahedron with volume, containment, and Monte Carlo sampling
-- `Grid`, `GridLocation`: Grid indexing and physical location
+- `TetraDensityConfig`: Configuration for density computation
+- `compute_tetra_density_3d()`: Full 3D density field
+- `compute_tetra_density_2d_projection()`: 2D projection along an axis
+- `sort_by_lagrangian_id()`: Sort particles to Lagrangian grid order
+
+### `at.origami` - Morphological Classification
+
+- `OrigamiConfig`: Configuration for ORIGAMI algorithm
+- `compute_morphology()`: Classify particles as void/wall/filament/halo
+- `sample_density_at_particles()`: Interpolate density grid at particle positions
+- `deposit_morphology_to_grid()`: Create grid-based morphology fields
+
+### `at.io` - File I/O
+
+- `read_gadget4_header()`: Read GADGET-4 HDF5 header
+- `read_gadget4_positions()`: Read particle coordinates
+- `read_gadget4_velocities()`: Read particle velocities
+- `read_fof_catalog()`: Read Friends-of-Friends group catalog
+- `read_subfind_catalog()`: Read Subfind subhalo catalog
+
+### `at.geom` - Geometry Primitives
+
+- `Vec3f`, `Vec3d`: 3D vectors with periodic operations
+- `Tetra`: Tetrahedron with volume, containment, Monte Carlo sampling
 - `CellBounds`: Axis-aligned bounding boxes
 
-### `math` - Random Number Generation
+### `at.math` - Random Number Generation
 
-- `Generator`: High-quality random number generator
-- Supports Tausworthe, Xorshift, and standard library generators
-- Efficient batch generation
+- `Generator`: High-quality RNG (Tausworthe, Xorshift, Mersenne Twister)
+- Efficient batch generation for Monte Carlo sampling
 
-### `density` - Density Field Computation
+### `at.cosmo` - Cosmology
 
-- `Quantity`: Density, Velocity, DensityGradient, VelocityCurl, VelocityDivergence
-- `Buffer`: Memory management for field data
-- Monte Carlo interpolation
+- `critical_density()`: Critical density at redshift z
+- `average_density()`: Mean matter density
 
-### `io` - File I/O
+## Algorithm
 
-- `SheetHeader`, `GadgetHeader`: Simulation file format headers
-- `CosmologyHeader`: Cosmological parameters
-- Read/write for Gadget-2 and phase sheet formats
+The density computation follows the gotetra algorithm:
 
-## Performance Notes
+1. **Lagrangian Grid**: Particles are indexed by their initial grid positions (encoded in particle IDs)
+2. **Tetrahedron Decomposition**: Each Lagrangian cell is split into 6 tetrahedra
+3. **Monte Carlo Sampling**: Random points within each tetrahedron deposit mass onto the Eulerian grid
+4. **Stream Crossing**: Multi-stream regions are naturally handled as tetrahedra can overlap
 
-The C++ core is optimized for performance:
+The ORIGAMI algorithm detects shell-crossing by checking for sign reversals in particle ordering along Cartesian and diagonal directions.
 
-- SIMD-friendly data layouts
-- Cache-conscious algorithms
-- Multi-threaded rendering
-- Memory-efficient buffer management
+## Validation
 
-Typical speedups over pure Python implementations: 10-100x depending on operation.
+The library has been validated against the original gotetra implementation:
+
+| Test Case | Correlation | Mean Relative Diff |
+|-----------|-------------|-------------------|
+| Full box (a=1) | 0.99999 | 0.35% |
+| Full box (a=100) | 0.99999 | 0.40% |
+| Halo subbox (a=1) | 0.99989 | 0.17% |
+| Halo subbox (a=100) | 0.99999 | 0.15% |
+
+See `tests/gotetra_validation/` for validation scripts and results.
+
+## References
+
+- **gotetra**: Mansfield, P. - [github.com/phil-mansfield/gotetra](https://github.com/phil-mansfield/gotetra)
+- **ORIGAMI**: Falck, B., Neyrinck, M. C., & Szalay, A. S. 2012, ApJ, 754, 126
+- **Tetrahedron sampling**: Rocchini, C. & Cignoni, P. 2001, Journal of Graphics Tools
 
 ## License
 
 MIT License - see LICENSE file for details.
-
-## Acknowledgments
-
-Based on the original [gotetra](https://github.com/phil-mansfield/gotetra) by Phil Mansfield.
-The tetrahedron sampling algorithm is based on C. Rocchini & P. Cignoni (2001).
 
 ## Citation
 
@@ -167,8 +264,9 @@ If you use this software in your research, please cite:
 
 ```bibtex
 @software{asymptotic_tetra,
-  author = {Based on gotetra by Phil Mansfield},
+  author = {Irving, Bryen and Mansfield, Phil},
   title = {AsymptoticTetra: Phase-space tessellation for cosmological simulations},
-  url = {https://github.com/your-repo/AsymptoticTetra}
+  url = {https://github.com/beirving4/AsymptoticTetra},
+  note = {Based on gotetra by Phil Mansfield}
 }
 ```
