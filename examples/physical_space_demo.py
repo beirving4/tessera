@@ -28,19 +28,23 @@ os.environ['OMP_NUM_THREADS'] = '1'
 
 # Configuration
 SCRIPT_DIR = Path(__file__).parent.resolve()
-REPO_ROOT = SCRIPT_DIR.parent.parent
 
-sys.path.insert(0, str(REPO_ROOT / 'build'))
-sys.path.insert(0, str(REPO_ROOT / 'python'))
+# Try to import local config
+try:
+    from config import SNAPSHOT_BASE, HALO_CENTERS
+except ImportError:
+    raise ImportError(
+        "Please create examples/config.py with your local paths.\n"
+        "Copy config.example.py to config.py and update the paths."
+    )
 
-# Paths
-SNAPSHOT_BASE = Path("/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/Uniform_L256_N256_primary_sandbox/gadget4/output")
-
-# Halo centers (comoving coordinates)
-HALO_CENTERS = {
-    'snapshot_034': (48.17582417582418, 184.77167277167277, 101.31379731379731),  # center
-    'snapshot_074': (152.56785041333993, 151.72283393384774, 80.42108375074226),  # center
-}
+# Import tessera (try installed package first, then development build)
+try:
+    import _tessera as at
+except ImportError:
+    REPO_ROOT = SCRIPT_DIR.parent
+    sys.path.insert(0, str(REPO_ROOT / 'build'))
+    import _tessera as at
 
 
 def load_snapshot(snapshot_name):

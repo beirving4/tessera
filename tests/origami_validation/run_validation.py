@@ -24,18 +24,24 @@ import shutil
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 os.environ['OMP_NUM_THREADS'] = '1'  # Avoid OpenMP threading issues on macOS
 
-# Configuration - adjust these paths as needed
+# Configuration
 SCRIPT_DIR = Path(__file__).parent.resolve()
 REPO_ROOT = SCRIPT_DIR.parent.parent
 
-# Add build directory to path
+# Add build directory and tests directory to path
 sys.path.insert(0, str(REPO_ROOT / 'build'))
+sys.path.insert(0, str(REPO_ROOT / 'tests'))
 
-# Path to original ORIGAMI binary
-ORIGAMI_BIN = Path("/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/origami/code/origamitag")
+# Import local configuration
+try:
+    from config import SNAPSHOT_BASE, ORIGAMI_BIN
+except ImportError:
+    raise ImportError(
+        "Please create tests/config.py with your local paths.\n"
+        "Copy config.example.py to config.py and update the paths."
+    )
 
 # Snapshots to validate
-SNAPSHOT_BASE = Path("/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/Uniform_L256_N256_primary_sandbox/gadget4/output")
 SNAPSHOTS = [
     ("snapshot_034.hdf5", "z=0 (a=1)", "Present day"),
     ("snapshot_074.hdf5", "z=-0.99 (a=100)", "Far future"),
@@ -431,11 +437,9 @@ def main():
 
         all_results[label] = stats
 
-    # Save combined summary
+    # Save combined summary (note: paths are excluded to keep repo clean)
     summary = {
         'validation_date': datetime.now().isoformat(),
-        'origami_binary': str(ORIGAMI_BIN),
-        'tessera_repo': str(REPO_ROOT),
         'reference': 'Falck, Neyrinck & Szalay 2012, ApJ 754, 126',
         'snapshots': {}
     }

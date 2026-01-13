@@ -18,8 +18,20 @@ import os
 import sys
 from pathlib import Path
 
-# Add build directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent / 'build'))
+# Add build and tests directories to path
+SCRIPT_DIR = Path(__file__).parent.resolve()
+REPO_ROOT = SCRIPT_DIR.parent
+sys.path.insert(0, str(REPO_ROOT / 'build'))
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Import local configuration
+try:
+    from config import ORIGAMI_BIN
+except ImportError:
+    raise ImportError(
+        "Please create tests/config.py with your local paths.\n"
+        "Copy config.example.py to config.py and update the paths."
+    )
 
 def write_pos_file(positions, filepath):
     """Write positions to binary format expected by original ORIGAMI code.
@@ -190,14 +202,10 @@ def compare_results(original_tags, asymptotic_tags):
     }
 
 def main():
-    # Paths
-    script_dir = Path(__file__).parent.resolve()
-    repo_root = script_dir.parent
-    origami_path = Path("/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/origami/code/origamitag")
-
-    if not origami_path.exists():
-        print(f"ERROR: Original ORIGAMI binary not found at {origami_path}")
-        print("Please build it first with: cd code && make origamitag")
+    # Check for ORIGAMI binary
+    if not ORIGAMI_BIN.exists():
+        print(f"ERROR: Original ORIGAMI binary not found at {ORIGAMI_BIN}")
+        print("Please build it first and update the path in tests/config.py")
         return 1
 
     # Test configurations
@@ -243,7 +251,7 @@ def main():
             write_parameter_file(params_file, str(pos_file), out_dir, tag_label, box_size, grid_size)
 
             # Run original ORIGAMI
-            result = run_original_origami(str(origami_path), str(params_file))
+            result = run_original_origami(str(ORIGAMI_BIN), str(params_file))
             # Original code returns 1 on success (return(1) in main())
             if result.returncode not in [0, 1]:
                 print(f"  ERROR running original ORIGAMI (code {result.returncode}): {result.stderr}")

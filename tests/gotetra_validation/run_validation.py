@@ -29,15 +29,22 @@ os.environ['OMP_NUM_THREADS'] = '1'  # Avoid OpenMP threading issues on macOS
 SCRIPT_DIR = Path(__file__).parent.resolve()
 REPO_ROOT = SCRIPT_DIR.parent.parent
 
-# Add repo to path
-sys.path.insert(0, str(REPO_ROOT / 'build'))
-sys.path.insert(0, str(REPO_ROOT / 'python'))
+# Try to import local config
+sys.path.insert(0, str(REPO_ROOT / 'tests'))
+try:
+    from config import SNAPSHOT_BASE, GOTETRA_BASE
+except ImportError:
+    raise ImportError(
+        "Please create tests/config.py with your local paths.\n"
+        "Copy config.example.py to config.py and update the paths."
+    )
 
-# Paths to simulation data
-SNAPSHOT_BASE = Path("/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/Uniform_L256_N256_primary_sandbox/gadget4/output")
-
-# Base path for gotetra reference files
-GOTETRA_BASE = Path("/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly")
+# Import tessera (try installed package first, then development build)
+try:
+    import _tessera as ts
+except ImportError:
+    sys.path.insert(0, str(REPO_ROOT / 'build'))
+    import _tessera as ts
 
 # Validation configurations
 # - Use original gotetra reference files that were validated to work
@@ -476,11 +483,10 @@ def main():
         if result:
             all_results[config['name']] = result
 
-    # Save summary
+    # Save summary (note: paths are excluded to keep repo clean)
     all_passed = all(r.get('passed', False) for r in all_results.values())
     summary = {
         'validation_date': datetime.now().isoformat(),
-        'tessera_repo': str(REPO_ROOT),
         'reference': 'gotetra: github.com/phil-mansfield/gotetra',
         'method': 'Tetrahedron-based phase-space tessellation for density field computation',
         'notes': [

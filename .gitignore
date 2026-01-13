@@ -46,3 +46,7 @@ CTestTestfile.cmake
 .venv*/
 venv/
 env/
+
+# Local configuration (contains user-specific paths)
+examples/config.py
+tests/config.py

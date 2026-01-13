@@ -27,15 +27,23 @@ os.environ['OMP_NUM_THREADS'] = '1'
 
 # Configuration
 SCRIPT_DIR = Path(__file__).parent.resolve()
-REPO_ROOT = SCRIPT_DIR.parent.parent
 
-sys.path.insert(0, str(REPO_ROOT / 'build'))
-sys.path.insert(0, str(REPO_ROOT / 'python'))
+# Try to import local config, fall back to example paths
+try:
+    from config import SNAPSHOT_BASE
+except ImportError:
+    raise ImportError(
+        "Please create examples/config.py with your local paths.\n"
+        "Copy config.example.py to config.py and update the paths."
+    )
 
-import _tessera as ts
-
-# Paths
-SNAPSHOT_BASE = Path("/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/Uniform_L256_N256_primary_sandbox/gadget4/output")
+# Import tessera (try installed package first, then development build)
+try:
+    import _tessera as ts
+except ImportError:
+    REPO_ROOT = SCRIPT_DIR.parent
+    sys.path.insert(0, str(REPO_ROOT / 'build'))
+    import _tessera as ts
 
 # Snapshots to analyze
 SNAPSHOTS = [

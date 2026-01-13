@@ -1,6 +1,5 @@
 {
   "validation_date": "2026-01-12T16:27:54.679545",
-  "tessera_repo": "/Users/bryen/Documents/GitHub/tessera",
   "reference": "gotetra: github.com/phil-mansfield/gotetra",
   "method": "Tetrahedron-based phase-space tessellation for density field computation",
   "notes": [
