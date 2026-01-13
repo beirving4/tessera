@@ -170,3 +170,73 @@ jobs:
           result = ts.origami.compute_morphology(positions, config)
           print(f'ORIGAMI test passed: {len(result.morphology)} particles classified')
           "
+
+  # RHEL 8 / manylinux_2_28 build (for newer HPC clusters)
+  # Uses manylinux_2_28 which is AlmaLinux 8 based (RHEL 8 compatible)
+  build-rhel8:
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/pypa/manylinux_2_28_x86_64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install HDF5
+        run: |
+          dnf install -y hdf5-devel
+
+      - name: Install Python dependencies
+        run: |
+          /opt/python/cp310-cp310/bin/python -m pip install numpy pytest scikit-build-core pybind11
+
+      - name: Build and install
+        run: |
+          /opt/python/cp310-cp310/bin/python -m pip install -v .
+
+      - name: Test import
+        run: |
+          /opt/python/cp310-cp310/bin/python -c "
+          import tessera
+          print('tessera version:', tessera.__version__)
+          print('manylinux_2_28 (RHEL 8) build successful!')
+          "
+
+      - name: Test density module
+        run: |
+          /opt/python/cp310-cp310/bin/python -c "
+          import numpy as np
+          import _tessera as ts
+
+          config = ts.density.TetraDensityConfig()
+          config.lagrangian_grid_size = 8
+          config.box_size = 10.0
+          config.output_cells = 16
+          config.n_samples = 10
+          config.n_threads = 1
+          config.periodic = True
+
+          positions = np.random.uniform(0, 10, (8**3, 3)).astype(np.float64)
+          positions = np.ascontiguousarray(positions)
+
+          result = ts.density.compute_tetra_density_2d_projection(positions, config, 2)
+          print(f'2D projection test passed: {len(result.density)} cells')
+          "
+
+      - name: Test ORIGAMI module
+        run: |
+          /opt/python/cp310-cp310/bin/python -c "
+          import numpy as np
+          import _tessera as ts
+
+          config = ts.origami.OrigamiConfig()
+          config.lagrangian_grid_size = 8
+          config.box_size = 10.0
+          config.n_threads = 1
+          config.n_split = 1
+
+          positions = np.random.uniform(0, 10, (8**3, 3)).astype(np.float64)
+          positions = np.ascontiguousarray(positions)
+
+          result = ts.origami.compute_morphology(positions, config)
+          print(f'ORIGAMI test passed: {len(result.morphology)} particles classified')
+          "
