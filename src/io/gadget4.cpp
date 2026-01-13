@@ -2,6 +2,7 @@
 #include <highfive/highfive.hpp>
 #include <stdexcept>
 #include <sstream>
+#include <iomanip>
 #include <filesystem>
 #include <algorithm>
 #include <regex>
