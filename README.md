@@ -1,5 +1,11 @@
 # tessera
 
+> **tes·ser·a** /ˈtesərə/ *noun*
+>
+> A small block of stone, tile, glass, or other material used in the construction of a mosaic. From Latin *tessera*, from Greek *tessares* "four" — referring to the four corners of the tiles used to tessellate a surface.
+
+---
+
 A high-performance C++ library with Python bindings for phase-space tessellation of cosmological N-body simulations. This is a modern rewrite of [gotetra](https://github.com/phil-mansfield/gotetra) with C++ as the computational core and Python as the primary interface.
 
 ## Overview
