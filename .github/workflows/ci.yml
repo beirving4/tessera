@@ -103,8 +103,12 @@ jobs:
       image: quay.io/pypa/manylinux2014_x86_64
 
     steps:
-      # Use v3 because manylinux2014 has glibc 2.17, but v4 requires glibc 2.27+
-      - uses: actions/checkout@v3
+      # Manual checkout because actions/checkout uses Node 20 which requires glibc 2.27+
+      # but manylinux2014 (CentOS 7) only has glibc 2.17
+      - name: Checkout repository
+        run: |
+          git clone --depth 1 https://github.com/${{ github.repository }}.git .
+          git checkout ${{ github.sha }}
 
       - name: Install HDF5
         run: |
