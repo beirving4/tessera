@@ -17,14 +17,17 @@ import numpy as np
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Find tessera module
-_script_dir = Path(__file__).parent.resolve()
-_repo_root = _script_dir.parent.parent
-_build_dir = _repo_root / 'build'
-if _build_dir.exists():
-    sys.path.insert(0, str(_build_dir))
-
-import _tessera as ts
+# Import tessera (handles platform-specific configuration automatically)
+try:
+    import tessera as ts
+except ImportError:
+    # Fallback for development: try to import native module directly
+    _script_dir = Path(__file__).parent.resolve()
+    _repo_root = _script_dir.parent.parent
+    _build_dir = _repo_root / 'build'
+    if _build_dir.exists():
+        sys.path.insert(0, str(_build_dir))
+    import _tessera as ts
 
 
 @dataclass

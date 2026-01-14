@@ -10,23 +10,25 @@ from typing import Dict, List, Optional, Tuple, Union
 import sys
 import numpy as np
 
-# Try to find the tessera module
-_script_dir = Path(__file__).parent.resolve()
-_repo_root = _script_dir.parent.parent
-_build_dir = _repo_root / 'build'
-if _build_dir.exists():
-    sys.path.insert(0, str(_build_dir))
+# Import tessera (handles platform-specific configuration automatically)
+HAS_TESSERA = False
+ts = None
 
 try:
-    import _tessera as ts
-    HAS_TESSERA = True
+    import tessera as ts
+    HAS_TESSERA = hasattr(ts, 'density') and ts.density is not None
 except ImportError:
+    # Fallback for development: try to import native module directly
+    _script_dir = Path(__file__).parent.resolve()
+    _repo_root = _script_dir.parent.parent
+    _build_dir = _repo_root / 'build'
+    if _build_dir.exists():
+        sys.path.insert(0, str(_build_dir))
     try:
-        import tessera as ts
-        HAS_TESSERA = hasattr(ts, 'density')
+        import _tessera as ts
+        HAS_TESSERA = True
     except ImportError:
-        HAS_TESSERA = False
-        ts = None
+        pass
 
 from .halo_tracker import HaloInfo
 
