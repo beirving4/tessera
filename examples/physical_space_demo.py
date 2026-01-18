@@ -40,11 +40,11 @@ except ImportError:
 
 # Import tessera (try installed package first, then development build)
 try:
-    import _tessera as at
+    import _tessera as ts
 except ImportError:
     REPO_ROOT = SCRIPT_DIR.parent
     sys.path.insert(0, str(REPO_ROOT / 'build'))
-    import _tessera as at
+    import _tessera as ts
 
 
 def load_snapshot(snapshot_name):
@@ -79,10 +79,8 @@ def compute_density_2d(positions, particle_ids, box_size, grid_size, output_cell
     Returns:
         2D density array
     """
-    import _tessera as ts
-
     # Sort positions by Lagrangian ID
-    sorted_positions = at.density.sort_by_lagrangian_id(positions, particle_ids, grid_size)
+    sorted_positions = ts.density.sort_by_lagrangian_id(positions, particle_ids, grid_size)
 
     # Scale to physical coordinates if requested
     a = scale_factor_compute
@@ -93,7 +91,7 @@ def compute_density_2d(positions, particle_ids, box_size, grid_size, output_cell
         positions_use = sorted_positions
         box_size_use = box_size
 
-    config = at.density.TetraDensityConfig()
+    config = ts.density.TetraDensityConfig()
     config.lagrangian_grid_size = grid_size
     config.box_size = box_size_use
     config.output_cells = output_cells
@@ -117,7 +115,7 @@ def compute_density_2d(positions, particle_ids, box_size, grid_size, output_cell
                                 center_use[2] - width_use/2)
         config.subbox_width = (width_use, width_use, width_use)
 
-    result = at.density.compute_tetra_density_2d_projection(positions_use, config, 2)
+    result = ts.density.compute_tetra_density_2d_projection(positions_use, config, 2)
     return result.density
 
 

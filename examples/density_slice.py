@@ -80,8 +80,8 @@ def load_snapshot(path, snapshot_num=None, particle_type=1, read_ids=False):
     except ImportError:
         try:
             # Installed package
-            import tessera as _at
-            io = _at.io
+            import tessera as _ts
+            io = _ts.io
         except (ImportError, AttributeError):
             raise ImportError(
                 "Could not import tessera. Make sure the build directory "

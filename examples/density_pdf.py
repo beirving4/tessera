@@ -59,8 +59,8 @@ def load_snapshot(path, particle_type=1):
         import _tessera
         io = _tessera.io
     except ImportError:
-        import tessera as _at
-        io = _at.io
+        import tessera as _ts
+        io = _ts.io
     
     particle_types = 1 << particle_type
     snap = io.read_gadget4_snapshot(

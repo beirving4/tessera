@@ -120,8 +120,8 @@ def load_snapshot(path, snapshot_num=None, particle_type=1, read_ids=True):
         io = _tessera.io
     except ImportError:
         try:
-            import tessera as _at
-            io = _at.io
+            import tessera as _ts
+            io = _ts.io
         except (ImportError, AttributeError):
             raise ImportError(
                 "Could not import tessera. Make sure the build directory "
@@ -163,8 +163,8 @@ def load_halo_catalog(catalog_path):
         import _tessera
         io = _tessera.io
     except ImportError:
-        import tessera as _at
-        io = _at.io
+        import tessera as _ts
+        io = _ts.io
     
     catalog = io.read_gadget4_halo_catalog(str(catalog_path))
     return catalog

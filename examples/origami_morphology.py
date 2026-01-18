@@ -258,7 +258,7 @@ def compute_origami_morphology(positions, particle_ids, box_size, n_threads=0,
     # Create ORIGAMI config
     # Note: Using n_split=1 to avoid OpenMP issues with duplicate libomp on macOS
     # This runs single-threaded but is still reasonably fast
-    config = at.origami.OrigamiConfig()
+    config = ts.origami.OrigamiConfig()
     config.lagrangian_grid_size = grid_size
     config.box_size = float(box_size)
     config.n_threads = 1
@@ -266,7 +266,7 @@ def compute_origami_morphology(positions, particle_ids, box_size, n_threads=0,
 
     # Compute morphology
     print("  Running ORIGAMI algorithm...")
-    result = at.origami.compute_morphology(sorted_positions, config)
+    result = ts.origami.compute_morphology(sorted_positions, config)
 
     print(f"\n  Results:")
     print(f"    Void:     {result.n_void:>10,} particles ({result.f_void:>6.2%})")
@@ -283,7 +283,7 @@ def compute_density_and_sample(sorted_positions, box_size, grid_size, result,
     print(f"\nComputing density field ({output_cells}^3)...")
 
     # Create density config
-    density_config = at.density.TetraDensityConfig()
+    density_config = ts.density.TetraDensityConfig()
     density_config.lagrangian_grid_size = grid_size
     density_config.output_cells = output_cells
     density_config.box_size = float(box_size)
@@ -292,7 +292,7 @@ def compute_density_and_sample(sorted_positions, box_size, grid_size, result,
     density_config.n_threads = n_threads
 
     # Compute 3D density
-    density_result = at.density.compute_tetra_density_3d(sorted_positions, density_config)
+    density_result = ts.density.compute_tetra_density_3d(sorted_positions, density_config)
 
     # Reshape density to 3D array [z, y, x]
     density_3d = np.array(density_result.density).reshape(
@@ -304,7 +304,7 @@ def compute_density_and_sample(sorted_positions, box_size, grid_size, result,
 
     # Sample density at particle positions
     print("  Sampling density at particle positions...")
-    at.origami.sample_density_at_particles(
+    ts.origami.sample_density_at_particles(
         density_3d, sorted_positions, box_size, result
     )
 
@@ -315,7 +315,7 @@ def deposit_to_grid(sorted_positions, box_size, result, grid_cells=128):
     """Deposit morphology classifications onto a grid."""
     print(f"\nDepositing morphology to {grid_cells}^3 grid...")
 
-    at.origami.deposit_morphology_to_grid(
+    ts.origami.deposit_morphology_to_grid(
         sorted_positions, box_size, grid_cells, result
     )
 

@@ -33,12 +33,11 @@ try:
     HAS_CPP = True
 except ImportError:
     try:
-        import tessera as _at
-        at = _at
+        import tessera as ts
         HAS_CPP = True
     except ImportError:
         HAS_CPP = False
-        at = None
+        ts = None
 
 
 # =============================================================================
@@ -477,7 +476,7 @@ def compute_tetra_density_3d(
         if verbose:
             print("Using C++ implementation (OpenMP parallelized)...")
         
-        config = at.density.TetraDensityConfig(
+        config = ts.density.TetraDensityConfig(
             lagrangian_grid_size=grid_size,
             output_cells=output_cells,
             box_size=box_size,
@@ -488,7 +487,7 @@ def compute_tetra_density_3d(
             seed=seed
         )
         
-        result = at.density.compute_tetra_density_3d(
+        result = ts.density.compute_tetra_density_3d(
             np.ascontiguousarray(positions, dtype=np.float64),
             config
         )
@@ -600,7 +599,7 @@ def load_gadget4_for_tessellation(
     snapshot_path: str,
     snapshot_num: Optional[int] = None,
     particle_type: int = 1
-) -> Tuple[np.ndarray, np.ndarray, "at.io.Gadget4Header", int]:
+) -> Tuple[np.ndarray, np.ndarray, "ts.io.Gadget4Header", int]:
     """
     Load a GADGET-4 snapshot with particle IDs for tessellation.
     
@@ -630,7 +629,7 @@ def load_gadget4_for_tessellation(
     particle_types_mask = 1 << particle_type
     
     if snapshot_num is not None:
-        snap = at.io.read_gadget4_snapshot(
+        snap = ts.io.read_gadget4_snapshot(
             snapshot_path,
             snapshot_num=snapshot_num,
             particle_types=particle_types_mask,
@@ -638,7 +637,7 @@ def load_gadget4_for_tessellation(
             read_ids=True
         )
     else:
-        snap = at.io.read_gadget4_snapshot(
+        snap = ts.io.read_gadget4_snapshot(
             snapshot_path,
             particle_types=particle_types_mask,
             read_velocities=False,
@@ -748,7 +747,7 @@ Examples:
     # Sort particles by Lagrangian ID
     print("\nSorting particles by Lagrangian ID...")
     if HAS_CPP and not args.python_only:
-        sorted_positions = at.density.sort_by_lagrangian_id(
+        sorted_positions = ts.density.sort_by_lagrangian_id(
             positions, particle_ids, grid_size, id_offset=1
         )
     else:
