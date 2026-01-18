@@ -14,11 +14,11 @@
   <em>Time-series visualization of cosmic structure evolution (a=0.01 → a=100) generated with tessera</em>
 </p>
 
-<p align="center">
+<!-- <p align="center">
   <img src="docs/origami_pdf_example.png" alt="ORIGAMI overdensity PDFs with jackknife uncertainties" width="80%">
   <br>
   <em>Overdensity PDFs by ORIGAMI morphology class with jackknife uncertainty bands</em>
-</p>
+</p> -->
 
 ---
 
