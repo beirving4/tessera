@@ -92,10 +92,7 @@ def detect_id_ordering(positions, particle_ids, box_size, grid_size):
         # z-major: ID=N^2+1 -> (1,0,0), x should be ~spacing
         z_major_score += abs(pos_n2p1[0] - spacing)
 
-    if x_major_score < z_major_score:
-        return 'x-major'
-    else:
-        return 'z-major'
+    return 'x-major' if x_major_score < z_major_score else 'z-major'
 
 
 def load_snapshot(snapshot_path, particle_type=1):
@@ -217,7 +214,9 @@ def compute_origami_morphology(positions, particle_ids, box_size, n_threads=0,
 
     if min_id != 1 or max_id != n_particles:
         print(f"    WARNING: IDs should range from 1 to {n_particles:,}")
-        print(f"    This may indicate incomplete snapshot loading or non-Lagrangian IDs")
+        print(
+            "    This may indicate incomplete snapshot loading or non-Lagrangian IDs"
+        )
 
     if unique_ids != n_particles:
         raise ValueError(f"Found {unique_ids:,} unique IDs for {n_particles:,} particles. "
@@ -243,7 +242,7 @@ def compute_origami_morphology(positions, particle_ids, box_size, n_threads=0,
             idx = particle_ids[i] - 1  # 0-indexed z-major
             z = idx % grid_size
             y = (idx // grid_size) % grid_size
-            x = idx // (grid_size * grid_size)
+            x = idx // grid_size**2
             xmajor_idx = x + y * grid_size + z * grid_size * grid_size
             sorted_positions[xmajor_idx] = positions[i]
     else:

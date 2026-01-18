@@ -14,6 +14,12 @@
   <em>Time-series visualization of cosmic structure evolution (a=0.01 → a=100) generated with tessera</em>
 </p>
 
+<p align="center">
+  <img src="docs/origami_pdf_example.png" alt="ORIGAMI overdensity PDFs with jackknife uncertainties" width="80%">
+  <br>
+  <em>Overdensity PDFs by ORIGAMI morphology class with jackknife uncertainty bands</em>
+</p>
+
 ---
 
 A high-performance C++ library with Python bindings for phase-space tessellation of cosmological N-body simulations. This is a modern rewrite of [gotetra](https://github.com/phil-mansfield/gotetra) with C++ as the computational core and Python as the primary interface.
@@ -33,7 +39,8 @@ The library also includes **ORIGAMI morphological classification** (Falck, Neyri
 - **Tetrahedron-based density fields**: 3D volumes and 2D z-projections with Monte Carlo sampling
 - **Subbox extraction**: Compute density in regions centered on halos or other structures
 - **Physical space computation**: Option to compute density in physical (not comoving) coordinates
-- **ORIGAMI classification**: Identify void/wall/filament/halo morphology per particle
+- **ORIGAMI classification**: Identify void/wall/filament/halo morphology per particle with linear regime detection
+- **Statistical analysis**: Histograms and PDFs with jackknife resampling for uncertainty estimation
 - **Time-series visualization**: Diemer-style cosmic evolution images and animations
 - **GADGET-4 I/O**: Read HDF5 snapshots (single or distributed) and FOF/Subfind catalogs
 - **Multi-threaded**: Parallel computation with OpenMP
@@ -179,6 +186,10 @@ print(f"Wall:     {result.n_wall:,} particles ({result.f_wall:.1%})")
 print(f"Filament: {result.n_filament:,} particles ({result.f_filament:.1%})")
 print(f"Halo:     {result.n_halo:,} particles ({result.f_halo:.1%})")
 
+# Check for linear regime (no shell-crossing yet)
+if result.is_linear_regime:
+    print("Warning: Field is in linear regime - ORIGAMI classification not meaningful")
+
 # Get per-particle classification
 morphology = np.array(result.morphology)  # uint8 array, values 0-3
 ```
@@ -208,8 +219,12 @@ The `examples/` directory contains complete scripts demonstrating various use ca
 | `tetra_density.py` | Reference implementation of density algorithm |
 | `density_slice.py` | 2D density projections with visualization |
 | `halo_density.py` | Halo-centric density extraction with tri-panel plots |
+| `physical_space_demo.py` | Physical vs comoving coordinate density comparison |
 | `origami_morphology.py` | Full ORIGAMI workflow with conditional PDFs |
-| `overdensity_pdf_origami.py` | Overdensity distributions by morphological class |
+| `overdensity_pdf_origami.py` | Overdensity distributions by morphological class (supports `--jackknife`) |
+| `origami_slice_render.py` | 2D thin-slice visualization of ORIGAMI morphology |
+| `origami_slice_animation.py` | Animated ORIGAMI morphology evolution |
+| `time_series_origami.py` | ORIGAMI time-series with density-blended coloring |
 | `time_series_pipeline.py` | Complete Diemer-style time-series visualization |
 | `generate_projections.py` | Generate 2D density projections from snapshots |
 | `build_time_series.py` | Build static time-series image (x=time, y=space) |
@@ -254,6 +269,16 @@ The animation script supports callout annotations for labeling cosmic events—e
 - `compute_morphology()`: Classify particles as void/wall/filament/halo
 - `sample_density_at_particles()`: Interpolate density grid at particle positions
 - `deposit_morphology_to_grid()`: Create grid-based morphology fields
+- `OrigamiResult.is_linear_regime`: Flag indicating pre-shell-crossing state
+
+### `ts.stats` - Statistical Analysis
+
+- `histogram()`: Linearly-binned histogram
+- `histogram_log()`: Logarithmically-binned histogram
+- `histogram_to_pdf()`: Convert histogram counts to probability density
+- `bin_centers()`: Compute bin centers from edges
+- `compute_jackknife_histogram()`: Histogram with jackknife uncertainty estimation
+- `compute_jackknife_conditional_histogram()`: Per-ORIGAMI-class histograms with uncertainties
 
 ### `ts.io` - File I/O
 
