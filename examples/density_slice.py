@@ -42,10 +42,10 @@ try:
 except ImportError:
     try:
         import tessera as ts
-        HAS_CPP = hasattr(at, 'density')
+        HAS_CPP = hasattr(ts, 'density')
     except ImportError:
         HAS_CPP = False
-        at = None
+        ts = None
 
 
 def load_snapshot(path, snapshot_num=None, particle_type=1, read_ids=False):
@@ -300,7 +300,7 @@ def compute_density_slice_tessellation(
     
     # Sort particles by Lagrangian ID
     print("Sorting particles by Lagrangian ID...")
-    sorted_positions = at.density.sort_by_lagrangian_id(
+    sorted_positions = ts.density.sort_by_lagrangian_id(
         positions, particle_ids, grid_size, id_offset=1
     )
     
@@ -312,7 +312,7 @@ def compute_density_slice_tessellation(
     slice_max = slice_center + slice_thickness / 2
     
     # Create config for 3D density computation
-    config = at.density.TetraDensityConfig()
+    config = ts.density.TetraDensityConfig()
     config.box_size = box_size
     config.lagrangian_grid_size = grid_size
     config.output_cells = grid_resolution
@@ -322,7 +322,7 @@ def compute_density_slice_tessellation(
     
     # Compute 3D density field
     print(f"Computing 3D tessellation density field ({grid_resolution}^3)...")
-    result = at.density.compute_tetra_density_3d(sorted_positions, config)
+    result = ts.density.compute_tetra_density_3d(sorted_positions, config)
     # C++ uses idx = x + y*N + z*N*N (x varies fastest)
     # With NumPy C-order reshape, this gives density[z, y, x]
     density_3d = np.array(result.density).reshape(
