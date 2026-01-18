@@ -122,12 +122,136 @@ std::vector<double> histogram_to_pdf(const HistogramResult& hist);
 
 /**
  * Get bin centers from bin edges.
- * 
+ *
  * @param bin_edges Bin edge values
  * @param log_space If true, use geometric mean; else arithmetic mean
  * @return Vector of bin centers (length = bin_edges.size() - 1)
  */
 std::vector<double> bin_centers(const std::vector<double>& bin_edges, bool log_space = false);
+
+// ============================================================================
+// Jackknife resampling for uncertainty estimation
+// ============================================================================
+
+/**
+ * Result of jackknife histogram computation.
+ *
+ * Contains both global (full-box) statistics and jackknife estimates
+ * with uncertainties for histogram counts and PDFs.
+ */
+struct JackknifeHistogramResult {
+    // Bin information
+    std::vector<double> bin_edges;      ///< Bin edge values (n_bins + 1)
+    std::vector<double> bin_centers;    ///< Bin center values (n_bins)
+    int n_bins;                          ///< Number of bins
+    int n_subboxes;                      ///< Number of sub-boxes used
+
+    // Global (full-box) results - for comparison with jackknife
+    std::vector<int64_t> global_counts; ///< Full-box histogram counts
+    std::vector<double> global_pdf;     ///< Full-box PDF
+    int64_t global_n_total;             ///< Total particles in full box
+
+    // Jackknife results for histogram counts
+    std::vector<double> counts_mean;    ///< Jackknife mean of counts (per sub-box)
+    std::vector<double> counts_error;   ///< Jackknife standard error of counts
+
+    // Jackknife results for PDF
+    std::vector<double> pdf_mean;       ///< Jackknife mean of PDF
+    std::vector<double> pdf_error;      ///< Jackknife standard error of PDF
+
+    // Per-subbox data (for detailed analysis)
+    std::vector<std::vector<int64_t>> subbox_counts;  ///< Counts per sub-box [subbox][bin]
+    std::vector<std::vector<double>> subbox_pdf;      ///< PDF per sub-box [subbox][bin]
+    std::vector<int64_t> subbox_n_total;              ///< Total particles per sub-box
+};
+
+/**
+ * Result of jackknife conditional histogram computation.
+ *
+ * Contains jackknife histograms for all particles and for each
+ * ORIGAMI morphology class (void, wall, filament, halo).
+ */
+struct JackknifeConditionalResult {
+    JackknifeHistogramResult all;           ///< All particles
+    JackknifeHistogramResult void_class;    ///< Void particles (morphology = 0)
+    JackknifeHistogramResult wall_class;    ///< Wall particles (morphology = 1)
+    JackknifeHistogramResult filament_class; ///< Filament particles (morphology = 2)
+    JackknifeHistogramResult halo_class;    ///< Halo particles (morphology = 3)
+
+    // Linear regime detection
+    bool is_linear_regime;                  ///< True if field is in linear regime
+    double f_void;                          ///< Void fraction (for reference)
+};
+
+/**
+ * Compute jackknife histogram with uncertainty estimates.
+ *
+ * Divides the simulation box into sub-boxes and computes leave-one-out
+ * jackknife estimates for both histogram counts and PDFs.
+ *
+ * The jackknife mean and error are computed as:
+ *   X̄_jk = (1/n) Σ X̄_(i)
+ *   σ_jk = sqrt((n-1)/n Σ [X̄_(i) - X̄_jk]²)
+ *
+ * where X̄_(i) is the mean of all sub-boxes except i.
+ *
+ * @param positions Particle positions, shape (n_particles, 3), Eulerian coordinates
+ * @param values Values to histogram (e.g., overdensity 1+δ)
+ * @param n_particles Number of particles
+ * @param box_size Simulation box size
+ * @param n_bins Number of histogram bins
+ * @param range_min Minimum bin edge (must be > 0 for log bins)
+ * @param range_max Maximum bin edge
+ * @param log_bins If true, use logarithmic binning
+ * @param n_subboxes_per_dim Sub-boxes per dimension (2 -> 8 total, 3 -> 27, etc.)
+ * @param n_threads Number of OpenMP threads (0 = auto)
+ * @return JackknifeHistogramResult with global and jackknife statistics
+ */
+JackknifeHistogramResult compute_jackknife_histogram(
+    const double* positions,
+    const double* values,
+    int64_t n_particles,
+    double box_size,
+    int n_bins,
+    double range_min,
+    double range_max,
+    bool log_bins = true,
+    int n_subboxes_per_dim = 2,
+    int n_threads = 0
+);
+
+/**
+ * Compute jackknife conditional histograms by ORIGAMI morphology class.
+ *
+ * Computes jackknife histograms for all particles and separately for each
+ * morphology class (void, wall, filament, halo).
+ *
+ * @param positions Particle positions, shape (n_particles, 3)
+ * @param values Values to histogram (e.g., overdensity 1+δ)
+ * @param morphology ORIGAMI morphology classification (0-3)
+ * @param n_particles Number of particles
+ * @param box_size Simulation box size
+ * @param n_bins Number of histogram bins
+ * @param range_min Minimum bin edge
+ * @param range_max Maximum bin edge
+ * @param log_bins If true, use logarithmic binning
+ * @param n_subboxes_per_dim Sub-boxes per dimension
+ * @param n_threads Number of OpenMP threads (0 = auto)
+ * @return JackknifeConditionalResult with per-class jackknife statistics
+ */
+JackknifeConditionalResult compute_jackknife_conditional_histogram(
+    const double* positions,
+    const double* values,
+    const uint8_t* morphology,
+    int64_t n_particles,
+    double box_size,
+    int n_bins,
+    double range_min,
+    double range_max,
+    bool log_bins = true,
+    int n_subboxes_per_dim = 2,
+    int n_threads = 0
+);
 
 } // namespace stats
 } // namespace tessera

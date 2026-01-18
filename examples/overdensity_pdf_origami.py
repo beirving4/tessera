@@ -6,16 +6,21 @@ Computes overdensity PDFs for:
 1. The full density field (all particles)
 2. Each ORIGAMI morphological class (void, wall, filament, halo)
 
+Supports jackknife resampling for uncertainty estimation.
+
 Outputs:
-- HDF5 file with histogram and PDF data
+- HDF5 file with histogram and PDF data (and errors if --jackknife)
 - 2x1 figure: histograms (top) and PDFs (bottom) with shared x-axis
 
 Usage:
     python overdensity_pdf_origami.py
+    python overdensity_pdf_origami.py --jackknife  # With uncertainty estimation
+    python overdensity_pdf_origami.py --jackknife --n-subboxes 3  # 27 sub-boxes
 """
 
 import os
 import sys
+import argparse
 from pathlib import Path
 import numpy as np
 import h5py
@@ -190,6 +195,7 @@ def compute_overdensity_histograms(particle_density, morphology, n_bins=100):
         'bin_centers': bin_centers,
         'bin_widths': bin_widths,
         'mean_density': mean_density,
+        'jackknife': False,
     }
 
     # Full field histogram
@@ -231,6 +237,97 @@ def compute_overdensity_histograms(particle_density, morphology, n_bins=100):
     return results
 
 
+def compute_overdensity_histograms_jackknife(positions, particle_density, morphology,
+                                              box_size, n_bins=100, n_subboxes_per_dim=2):
+    """Compute overdensity histograms with jackknife uncertainty estimation.
+
+    Uses spatial sub-box resampling with leave-one-out jackknife to estimate
+    uncertainties on both histogram counts and PDFs.
+
+    Args:
+        positions: Particle positions (Eulerian), shape (n_particles, 3)
+        particle_density: Density at each particle position
+        morphology: ORIGAMI morphology classification (0-3)
+        box_size: Simulation box size
+        n_bins: Number of histogram bins
+        n_subboxes_per_dim: Sub-boxes per dimension (2 -> 8, 3 -> 27 total)
+
+    Returns:
+        dict with bin_edges, bin_centers, histograms, PDFs, and errors
+    """
+    # Normalize to overdensity (1 + delta)
+    mean_density = particle_density.mean()
+    overdensity = particle_density / mean_density
+
+    # Determine range for log bins
+    od_positive = overdensity[overdensity > 0]
+    range_min = max(od_positive.min(), 1e-3)
+    range_max = overdensity.max() * 1.001
+
+    print(f"    Using jackknife with {n_subboxes_per_dim}^3 = {n_subboxes_per_dim**3} sub-boxes")
+
+    # Use C++ jackknife conditional histogram
+    jk_result = ts.stats.compute_jackknife_conditional_histogram(
+        np.ascontiguousarray(positions, dtype=np.float64),
+        np.ascontiguousarray(overdensity, dtype=np.float64),
+        np.ascontiguousarray(morphology, dtype=np.uint8),
+        box_size,
+        n_bins,
+        range_min,
+        range_max,
+        log_bins=True,
+        n_subboxes_per_dim=n_subboxes_per_dim,
+        n_threads=0
+    )
+
+    # Build results dict
+    bin_edges = np.array(jk_result.all.bin_edges)
+    bin_centers = np.array(jk_result.all.bin_centers)
+    bin_widths = bin_edges[1:] - bin_edges[:-1]
+
+    results = {
+        'bin_edges': bin_edges,
+        'bin_centers': bin_centers,
+        'bin_widths': bin_widths,
+        'mean_density': mean_density,
+        'jackknife': True,
+        'n_subboxes': jk_result.all.n_subboxes,
+        'n_subboxes_per_dim': n_subboxes_per_dim,
+    }
+
+    # Helper to extract results from JackknifeHistogramResult
+    def extract_jk_results(jk_hist, od_values):
+        return {
+            'histogram': np.array(jk_hist.global_counts),
+            'pdf': np.array(jk_hist.global_pdf),
+            'histogram_error': np.array(jk_hist.counts_error),
+            'pdf_error': np.array(jk_hist.pdf_error),
+            'n_particles': int(jk_hist.global_n_total),
+            'mean_overdensity': float(od_values.mean()) if len(od_values) > 0 else 0.0,
+            'median_overdensity': float(np.median(od_values)) if len(od_values) > 0 else 0.0,
+        }
+
+    # All particles
+    results['all'] = extract_jk_results(jk_result.all, overdensity)
+
+    # Per-class results
+    class_map = {
+        'void': jk_result.void_class,
+        'wall': jk_result.wall_class,
+        'filament': jk_result.filament_class,
+        'halo': jk_result.halo_class,
+    }
+
+    for class_name in ORIGAMI_CLASSES:
+        key = class_name.lower()
+        class_idx = ORIGAMI_CLASSES.index(class_name)
+        mask = morphology == class_idx
+        od_class = overdensity[mask] if mask.sum() > 0 else np.array([])
+        results[key] = extract_jk_results(class_map[key], od_class)
+
+    return results
+
+
 def save_to_hdf5(output_path, hist_results, snapshot_info):
     """Save histogram and PDF results to HDF5."""
     print(f"  Saving to {output_path}...")
@@ -253,29 +350,40 @@ def save_to_hdf5(output_path, hist_results, snapshot_info):
         hdr.attrs['is_linear_regime'] = snapshot_info.get('is_linear_regime', False)
         hdr.attrs['linear_regime_threshold'] = snapshot_info.get('linear_regime_threshold', 0.99)
 
+        # Jackknife info
+        hdr.attrs['jackknife'] = hist_results.get('jackknife', False)
+        if hist_results.get('jackknife', False):
+            hdr.attrs['n_subboxes'] = hist_results['n_subboxes']
+            hdr.attrs['n_subboxes_per_dim'] = hist_results['n_subboxes_per_dim']
+
         # Bin information
         bins = f.create_group('Bins')
         bins.create_dataset('edges', data=hist_results['bin_edges'])
         bins.create_dataset('centers', data=hist_results['bin_centers'])
         bins.create_dataset('widths', data=hist_results['bin_widths'])
 
+        # Helper to save group data
+        def save_group(grp, data):
+            grp.attrs['n_particles'] = data['n_particles']
+            grp.attrs['mean_overdensity'] = data['mean_overdensity']
+            grp.attrs['median_overdensity'] = data['median_overdensity']
+            grp.create_dataset('histogram', data=data['histogram'])
+            grp.create_dataset('pdf', data=data['pdf'])
+            # Save errors if available (jackknife mode)
+            if 'histogram_error' in data:
+                grp.create_dataset('histogram_error', data=data['histogram_error'])
+            if 'pdf_error' in data:
+                grp.create_dataset('pdf_error', data=data['pdf_error'])
+
         # All particles
         all_grp = f.create_group('All')
-        all_grp.attrs['n_particles'] = hist_results['all']['n_particles']
-        all_grp.attrs['mean_overdensity'] = hist_results['all']['mean_overdensity']
-        all_grp.attrs['median_overdensity'] = hist_results['all']['median_overdensity']
-        all_grp.create_dataset('histogram', data=hist_results['all']['histogram'])
-        all_grp.create_dataset('pdf', data=hist_results['all']['pdf'])
+        save_group(all_grp, hist_results['all'])
 
         # Per-class data
         for class_name in ORIGAMI_CLASSES:
             key = class_name.lower()
             grp = f.create_group(class_name)
-            grp.attrs['n_particles'] = hist_results[key]['n_particles']
-            grp.attrs['mean_overdensity'] = hist_results[key]['mean_overdensity']
-            grp.attrs['median_overdensity'] = hist_results[key]['median_overdensity']
-            grp.create_dataset('histogram', data=hist_results[key]['histogram'])
-            grp.create_dataset('pdf', data=hist_results[key]['pdf'])
+            save_group(grp, hist_results[key])
 
     print(f"    Saved successfully")
 
@@ -290,6 +398,7 @@ def create_figure(hist_results, snapshot_info, output_path):
                                            gridspec_kw={'hspace': 0})
 
     bin_centers = hist_results['bin_centers']
+    has_errors = hist_results.get('jackknife', False)
 
     # Top panel: Histograms (counts)
     # Plot all particles
@@ -306,20 +415,42 @@ def create_figure(hist_results, snapshot_info, output_path):
     ax_hist.set_yscale('log')
     ax_hist.set_ylabel('Counts')
     ax_hist.legend(loc='upper right', fontsize=9)
-    ax_hist.set_title(f"Overdensity Distribution: {snapshot_info['name']} ({snapshot_info['description']})")
+
+    title = f"Overdensity Distribution: {snapshot_info['name']} ({snapshot_info['description']})"
+    if has_errors:
+        title += f" [Jackknife: {hist_results['n_subboxes']} sub-boxes]"
+    ax_hist.set_title(title)
     ax_hist.grid(True, alpha=0.3, which='both')
     ax_hist.set_ylim(bottom=0.5)
 
     # Bottom panel: PDFs (probability density)
-    ax_pdf.plot(bin_centers, hist_results['all']['pdf'],
-                color='black', linewidth=2, label='All', linestyle='--')
+    # Plot all particles with error band if available
+    pdf_all = hist_results['all']['pdf']
+    ax_pdf.plot(bin_centers, pdf_all, color='black', linewidth=2, label='All', linestyle='--')
+    if has_errors and 'pdf_error' in hist_results['all']:
+        pdf_err = hist_results['all']['pdf_error']
+        # Only fill where PDF is positive
+        mask = pdf_all > 0
+        ax_pdf.fill_between(bin_centers[mask],
+                            np.maximum(pdf_all[mask] - pdf_err[mask], pdf_all[mask] * 0.01),
+                            pdf_all[mask] + pdf_err[mask],
+                            color='black', alpha=0.15)
 
     for i, class_name in enumerate(ORIGAMI_CLASSES):
         key = class_name.lower()
+        pdf_class = hist_results[key]['pdf']
         # Only plot if there's data
-        if hist_results[key]['pdf'].max() > 0:
-            ax_pdf.plot(bin_centers, hist_results[key]['pdf'],
+        if pdf_class.max() > 0:
+            ax_pdf.plot(bin_centers, pdf_class,
                         color=ORIGAMI_COLORS[i], linewidth=1.5, label=class_name)
+            # Add error band if available
+            if has_errors and 'pdf_error' in hist_results[key]:
+                pdf_err = hist_results[key]['pdf_error']
+                mask = pdf_class > 0
+                ax_pdf.fill_between(bin_centers[mask],
+                                    np.maximum(pdf_class[mask] - pdf_err[mask], pdf_class[mask] * 0.01),
+                                    pdf_class[mask] + pdf_err[mask],
+                                    color=ORIGAMI_COLORS[i], alpha=0.2)
 
     ax_pdf.set_xscale('log')
     ax_pdf.set_yscale('log')
@@ -348,10 +479,18 @@ def create_figure(hist_results, snapshot_info, output_path):
     print(f"  Saved figure: {output_path}")
 
 
-def process_snapshot(snapshot_info):
-    """Process a single snapshot: compute ORIGAMI, density, and PDFs."""
+def process_snapshot(snapshot_info, use_jackknife=False, n_subboxes_per_dim=2):
+    """Process a single snapshot: compute ORIGAMI, density, and PDFs.
+
+    Args:
+        snapshot_info: Dict with snapshot name and description
+        use_jackknife: If True, use jackknife resampling for uncertainty estimation
+        n_subboxes_per_dim: Sub-boxes per dimension for jackknife (2->8, 3->27)
+    """
     print(f"\n{'='*70}")
     print(f"Processing {snapshot_info['name']} ({snapshot_info['description']})")
+    if use_jackknife:
+        print(f"  [Jackknife enabled: {n_subboxes_per_dim}^3 = {n_subboxes_per_dim**3} sub-boxes]")
     print('='*70)
 
     # Load data
@@ -393,28 +532,63 @@ def process_snapshot(snapshot_info):
 
     # Compute histograms and PDFs
     print("  Computing overdensity histograms...")
-    hist_results = compute_overdensity_histograms(particle_density, morphology, n_bins=100)
+    if use_jackknife:
+        # Use Eulerian positions (sorted_positions) for sub-box assignment
+        hist_results = compute_overdensity_histograms_jackknife(
+            sorted_positions, particle_density, morphology, box_size,
+            n_bins=100, n_subboxes_per_dim=n_subboxes_per_dim
+        )
+    else:
+        hist_results = compute_overdensity_histograms(particle_density, morphology, n_bins=100)
 
     # Save to HDF5
-    h5_path = SCRIPT_DIR / f"{snapshot_info['name']}_overdensity_pdf.h5"
+    suffix = "_jackknife" if use_jackknife else ""
+    h5_path = SCRIPT_DIR / f"{snapshot_info['name']}_overdensity_pdf{suffix}.h5"
     save_to_hdf5(h5_path, hist_results, snapshot_info)
 
     # Create figure
-    fig_path = SCRIPT_DIR / f"{snapshot_info['name']}_overdensity_pdf.png"
+    fig_path = SCRIPT_DIR / f"{snapshot_info['name']}_overdensity_pdf{suffix}.png"
     create_figure(hist_results, snapshot_info, fig_path)
 
     return hist_results
 
 
+def parse_args():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Overdensity PDF Analysis with ORIGAMI Morphology Classification",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+    python overdensity_pdf_origami.py
+    python overdensity_pdf_origami.py --jackknife
+    python overdensity_pdf_origami.py --jackknife --n-subboxes 3
+        """
+    )
+    parser.add_argument('--jackknife', action='store_true',
+                        help='Enable jackknife resampling for uncertainty estimation')
+    parser.add_argument('--n-subboxes', type=int, default=2, dest='n_subboxes_per_dim',
+                        help='Sub-boxes per dimension for jackknife (default: 2, giving 8 sub-boxes)')
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
+
     print("="*70)
     print("Overdensity PDF Analysis with ORIGAMI Morphology")
+    if args.jackknife:
+        print(f"  [Jackknife enabled: {args.n_subboxes_per_dim}^3 = {args.n_subboxes_per_dim**3} sub-boxes]")
     print("="*70)
 
     all_results = {}
 
     for snap_info in SNAPSHOTS:
-        results = process_snapshot(snap_info.copy())
+        results = process_snapshot(
+            snap_info.copy(),
+            use_jackknife=args.jackknife,
+            n_subboxes_per_dim=args.n_subboxes_per_dim
+        )
         all_results[snap_info['name']] = results
 
     print("\n" + "="*70)
@@ -427,6 +601,8 @@ def main():
         print(f"\n  {snap_name}:")
         print(f"    Total particles: {results['all']['n_particles']:,}")
         print(f"    Mean overdensity: {results['all']['mean_overdensity']:.4f}")
+        if results.get('jackknife', False):
+            print(f"    Jackknife sub-boxes: {results['n_subboxes']}")
         for class_name in ORIGAMI_CLASSES:
             key = class_name.lower()
             n = results[key]['n_particles']
