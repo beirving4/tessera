@@ -311,6 +311,13 @@ OrigamiResult compute_morphology_impl(
     result.f_filament = static_cast<double>(result.n_filament) * inv_np;
     result.f_halo = static_cast<double>(result.n_halo) * inv_np;
 
+    // Detect linear regime
+    // In the linear regime, no shell-crossing has occurred, so ORIGAMI
+    // classifies (nearly) all particles as voids. The classification is
+    // not physically meaningful in this case.
+    result.linear_regime_threshold = config.linear_regime_threshold;
+    result.is_linear_regime = (result.f_void >= config.linear_regime_threshold);
+
     return result;
 }
 

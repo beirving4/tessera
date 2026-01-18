@@ -120,13 +120,13 @@ def compute_origami(sorted_positions, box_size, grid_size):
     """Compute ORIGAMI morphology classification."""
     print("  Computing ORIGAMI morphology...")
 
-    config = at.origami.OrigamiConfig()
+    config = ts.origami.OrigamiConfig()
     config.lagrangian_grid_size = grid_size
     config.box_size = float(box_size)
     config.n_threads = 1
     config.n_split = 1
 
-    result = at.origami.compute_morphology(sorted_positions, config)
+    result = ts.origami.compute_morphology(sorted_positions, config)
 
     print(f"    Void:     {result.n_void:>10,} ({result.f_void:>6.2%})")
     print(f"    Wall:     {result.n_wall:>10,} ({result.f_wall:>6.2%})")
@@ -141,7 +141,7 @@ def compute_density_at_particles(sorted_positions, box_size, grid_size, origami_
     """Compute 3D density field and sample at particle positions."""
     print(f"  Computing density field ({output_cells}^3)...")
 
-    config = at.density.TetraDensityConfig()
+    config = ts.density.TetraDensityConfig()
     config.lagrangian_grid_size = grid_size
     config.output_cells = output_cells
     config.box_size = float(box_size)
@@ -150,7 +150,7 @@ def compute_density_at_particles(sorted_positions, box_size, grid_size, origami_
     config.n_threads = 1
     config.periodic = True
 
-    density_result = at.density.compute_tetra_density_3d(sorted_positions, config)
+    density_result = ts.density.compute_tetra_density_3d(sorted_positions, config)
 
     density_3d = np.array(density_result.density).reshape(
         output_cells, output_cells, output_cells
@@ -161,7 +161,7 @@ def compute_density_at_particles(sorted_positions, box_size, grid_size, origami_
 
     # Sample at particle positions
     print("  Sampling density at particle positions...")
-    at.origami.sample_density_at_particles(
+    ts.origami.sample_density_at_particles(
         density_3d, sorted_positions, box_size, origami_result
     )
 
@@ -246,6 +246,12 @@ def save_to_hdf5(output_path, hist_results, snapshot_info):
         hdr.attrs['box_size'] = snapshot_info['box_size']
         hdr.attrs['grid_size'] = snapshot_info['grid_size']
         hdr.attrs['mean_density'] = hist_results['mean_density']
+
+        # Linear regime detection
+        # In the linear regime (no shell-crossing), ORIGAMI classifies all
+        # particles as voids, so the classification is not physically meaningful.
+        hdr.attrs['is_linear_regime'] = snapshot_info.get('is_linear_regime', False)
+        hdr.attrs['linear_regime_threshold'] = snapshot_info.get('linear_regime_threshold', 0.99)
 
         # Bin information
         bins = f.create_group('Bins')
@@ -366,6 +372,14 @@ def process_snapshot(snapshot_info):
 
     # Compute ORIGAMI morphology
     origami_result = compute_origami(sorted_positions, box_size, grid_size)
+
+    # Store linear regime info in snapshot_info for saving
+    snapshot_info['is_linear_regime'] = origami_result.is_linear_regime
+    snapshot_info['linear_regime_threshold'] = origami_result.linear_regime_threshold
+
+    if origami_result.is_linear_regime:
+        print(f"  WARNING: Field is in LINEAR REGIME ({origami_result.f_void*100:.1f}% void)")
+        print(f"           ORIGAMI classification may not be physically meaningful")
 
     # Compute density and sample at particles
     density_3d = compute_density_at_particles(

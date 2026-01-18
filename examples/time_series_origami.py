@@ -65,6 +65,115 @@ MORPHOLOGY_COLORS = {
     HALO: np.array([1.0, 1.0, 1.0]),          # White
 }
 
+# Density colormap colors (similar to original time series - blue gradient)
+DENSITY_COLORS = [
+    (0.0, np.array([0.0, 0.02, 0.04])),    # Nearly black
+    (0.2, np.array([0.0, 0.1, 0.2])),      # Dark blue
+    (0.4, np.array([0.0, 0.25, 0.4])),     # Medium blue
+    (0.6, np.array([0.0, 0.4, 0.55])),     # Blue
+    (0.8, np.array([0.0, 0.65, 0.8])),     # Cyan
+    (1.0, np.array([0.8, 0.95, 1.0])),     # Light cyan/white
+]
+
+# Linear regime threshold - if void fraction > this, field is considered linear
+LINEAR_REGIME_VOID_THRESHOLD = 0.99
+
+
+def is_linear_regime(origami_result, void_threshold=LINEAR_REGIME_VOID_THRESHOLD):
+    """
+    Detect if the density field is still in the linear regime.
+
+    In the linear regime, no shell-crossing has occurred, so ORIGAMI
+    classifies all particles as voids (0 phase-space crossings).
+
+    Parameters
+    ----------
+    origami_result : OrigamiResult
+        Result from ts.origami.compute_morphology()
+    void_threshold : float
+        Void fraction above which the field is considered linear (default: 0.99)
+
+    Returns
+    -------
+    bool
+        True if field is in linear regime, False otherwise
+    """
+    return origami_result.f_void >= void_threshold
+
+
+def get_linear_regime_info(origami_result):
+    """
+    Get detailed information about the linear regime status.
+
+    Returns
+    -------
+    dict
+        Dictionary with keys:
+        - is_linear: bool, True if in linear regime
+        - void_fraction: float, fraction of particles classified as void
+        - nonlinear_fraction: float, fraction of particles with shell-crossing
+        - recommendation: str, recommendation for analysis
+    """
+    f_nonlinear = 1.0 - origami_result.f_void
+    is_linear = origami_result.f_void >= LINEAR_REGIME_VOID_THRESHOLD
+
+    if is_linear:
+        recommendation = (
+            "Field is in linear regime (no shell-crossing). "
+            "ORIGAMI classification not meaningful - use density-based analysis instead."
+        )
+    elif origami_result.f_void > 0.9:
+        recommendation = (
+            "Field is in quasi-linear regime (limited shell-crossing). "
+            "ORIGAMI classification may be incomplete."
+        )
+    else:
+        recommendation = (
+            "Field is in nonlinear regime. "
+            "ORIGAMI classification is meaningful."
+        )
+
+    return {
+        'is_linear': is_linear,
+        'void_fraction': origami_result.f_void,
+        'nonlinear_fraction': f_nonlinear,
+        'recommendation': recommendation,
+    }
+
+
+def density_colormap(value):
+    """
+    Apply density colormap to normalized values.
+
+    Parameters
+    ----------
+    value : float or np.ndarray
+        Normalized value(s) in [0, 1]
+
+    Returns
+    -------
+    np.ndarray
+        RGB color(s)
+    """
+    value = np.atleast_1d(value)
+    result = np.zeros((*value.shape, 3))
+
+    for i in range(len(DENSITY_COLORS) - 1):
+        t0, c0 = DENSITY_COLORS[i]
+        t1, c1 = DENSITY_COLORS[i + 1]
+
+        mask = (value >= t0) & (value < t1)
+        if np.any(mask):
+            t = (value[mask] - t0) / (t1 - t0)
+            for c in range(3):
+                result[mask, c] = c0[c] + t * (c1[c] - c0[c])
+
+    # Handle value == 1.0
+    mask = value >= 1.0
+    result[mask] = DENSITY_COLORS[-1][1]
+
+    return result.squeeze() if result.shape[0] == 1 else result
+
 
 def load_snapshot(snapshot_path, particle_type=1):
     """Load particle data from a GADGET-4 HDF5 snapshot."""
@@ -167,7 +276,7 @@ def project_morphology_to_2d(
     Project morphology classifications to 2D.
 
     Returns arrays for each morphology type showing the fraction of particles
-    of that type in each pixel.
+    of that type in each pixel, plus a normalized density field.
     """
     n_particles = len(sorted_positions)
 
@@ -203,28 +312,66 @@ def project_morphology_to_2d(
         grids[morph][iy, ix] += 1
         total_count[iy, ix] += 1
 
+    # Save raw counts before normalization for density field
+    raw_count = total_count.copy()
+
     # Convert to fractions
     total_count = np.maximum(total_count, 1)  # Avoid division by zero
     for morph in grids:
         grids[morph] /= total_count
 
-    return grids, total_count
+    # Compute normalized density field (log-scaled, 0-1)
+    log_density = np.log10(raw_count + 1)
+    density_normalized = log_density / (log_density.max() + 1e-10)
+
+    return grids, total_count, density_normalized
 
 
-def composite_morphology_image(grids, total_count, gamma=0.5):
+def composite_morphology_image(grids, total_count, density_normalized, gamma=0.5):
     """
-    Create a composite RGB image from morphology fractions.
+    Create a composite RGB image blending density and morphology.
 
-    Each pixel's color is a weighted blend of morphology colors,
-    with brightness based on total particle count.
+    In the linear regime (mostly voids), density structure is shown.
+    As non-void structures form, ORIGAMI morphology coloring is blended in.
+
+    Parameters
+    ----------
+    grids : dict
+        Morphology fraction grids {VOID: array, WALL: array, ...}
+    total_count : np.ndarray
+        Particle count per pixel
+    density_normalized : np.ndarray
+        Normalized density field (0-1)
+    gamma : float
+        Gamma correction for brightness
     """
     output_cells = grids[VOID].shape[0]
     rgb = np.zeros((output_cells, output_cells, 3), dtype=np.float64)
 
-    # Blend colors based on morphology fractions
-    for morph, color in MORPHOLOGY_COLORS.items():
+    # Compute density-based colors (for void regions / linear regime)
+    density_colors = density_colormap(density_normalized.flatten()).reshape(
+        output_cells, output_cells, 3
+    )
+
+    # Compute ORIGAMI morphology colors for non-void particles
+    # Normalize non-void fractions to sum to 1 where non-void particles exist
+    f_nonvoid = grids[WALL] + grids[FILAMENT] + grids[HALO]
+    f_nonvoid_safe = np.maximum(f_nonvoid, 1e-10)
+
+    origami_colors = np.zeros((output_cells, output_cells, 3), dtype=np.float64)
+    for morph in [WALL, FILAMENT, HALO]:
+        color = MORPHOLOGY_COLORS[morph]
+        weight = grids[morph] / f_nonvoid_safe
         for c in range(3):
-            rgb[:, :, c] += grids[morph] * color[c]
+            origami_colors[:, :, c] += weight * color[c]
+
+    # Blend: voids show density, non-voids show ORIGAMI colors
+    # For each pixel: final = f_void * density_color + f_nonvoid * origami_color
+    for c in range(3):
+        rgb[:, :, c] = (
+            grids[VOID] * density_colors[:, :, c] +
+            f_nonvoid * origami_colors[:, :, c]
+        )
 
     # Apply brightness based on total count (log scale)
     log_count = np.log10(total_count + 1)
@@ -251,8 +398,13 @@ def generate_origami_projection(
     # Compute ORIGAMI
     result, sorted_positions, grid_size = compute_origami(positions, particle_ids, box_size)
 
+    # Check linear regime status
+    linear_info = get_linear_regime_info(result)
+    if linear_info['is_linear']:
+        print(f"[LINEAR REGIME: {linear_info['void_fraction']*100:.1f}% void]", end=" ")
+
     # Project to 2D
-    grids, total_count = project_morphology_to_2d(
+    grids, total_count, density_normalized = project_morphology_to_2d(
         sorted_positions,
         result.morphology,
         box_size,
@@ -261,7 +413,7 @@ def generate_origami_projection(
         slab_fraction=slab_fraction,
     )
 
-    return grids, total_count, scale_factor, box_size
+    return grids, total_count, density_normalized, scale_factor, box_size
 
 
 def build_origami_time_series(
@@ -274,10 +426,13 @@ def build_origami_time_series(
     """
     Build a Diemer-style time-series image from ORIGAMI projections.
 
+    Blends density-based coloring (for voids/linear regime) with ORIGAMI
+    morphology coloring (for non-void structures).
+
     Parameters
     ----------
     projections : dict
-        Dictionary mapping scale factor to (grids, total_count) tuples
+        Dictionary mapping scale factor to (grids, total_count, density_normalized) tuples
     a_min, a_max : float
         Scale factor range for the image
     n_box_replications : int
@@ -291,7 +446,7 @@ def build_origami_time_series(
         RGB time-series image array, shape (height, width, 3)
     """
     a_values = np.array(sorted(projections.keys()))
-    first_grids, first_count = projections[a_values[0]]
+    first_grids, first_count, first_density = projections[a_values[0]]
     L_pix = first_grids[VOID].shape[0]
 
     width = n_box_replications * L_pix
@@ -324,8 +479,8 @@ def build_origami_time_series(
         # Get bracketing projections
         a_before = a_values[idx_before]
         a_after = a_values[idx_after]
-        grids_before, count_before = projections[a_before]
-        grids_after, count_after = projections[a_after]
+        grids_before, count_before, density_before = projections[a_before]
+        grids_after, count_after, density_after = projections[a_after]
 
         # Interpolate morphology fractions
         interpolated_grids = {}
@@ -334,17 +489,38 @@ def build_origami_time_series(
             col_after = grids_after[morph][:, x_box]
             interpolated_grids[morph] = (1 - t) * col_before + t * col_after
 
+        # Interpolate density
+        density_col = (1 - t) * density_before[:, x_box] + t * density_after[:, x_box]
+
         # Interpolate counts (in log space)
         eps = 1e-10
         log_count_before = np.log(count_before[:, x_box] + eps)
         log_count_after = np.log(count_after[:, x_box] + eps)
         interpolated_count = np.exp((1 - t) * log_count_before + t * log_count_after) - eps
 
-        # Compute RGB for this column
-        rgb_col = np.zeros((height, 3), dtype=np.float64)
-        for morph, color in MORPHOLOGY_COLORS.items():
+        # Compute density-based colors (for void regions / linear regime)
+        density_colors = density_colormap(density_col)
+
+        # Compute non-void fraction and ORIGAMI colors
+        f_void = interpolated_grids[VOID]
+        f_nonvoid = interpolated_grids[WALL] + interpolated_grids[FILAMENT] + interpolated_grids[HALO]
+        f_nonvoid_safe = np.maximum(f_nonvoid, 1e-10)
+
+        # ORIGAMI morphology colors for non-void particles
+        origami_colors = np.zeros((height, 3), dtype=np.float64)
+        for morph in [WALL, FILAMENT, HALO]:
+            color = MORPHOLOGY_COLORS[morph]
+            weight = interpolated_grids[morph] / f_nonvoid_safe
             for c in range(3):
-                rgb_col[:, c] += interpolated_grids[morph] * color[c]
+                origami_colors[:, c] += weight * color[c]
+
+        # Blend: voids show density, non-voids show ORIGAMI colors
+        rgb_col = np.zeros((height, 3), dtype=np.float64)
+        for c in range(3):
+            rgb_col[:, c] = (
+                f_void * density_colors[:, c] +
+                f_nonvoid * origami_colors[:, c]
+            )
 
         # Apply brightness
         log_count = np.log10(interpolated_count + 1)
@@ -419,12 +595,12 @@ def render_origami_time_series(
             fontsize=14, color='white', pad=10
         )
 
-        # Legend
+        # Legend - note: voids show density structure, not solid color
         legend_elements = [
             Patch(facecolor=MORPHOLOGY_COLORS[HALO], edgecolor='white', label='Halos'),
             Patch(facecolor=MORPHOLOGY_COLORS[FILAMENT], edgecolor='white', label='Filaments'),
             Patch(facecolor=MORPHOLOGY_COLORS[WALL], edgecolor='white', label='Walls'),
-            Patch(facecolor=MORPHOLOGY_COLORS[VOID], edgecolor='white', label='Voids'),
+            Patch(facecolor=DENSITY_COLORS[3][1], edgecolor='white', label='Voids (density)'),
         ]
         ax.legend(
             handles=legend_elements, loc='upper right',
@@ -508,13 +684,13 @@ def main():
         print(f"  [{i+1}/{len(snapshot_files)}] Snapshot {idx}...", end=" ", flush=True)
         step_start = time.time()
 
-        grids, total_count, scale_factor, box_size = generate_origami_projection(
+        grids, total_count, density_normalized, scale_factor, box_size = generate_origami_projection(
             path,
             output_cells=args.output_cells,
             slab_fraction=args.slab_fraction,
         )
 
-        projections[scale_factor] = (grids, total_count)
+        projections[scale_factor] = (grids, total_count, density_normalized)
 
         print(f"a={scale_factor:.4f}, {time.time() - step_start:.1f}s")
 

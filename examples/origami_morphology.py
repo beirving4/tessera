@@ -339,6 +339,12 @@ def save_results(output_path, result, density_3d, positions, box_size, redshift,
         hdr.attrs['lagrangian_grid_size'] = grid_size
         hdr.attrs['particle_mass'] = particle_mass
 
+        # Linear regime detection
+        # In the linear regime (no shell-crossing), ORIGAMI classifies all
+        # particles as voids, so the classification is not physically meaningful.
+        hdr.attrs['is_linear_regime'] = result.is_linear_regime
+        hdr.attrs['linear_regime_threshold'] = result.linear_regime_threshold
+
         # Per-particle data
         per_part = f.create_group('PerParticle')
         per_part.create_dataset('morphology', data=np.array(result.morphology),

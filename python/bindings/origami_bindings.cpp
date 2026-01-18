@@ -55,24 +55,32 @@ void bind_origami(py::module& m) {
         n_split : int
             Domain decomposition factor. The box is split into n_split^3
             subdomains for parallelization. Default: 2.
+        linear_regime_threshold : float
+            Void fraction threshold for linear regime detection.
+            If f_void >= this value, the field is considered to be in
+            the linear regime (no shell-crossing). Default: 0.99.
         )pbdoc")
         .def(py::init<>())
-        .def(py::init([](int grid_size, double box_size, int n_threads, int n_split) {
+        .def(py::init([](int grid_size, double box_size, int n_threads, int n_split, double linear_regime_threshold) {
             OrigamiConfig cfg;
             cfg.lagrangian_grid_size = grid_size;
             cfg.box_size = box_size;
             cfg.n_threads = n_threads;
             cfg.n_split = n_split;
+            cfg.linear_regime_threshold = linear_regime_threshold;
             return cfg;
         }),
              py::arg("lagrangian_grid_size"),
              py::arg("box_size"),
              py::arg("n_threads") = 0,
-             py::arg("n_split") = 2)
+             py::arg("n_split") = 2,
+             py::arg("linear_regime_threshold") = 0.99)
         .def_readwrite("lagrangian_grid_size", &OrigamiConfig::lagrangian_grid_size)
         .def_readwrite("box_size", &OrigamiConfig::box_size)
         .def_readwrite("n_threads", &OrigamiConfig::n_threads)
-        .def_readwrite("n_split", &OrigamiConfig::n_split);
+        .def_readwrite("n_split", &OrigamiConfig::n_split)
+        .def_readwrite("linear_regime_threshold", &OrigamiConfig::linear_regime_threshold,
+            "Void fraction threshold for linear regime detection (default: 0.99)");
 
     // OrigamiResult
     py::class_<OrigamiResult>(origami_m, "OrigamiResult",
@@ -87,6 +95,13 @@ void bind_origami(py::module& m) {
             Particle counts per morphology class.
         f_void, f_wall, f_filament, f_halo : float
             Mass fractions per morphology class.
+        is_linear_regime : bool
+            True if the density field is in the linear regime (f_void >= threshold).
+            In the linear regime, no shell-crossing has occurred, so ORIGAMI
+            classifies all particles as voids. The classification is not
+            physically meaningful in this case.
+        linear_regime_threshold : float
+            Void fraction threshold used for linear regime detection.
         particle_density : numpy.ndarray
             Per-particle density (if computed via sample_density_at_particles).
         morphology_grid : numpy.ndarray
@@ -104,6 +119,10 @@ void bind_origami(py::module& m) {
         .def_readonly("f_wall", &OrigamiResult::f_wall)
         .def_readonly("f_filament", &OrigamiResult::f_filament)
         .def_readonly("f_halo", &OrigamiResult::f_halo)
+        .def_readonly("is_linear_regime", &OrigamiResult::is_linear_regime,
+            "True if field is in linear regime (no shell-crossing)")
+        .def_readonly("linear_regime_threshold", &OrigamiResult::linear_regime_threshold,
+            "Void fraction threshold used for linear regime detection")
         .def_readonly("v_void", &OrigamiResult::v_void)
         .def_readonly("v_wall", &OrigamiResult::v_wall)
         .def_readonly("v_filament", &OrigamiResult::v_filament)

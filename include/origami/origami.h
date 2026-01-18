@@ -49,12 +49,16 @@ struct OrigamiConfig {
     int n_threads;              ///< Number of OpenMP threads (0 = auto)
     int n_split;                ///< Domain decomposition: split into n_split^3 subcubes
                                 ///< Higher values = better parallelization, default: 2
+    double linear_regime_threshold;  ///< Void fraction threshold for linear regime detection
+                                     ///< If f_void >= this value, field is considered linear
+                                     ///< Default: 0.99 (99% void)
 
     OrigamiConfig()
         : lagrangian_grid_size(0)
         , box_size(0.0)
         , n_threads(0)
         , n_split(2)
+        , linear_regime_threshold(0.99)
     {}
 };
 
@@ -75,6 +79,13 @@ struct OrigamiResult {
     double f_wall;       ///< Wall mass fraction
     double f_filament;   ///< Filament mass fraction
     double f_halo;       ///< Halo mass fraction
+
+    // Linear regime detection
+    // In the linear regime, no shell-crossing has occurred, so ORIGAMI
+    // classifies all particles as voids. This flag indicates whether
+    // the ORIGAMI classification is physically meaningful.
+    bool is_linear_regime;       ///< True if field is in linear regime (f_void >= threshold)
+    double linear_regime_threshold;  ///< Threshold used for detection
 
     // Volume fractions (computed from grid, filled by deposit_to_grid)
     double v_void;       ///< Void volume fraction
