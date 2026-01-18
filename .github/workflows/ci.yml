@@ -97,6 +97,29 @@ jobs:
 
           result = ts.origami.compute_morphology(positions, config)
           print(f'ORIGAMI test passed: {len(result.morphology)} particles classified')
+          print(f'Linear regime detection: is_linear_regime = {result.is_linear_regime}')
+          "
+
+      - name: Test stats module
+        run: |
+          python -c "
+          import numpy as np
+          import _tessera as ts
+
+          # Basic stats test
+          np.random.seed(42)
+          values = np.random.lognormal(0, 0.5, 1000).astype(np.float64)
+
+          # Test histogram_log
+          hist = ts.stats.histogram_log(values, n_bins=20)
+          print(f'histogram_log test passed: {len(hist.counts)} bins')
+
+          # Test jackknife histogram
+          positions = np.random.uniform(0, 10, (1000, 3)).astype(np.float64)
+          jk = ts.stats.compute_jackknife_histogram(
+              positions, values, 10.0, 20, 0.1, 10.0, True, 2, 0
+          )
+          print(f'Jackknife histogram test passed: {jk.n_bins} bins, {jk.n_subboxes} subboxes')
           "
 
   # CentOS 7 / manylinux2014 build (for HPC cluster compatibility)
