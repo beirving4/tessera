@@ -107,11 +107,15 @@ def sort_to_lagrangian(positions, particle_ids, grid_size, id_ordering):
     n_particles = len(positions)
     sorted_positions = np.zeros((n_particles, 3), dtype=np.float64)
 
+    # Ensure integer types to prevent float indexing errors
+    grid_size = int(grid_size)
+    particle_ids = particle_ids.astype(np.int64)
+
     if id_ordering == 'x-major':
         sorted_positions[particle_ids - 1] = positions
     else:  # z-major
         for i in range(n_particles):
-            idx = particle_ids[i] - 1
+            idx = int(particle_ids[i]) - 1
             z = idx % grid_size
             y = (idx // grid_size) % grid_size
             x = idx // (grid_size * grid_size)

@@ -231,6 +231,9 @@ def compute_origami_morphology(positions, particle_ids, box_size, n_threads=0,
     print(f"  Sorting particles to x-major order (from {id_ordering})...")
     sorted_positions = np.zeros((n_particles, 3), dtype=np.float64)
 
+    # Ensure integer types to prevent float indexing errors
+    particle_ids = particle_ids.astype(np.int64)
+
     if id_ordering == 'x-major':
         # Direct mapping: ID-1 gives x-major index
         sorted_positions[particle_ids - 1] = positions
@@ -239,10 +242,10 @@ def compute_origami_morphology(positions, particle_ids, box_size, n_threads=0,
         # z-major: ID = 1 + z + y*N + x*N^2
         # x-major: idx = x + y*N + z*N^2
         for i in range(n_particles):
-            idx = particle_ids[i] - 1  # 0-indexed z-major
+            idx = int(particle_ids[i]) - 1  # 0-indexed z-major
             z = idx % grid_size
             y = (idx // grid_size) % grid_size
-            x = idx // grid_size**2
+            x = idx // (grid_size * grid_size)
             xmajor_idx = x + y * grid_size + z * grid_size * grid_size
             sorted_positions[xmajor_idx] = positions[i]
     else:
