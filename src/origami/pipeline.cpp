@@ -724,9 +724,11 @@ OrigamiPipelineResult run_pipeline_impl(
                 );
             }
 
+            // IMPORTANT: Call histogram_to_pdf BEFORE moving bin_edges
+            // (histogram_to_pdf needs bin_edges to compute bin widths)
+            result.pdf_all = stats::histogram_to_pdf(hist_all);
             result.pdf_bin_edges = std::move(hist_all.bin_edges);
             result.pdf_bin_centers = stats::bin_centers(result.pdf_bin_edges, config.pdf_log_bins);
-            result.pdf_all = stats::histogram_to_pdf(hist_all);
             result.hist_all = std::move(hist_all.counts);
 
             // Per-class histograms
