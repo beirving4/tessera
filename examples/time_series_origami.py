@@ -204,23 +204,69 @@ def load_snapshot(snapshot_path, particle_type=1):
 
 
 def detect_id_ordering(positions, particle_ids, box_size, grid_size):
-    """Detect whether particle IDs use x-major or z-major ordering."""
+    """Detect whether particle IDs use x-major or z-major ordering.
+
+    This method uses displacement correlations between neighboring IDs to
+    robustly detect the ordering even when particles have moved significantly
+    and wrapped around periodic boundaries.
+    """
+    grid_size = int(grid_size)
+    n_particles = len(positions)
+
+    particle_ids_int = particle_ids.astype(np.int64)
+    id_to_idx = {int(pid): i for i, pid in enumerate(particle_ids_int)}
+
+    def get_pos(pid):
+        if pid in id_to_idx:
+            return positions[id_to_idx[pid]]
+        return None
+
+    def periodic_diff(p1, p2, box):
+        diff = p1 - p2
+        diff = diff - box * np.round(diff / box)
+        return diff
+
+    x_major_score = 0.0
+    z_major_score = 0.0
+    n_valid = 0
+
     spacing = box_size / grid_size
+    test_ids = [1, grid_size//4, grid_size//2, grid_size*10, grid_size*100]
 
-    idx_id2 = np.where(particle_ids == 2)[0]
-    if len(idx_id2) == 0:
+    for base_id in test_ids:
+        if base_id < 1 or base_id >= n_particles:
+            continue
+
+        p1 = get_pos(base_id)
+        p2 = get_pos(base_id + 1)
+
+        if p1 is None or p2 is None:
+            continue
+
+        diff = periodic_diff(p2, p1, box_size)
+
+        z_major_expected = np.array([0, 0, spacing])
+        x_major_expected = np.array([spacing, 0, 0])
+
+        z_major_score += np.linalg.norm(diff - z_major_expected)
+        x_major_score += np.linalg.norm(diff - x_major_expected)
+        n_valid += 1
+
+    for base_id in test_ids:
+        next_y_id = base_id + grid_size
+
+        p1 = get_pos(base_id)
+        p2 = get_pos(next_y_id)
+
+        if p1 is None or p2 is None:
+            continue
+
+        diff = periodic_diff(p2, p1, box_size)
+        z_major_score += abs(abs(diff[0]) - 0)
+        x_major_score += abs(abs(diff[2]) - 0)
+
+    if n_valid == 0:
         return 'z-major'
-
-    pos_id2 = positions[idx_id2[0]] % box_size
-
-    x_major_score = abs(pos_id2[0] - spacing)
-    z_major_score = abs(pos_id2[2] - spacing)
-
-    idx_id_n2p1 = np.where(particle_ids == grid_size * grid_size + 1)[0]
-    if len(idx_id_n2p1) > 0:
-        pos_n2p1 = positions[idx_id_n2p1[0]] % box_size
-        x_major_score += abs(pos_n2p1[2] - spacing)
-        z_major_score += abs(pos_n2p1[0] - spacing)
 
     return 'x-major' if x_major_score < z_major_score else 'z-major'
 

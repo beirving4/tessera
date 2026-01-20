@@ -48,49 +48,77 @@ def detect_id_ordering(positions, particle_ids, box_size, grid_size):
     GADGET-4 typically uses z-major: ID = 1 + z + y*N + x*N^2
     Some codes use x-major: ID = 1 + x + y*N + z*N^2
 
-    We detect by checking which interpretation gives positions that
-    vary correctly along each axis.
+    This method uses displacement correlations between neighboring IDs to
+    robustly detect the ordering even when particles have moved significantly
+    and wrapped around periodic boundaries.
     """
-    spacing = box_size / grid_size
+    grid_size = int(grid_size)
     n_particles = len(positions)
 
-    # Check a few diagnostic particles
-    # For x-major: ID=2 should be at x=1, y=0, z=0 (position ~(1,0,0)*spacing)
-    # For z-major: ID=2 should be at x=0, y=0, z=1 (position ~(0,0,1)*spacing)
+    # Build a lookup from ID to position (handle 1-indexed IDs)
+    particle_ids_int = particle_ids.astype(np.int64)
+    id_to_idx = {int(pid): i for i, pid in enumerate(particle_ids_int)}
 
-    # Get position of particle with ID=2
-    idx_id2 = np.where(particle_ids == 2)[0]
-    if len(idx_id2) == 0:
-        print("  Warning: Could not find particle ID=2, defaulting to z-major")
+    def get_pos(pid):
+        if pid in id_to_idx:
+            return positions[id_to_idx[pid]]
+        return None
+
+    def periodic_diff(p1, p2, box):
+        """Compute minimum image displacement."""
+        diff = p1 - p2
+        diff = diff - box * np.round(diff / box)
+        return diff
+
+    x_major_score = 0.0
+    z_major_score = 0.0
+    n_valid = 0
+
+    spacing = box_size / grid_size
+
+    # Sample several ID pairs spread across the domain
+    test_ids = [1, grid_size//4, grid_size//2, grid_size*10, grid_size*100]
+
+    for base_id in test_ids:
+        if base_id < 1 or base_id >= n_particles:
+            continue
+
+        p1 = get_pos(base_id)
+        p2 = get_pos(base_id + 1)  # Should differ by 1 in z (z-major) or x (x-major)
+
+        if p1 is None or p2 is None:
+            continue
+
+        diff = periodic_diff(p2, p1, box_size)
+
+        # For z-major: expect diff ~= (0, 0, spacing)
+        # For x-major: expect diff ~= (spacing, 0, 0)
+        z_major_expected = np.array([0, 0, spacing])
+        x_major_expected = np.array([spacing, 0, 0])
+
+        z_major_score += np.linalg.norm(diff - z_major_expected)
+        x_major_score += np.linalg.norm(diff - x_major_expected)
+        n_valid += 1
+
+    # Also check y-layer transitions for additional robustness
+    for base_id in test_ids:
+        next_y_id = base_id + grid_size  # Should move by 1 in y
+
+        p1 = get_pos(base_id)
+        p2 = get_pos(next_y_id)
+
+        if p1 is None or p2 is None:
+            continue
+
+        diff = periodic_diff(p2, p1, box_size)
+
+        # Check which component stays near zero
+        z_major_score += abs(abs(diff[0]) - 0)  # z-major: x should be ~0
+        x_major_score += abs(abs(diff[2]) - 0)  # x-major: z should be ~0
+
+    if n_valid == 0:
+        print("  Warning: Could not verify ID ordering, defaulting to z-major")
         return 'z-major'
-
-    pos_id2 = positions[idx_id2[0]] % box_size
-
-    # For x-major, ID=2 -> (1,0,0), so x should be ~spacing, y,z should be ~0
-    x_major_expected_x = spacing
-    x_major_score = abs(pos_id2[0] - x_major_expected_x)
-
-    # For z-major, ID=2 -> (0,0,1), so z should be ~spacing, x,y should be ~0
-    z_major_expected_z = spacing
-    z_major_score = abs(pos_id2[2] - z_major_expected_z)
-
-    # Also check particle ID = N+1 (second row)
-    idx_id_np1 = np.where(particle_ids == grid_size + 1)[0]
-    if len(idx_id_np1) > 0:
-        pos_np1 = positions[idx_id_np1[0]] % box_size
-        # x-major: ID=N+1 -> (0,1,0), y should be ~spacing
-        x_major_score += abs(pos_np1[1] - spacing)
-        # z-major: ID=N+1 -> (0,1,0), y should be ~spacing (same!)
-        z_major_score += abs(pos_np1[1] - spacing)
-
-    # Check ID = N^2+1
-    idx_id_n2p1 = np.where(particle_ids == grid_size*grid_size + 1)[0]
-    if len(idx_id_n2p1) > 0:
-        pos_n2p1 = positions[idx_id_n2p1[0]] % box_size
-        # x-major: ID=N^2+1 -> (0,0,1), z should be ~spacing
-        x_major_score += abs(pos_n2p1[2] - spacing)
-        # z-major: ID=N^2+1 -> (1,0,0), x should be ~spacing
-        z_major_score += abs(pos_n2p1[0] - spacing)
 
     return 'x-major' if x_major_score < z_major_score else 'z-major'
 
