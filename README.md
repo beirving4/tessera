@@ -40,7 +40,9 @@ The library also includes **ORIGAMI morphological classification** (Falck, Neyri
 - **Subbox extraction**: Compute density in regions centered on halos or other structures
 - **Physical space computation**: Option to compute density in physical (not comoving) coordinates
 - **ORIGAMI classification**: Identify void/wall/filament/halo morphology per particle with linear regime detection
+- **Unified pipeline**: Single-call API for morphology + density + grid deposition + PDF computation
 - **Statistical analysis**: Histograms and PDFs with jackknife resampling for uncertainty estimation
+- **Memory efficient**: In-place sorting supports N=1024³ simulations (~24GB positions)
 - **Time-series visualization**: Diemer-style cosmic evolution images and animations
 - **GADGET-4 I/O**: Read HDF5 snapshots (single or distributed) and FOF/Subfind catalogs
 - **Multi-threaded**: Parallel computation with OpenMP
@@ -170,17 +172,30 @@ result = ts.density.compute_tetra_density_3d(positions_physical, config)
 
 ### ORIGAMI Morphology Classification
 
+The unified ORIGAMI pipeline handles ID detection, Lagrangian sorting, morphology classification, density computation, and PDF analysis in a single efficient call:
+
 ```python
-# Configure ORIGAMI
-origami_config = ts.origami.OrigamiConfig()
-origami_config.lagrangian_grid_size = grid_size
-origami_config.box_size = box_size
-origami_config.n_threads = 1
-origami_config.n_split = 1
+# Load unsorted positions and IDs directly from snapshot
+with h5py.File('snapshot_034.hdf5', 'r') as f:
+    positions = np.ascontiguousarray(f['PartType1/Coordinates'][:], dtype=np.float64)
+    particle_ids = np.ascontiguousarray(f['PartType1/ParticleIDs'][:], dtype=np.int64)
+    box_size = float(f['Header'].attrs['BoxSize'])
 
-# Compute morphology (0=void, 1=wall, 2=filament, 3=halo)
-result = ts.origami.compute_morphology(sorted_positions, origami_config)
+grid_size = int(round(len(positions) ** (1/3)))
 
+# Configure the unified pipeline
+config = ts.origami.PipelineConfig(grid_size, box_size)
+config.density_output_cells = 256        # Compute density field at 256^3
+config.sample_density_at_particles = True # Sample density at particle positions
+config.grid_cells = 128                  # Deposit morphology to 128^3 grid
+config.pdf_n_bins = 100                  # Compute overdensity PDFs
+config.pdf_log_bins = True               # Use log-spaced bins
+config.n_threads = 4                     # OpenMP threads (0 = auto)
+
+# Run the complete pipeline (handles ID detection and sorting automatically)
+result = ts.origami.run_pipeline(positions, particle_ids, config)
+
+# Morphology results
 print(f"Void:     {result.n_void:,} particles ({result.f_void:.1%})")
 print(f"Wall:     {result.n_wall:,} particles ({result.f_wall:.1%})")
 print(f"Filament: {result.n_filament:,} particles ({result.f_filament:.1%})")
@@ -190,22 +205,34 @@ print(f"Halo:     {result.n_halo:,} particles ({result.f_halo:.1%})")
 if result.is_linear_regime:
     print("Warning: Field is in linear regime - ORIGAMI classification not meaningful")
 
-# Get per-particle classification
-morphology = np.array(result.morphology)  # uint8 array, values 0-3
+# Access computed fields
+morphology = np.array(result.morphology)           # Per-particle class (0-3)
+particle_density = np.array(result.particle_density)  # Density at each particle
+density_3d = np.array(result.density_3d).reshape(256, 256, 256)  # 3D field
+
+# Volume fractions from grid deposition
+print(f"Volume fractions: void={result.v_void:.1%}, halo={result.v_halo:.1%}")
+
+# PDF results (histogram counts per morphology class)
+hist_all = np.array(result.hist_all)
+hist_halo = np.array(result.hist_halo)
+bin_centers = np.array(result.pdf_bin_centers)
 ```
 
-### Sampling Density at Particle Positions
+The pipeline is memory-efficient (supports N=1024³ simulations) and provides ~3x speedup over separate Python calls by avoiding redundant data copies.
+
+For lower-level control, you can also use individual functions:
 
 ```python
-# After computing 3D density, sample at particle locations
-ts.origami.sample_density_at_particles(
-    density_3d,        # 3D density array [z, y, x]
-    sorted_positions,  # Particle positions
-    box_size,
-    result             # ORIGAMI result object (modified in-place)
-)
+# Sort particles manually (if needed)
+sorted_positions = ts.density.sort_by_lagrangian_id(positions, particle_ids, grid_size)
 
-particle_density = np.array(result.particle_density)
+# Compute morphology only
+origami_config = ts.origami.OrigamiConfig(grid_size, box_size)
+result = ts.origami.compute_morphology(sorted_positions, origami_config)
+
+# Sample density at particle positions (after computing density_3d separately)
+ts.origami.sample_density_at_particles(density_3d, sorted_positions, box_size, result)
 ```
 
 ## Examples
@@ -265,11 +292,21 @@ The animation script supports callout annotations for labeling cosmic events—e
 
 ### `ts.origami` - Morphological Classification
 
-- `OrigamiConfig`: Configuration for ORIGAMI algorithm
+**Unified Pipeline (recommended):**
+- `PipelineConfig`: Configuration for the complete ORIGAMI pipeline
+- `run_pipeline()`: All-in-one: ID detection, sorting, morphology, density, grid, PDFs
+- `run_pipeline_safe()`: Same as above but preserves input arrays (makes copies)
+
+**Individual Functions:**
+- `OrigamiConfig`: Configuration for standalone ORIGAMI morphology
 - `compute_morphology()`: Classify particles as void/wall/filament/halo
 - `sample_density_at_particles()`: Interpolate density grid at particle positions
 - `deposit_morphology_to_grid()`: Create grid-based morphology fields
-- `OrigamiResult.is_linear_regime`: Flag indicating pre-shell-crossing state
+
+**Result Objects:**
+- `PipelineResult`: Complete output from unified pipeline (morphology, density, PDFs)
+- `OrigamiResult`: Output from standalone morphology computation
+- `is_linear_regime`: Flag indicating pre-shell-crossing state (f_void > 99%)
 
 ### `ts.stats` - Statistical Analysis
 
