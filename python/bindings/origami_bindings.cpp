@@ -8,6 +8,7 @@
 #include <pybind11/numpy.h>
 
 #include "origami/origami.h"
+#include "origami/pipeline.h"
 
 namespace py = pybind11;
 using namespace tessera::origami;
@@ -406,5 +407,668 @@ void bind_origami(py::module& m) {
         -------
         str
             Name: "Void", "Wall", "Filament", or "Halo".
+        )pbdoc");
+
+    // =========================================================================
+    // Pipeline API (unified ORIGAMI workflow)
+    // =========================================================================
+
+    // IdOrdering enum
+    py::enum_<IdOrdering>(origami_m, "IdOrdering",
+        R"pbdoc(
+        ID ordering convention for Lagrangian grid mapping.
+
+        GADGET-4 uses z-major: ID = 1 + z + y*N + x*N^2
+        Some codes use x-major: ID = 1 + x + y*N + z*N^2
+        )pbdoc")
+        .value("XMajor", IdOrdering::XMajor, "ID = 1 + x + y*N + z*N^2 (x varies fastest)")
+        .value("ZMajor", IdOrdering::ZMajor, "ID = 1 + z + y*N + x*N^2 (z varies fastest, GADGET-4 default)")
+        .value("Auto", IdOrdering::Auto, "Automatically detect from particle data")
+        .export_values();
+
+    // id_ordering_name helper
+    origami_m.def("id_ordering_name",
+        [](IdOrdering ordering) { return id_ordering_name(ordering); },
+        py::arg("ordering"),
+        R"pbdoc(
+        Get string name for an IdOrdering enum value.
+
+        Parameters
+        ----------
+        ordering : IdOrdering
+            The ordering enum value.
+
+        Returns
+        -------
+        str
+            Name: "x-major", "z-major", or "auto".
+        )pbdoc");
+
+    // OrigamiPipelineConfig
+    py::class_<OrigamiPipelineConfig>(origami_m, "PipelineConfig",
+        R"pbdoc(
+        Configuration for the unified ORIGAMI pipeline.
+
+        This configures all aspects of the pipeline including ID handling,
+        sorting, morphology computation, and optional density/grid outputs.
+
+        Attributes
+        ----------
+        lagrangian_grid_size : int
+            Particles per dimension (N for N^3 total). Required.
+        box_size : float
+            Physical box size. Required.
+        id_ordering : IdOrdering
+            How particle IDs encode positions. Default: Auto (detect).
+        id_offset : int
+            Value to subtract from IDs (1 for GADGET-4). Default: 1.
+        sort_in_place : bool
+            Sort positions in-place (saves ~24GB for N=1024^3). Default: True.
+        positions_already_sorted : bool
+            Skip sorting if already in Lagrangian order. Default: False.
+        n_split : int
+            Domain decomposition for parallelization. Default: 2.
+        linear_regime_threshold : float
+            Void fraction threshold for linear regime. Default: 0.99.
+        density_output_cells : int
+            0 = skip density, >0 = compute at this resolution. Default: 0.
+        density_n_samples : int
+            Monte Carlo samples per tetrahedron. Default: 100.
+        particle_mass : float
+            Particle mass for density normalization. Default: 1.0.
+        density_periodic : bool
+            Periodic boundaries for density. Default: True.
+        grid_cells : int
+            0 = skip grid, >0 = deposit morphology at this resolution. Default: 0.
+        sample_density_at_particles : bool
+            Sample density field at particle positions. Default: True.
+        n_threads : int
+            Number of threads (0 = auto). Default: 0.
+        seed : int
+            Random seed for density (0 = time-based). Default: 0.
+        validate_ids : bool
+            Validate particle ID range and uniqueness. Default: True.
+        )pbdoc")
+        .def(py::init<>())
+        .def(py::init([](int grid_size, double box_size) {
+            return OrigamiPipelineConfig(grid_size, box_size);
+        }),
+            py::arg("lagrangian_grid_size"),
+            py::arg("box_size"))
+        .def_readwrite("lagrangian_grid_size", &OrigamiPipelineConfig::lagrangian_grid_size)
+        .def_readwrite("box_size", &OrigamiPipelineConfig::box_size)
+        .def_readwrite("id_ordering", &OrigamiPipelineConfig::id_ordering)
+        .def_readwrite("id_offset", &OrigamiPipelineConfig::id_offset)
+        .def_readwrite("sort_in_place", &OrigamiPipelineConfig::sort_in_place)
+        .def_readwrite("positions_already_sorted", &OrigamiPipelineConfig::positions_already_sorted)
+        .def_readwrite("n_split", &OrigamiPipelineConfig::n_split)
+        .def_readwrite("linear_regime_threshold", &OrigamiPipelineConfig::linear_regime_threshold)
+        .def_readwrite("density_output_cells", &OrigamiPipelineConfig::density_output_cells)
+        .def_readwrite("density_n_samples", &OrigamiPipelineConfig::density_n_samples)
+        .def_readwrite("particle_mass", &OrigamiPipelineConfig::particle_mass)
+        .def_readwrite("density_periodic", &OrigamiPipelineConfig::density_periodic)
+        .def_readwrite("grid_cells", &OrigamiPipelineConfig::grid_cells)
+        .def_readwrite("sample_density_at_particles", &OrigamiPipelineConfig::sample_density_at_particles)
+        .def_readwrite("n_threads", &OrigamiPipelineConfig::n_threads)
+        .def_readwrite("seed", &OrigamiPipelineConfig::seed)
+        .def_readwrite("validate_ids", &OrigamiPipelineConfig::validate_ids);
+
+    // OrigamiPipelineResult
+    py::class_<OrigamiPipelineResult>(origami_m, "PipelineResult",
+        R"pbdoc(
+        Complete result from the ORIGAMI pipeline.
+
+        Contains all outputs from the unified pipeline including morphology
+        classification, optional density field, and optional grid deposition.
+
+        Attributes
+        ----------
+        morphology : numpy.ndarray
+            Per-particle morphology class (uint8), values 0-3.
+        n_void, n_wall, n_filament, n_halo : int
+            Particle counts per morphology class.
+        f_void, f_wall, f_filament, f_halo : float
+            Mass fractions per morphology class.
+        is_linear_regime : bool
+            True if the field is in the linear regime.
+        detected_ordering : IdOrdering
+            The ID ordering detected (or specified).
+        density_3d : numpy.ndarray
+            3D density field (if density_output_cells > 0).
+        density_cells : int
+            Cells per dimension for density field.
+        mean_density : float
+            Mean density value.
+        particle_density : numpy.ndarray
+            Per-particle density (if sample_density_at_particles).
+        morphology_grid : numpy.ndarray
+            Dominant morphology per cell (if grid_cells > 0).
+        *_fraction_grid : numpy.ndarray
+            Per-class fraction grids (if grid_cells > 0).
+        v_void, v_wall, v_filament, v_halo : float
+            Volume fractions (from grid).
+        sorting_performed : bool
+            Whether positions were sorted.
+        *_time_ms : float
+            Timing diagnostics for each stage.
+        )pbdoc")
+        .def_readonly("n_void", &OrigamiPipelineResult::n_void)
+        .def_readonly("n_wall", &OrigamiPipelineResult::n_wall)
+        .def_readonly("n_filament", &OrigamiPipelineResult::n_filament)
+        .def_readonly("n_halo", &OrigamiPipelineResult::n_halo)
+        .def_readonly("f_void", &OrigamiPipelineResult::f_void)
+        .def_readonly("f_wall", &OrigamiPipelineResult::f_wall)
+        .def_readonly("f_filament", &OrigamiPipelineResult::f_filament)
+        .def_readonly("f_halo", &OrigamiPipelineResult::f_halo)
+        .def_readonly("is_linear_regime", &OrigamiPipelineResult::is_linear_regime)
+        .def_readonly("linear_regime_threshold", &OrigamiPipelineResult::linear_regime_threshold)
+        .def_readonly("detected_ordering", &OrigamiPipelineResult::detected_ordering)
+        .def_readonly("density_cells", &OrigamiPipelineResult::density_cells)
+        .def_readonly("density_cell_width", &OrigamiPipelineResult::density_cell_width)
+        .def_readonly("mean_density", &OrigamiPipelineResult::mean_density)
+        .def_readonly("morph_grid_cells", &OrigamiPipelineResult::morph_grid_cells)
+        .def_readonly("v_void", &OrigamiPipelineResult::v_void)
+        .def_readonly("v_wall", &OrigamiPipelineResult::v_wall)
+        .def_readonly("v_filament", &OrigamiPipelineResult::v_filament)
+        .def_readonly("v_halo", &OrigamiPipelineResult::v_halo)
+        .def_readonly("sorting_performed", &OrigamiPipelineResult::sorting_performed)
+        .def_readonly("detection_time_ms", &OrigamiPipelineResult::detection_time_ms)
+        .def_readonly("sorting_time_ms", &OrigamiPipelineResult::sorting_time_ms)
+        .def_readonly("morphology_time_ms", &OrigamiPipelineResult::morphology_time_ms)
+        .def_readonly("density_time_ms", &OrigamiPipelineResult::density_time_ms)
+        .def_readonly("sampling_time_ms", &OrigamiPipelineResult::sampling_time_ms)
+        .def_readonly("grid_time_ms", &OrigamiPipelineResult::grid_time_ms)
+        .def_readonly("total_time_ms", &OrigamiPipelineResult::total_time_ms)
+        .def_property_readonly("morphology", [](const OrigamiPipelineResult& r) {
+            return py::array_t<uint8_t>(
+                {static_cast<py::ssize_t>(r.morphology.size())},
+                {sizeof(uint8_t)},
+                r.morphology.data()
+            );
+        }, "Per-particle morphology class (0=void, 1=wall, 2=filament, 3=halo)")
+        .def_property_readonly("density_3d", [](const OrigamiPipelineResult& r) {
+            if (r.density_3d.empty()) {
+                return py::array_t<double>();
+            }
+            int c = r.density_cells;
+            return py::array_t<double>(
+                {c, c, c},
+                {static_cast<py::ssize_t>(sizeof(double) * c * c),
+                 static_cast<py::ssize_t>(sizeof(double) * c),
+                 static_cast<py::ssize_t>(sizeof(double))},
+                r.density_3d.data()
+            );
+        }, "3D density field, shape (cells, cells, cells)")
+        .def_property_readonly("particle_density", [](const OrigamiPipelineResult& r) {
+            if (r.particle_density.empty()) {
+                return py::array_t<double>();
+            }
+            return py::array_t<double>(
+                {static_cast<py::ssize_t>(r.particle_density.size())},
+                {sizeof(double)},
+                r.particle_density.data()
+            );
+        }, "Per-particle density values")
+        .def_property_readonly("morphology_grid", [](const OrigamiPipelineResult& r) {
+            if (r.morphology_grid.empty()) {
+                return py::array_t<uint8_t>();
+            }
+            int c = r.morph_grid_cells;
+            return py::array_t<uint8_t>(
+                {c, c, c},
+                {static_cast<py::ssize_t>(sizeof(uint8_t) * c * c),
+                 static_cast<py::ssize_t>(sizeof(uint8_t) * c),
+                 static_cast<py::ssize_t>(sizeof(uint8_t))},
+                r.morphology_grid.data()
+            );
+        }, "Dominant morphology per cell, shape (cells, cells, cells)")
+        .def_property_readonly("void_fraction_grid", [](const OrigamiPipelineResult& r) {
+            if (r.void_fraction_grid.empty()) {
+                return py::array_t<float>();
+            }
+            int c = r.morph_grid_cells;
+            return py::array_t<float>(
+                {c, c, c},
+                {static_cast<py::ssize_t>(sizeof(float) * c * c),
+                 static_cast<py::ssize_t>(sizeof(float) * c),
+                 static_cast<py::ssize_t>(sizeof(float))},
+                r.void_fraction_grid.data()
+            );
+        })
+        .def_property_readonly("wall_fraction_grid", [](const OrigamiPipelineResult& r) {
+            if (r.wall_fraction_grid.empty()) {
+                return py::array_t<float>();
+            }
+            int c = r.morph_grid_cells;
+            return py::array_t<float>(
+                {c, c, c},
+                {static_cast<py::ssize_t>(sizeof(float) * c * c),
+                 static_cast<py::ssize_t>(sizeof(float) * c),
+                 static_cast<py::ssize_t>(sizeof(float))},
+                r.wall_fraction_grid.data()
+            );
+        })
+        .def_property_readonly("filament_fraction_grid", [](const OrigamiPipelineResult& r) {
+            if (r.filament_fraction_grid.empty()) {
+                return py::array_t<float>();
+            }
+            int c = r.morph_grid_cells;
+            return py::array_t<float>(
+                {c, c, c},
+                {static_cast<py::ssize_t>(sizeof(float) * c * c),
+                 static_cast<py::ssize_t>(sizeof(float) * c),
+                 static_cast<py::ssize_t>(sizeof(float))},
+                r.filament_fraction_grid.data()
+            );
+        })
+        .def_property_readonly("halo_fraction_grid", [](const OrigamiPipelineResult& r) {
+            if (r.halo_fraction_grid.empty()) {
+                return py::array_t<float>();
+            }
+            int c = r.morph_grid_cells;
+            return py::array_t<float>(
+                {c, c, c},
+                {static_cast<py::ssize_t>(sizeof(float) * c * c),
+                 static_cast<py::ssize_t>(sizeof(float) * c),
+                 static_cast<py::ssize_t>(sizeof(float))},
+                r.halo_fraction_grid.data()
+            );
+        })
+        .def_property_readonly("counts", [](const OrigamiPipelineResult& r) {
+            return std::array<int64_t, 4>{r.n_void, r.n_wall, r.n_filament, r.n_halo};
+        }, "Particle counts as tuple (n_void, n_wall, n_filament, n_halo)")
+        .def_property_readonly("fractions", [](const OrigamiPipelineResult& r) {
+            return std::array<double, 4>{r.f_void, r.f_wall, r.f_filament, r.f_halo};
+        }, "Mass fractions as tuple (f_void, f_wall, f_filament, f_halo)")
+        .def_property_readonly("volume_fractions", [](const OrigamiPipelineResult& r) {
+            return std::array<double, 4>{r.v_void, r.v_wall, r.v_filament, r.v_halo};
+        }, "Volume fractions as tuple (v_void, v_wall, v_filament, v_halo)");
+
+    // detect_id_ordering
+    origami_m.def("detect_id_ordering",
+        [](py::array_t<double, py::array::c_style | py::array::forcecast> positions,
+           py::array_t<int64_t, py::array::c_style | py::array::forcecast> particle_ids,
+           int grid_size,
+           double box_size) {
+            auto pos_buf = positions.request();
+            auto id_buf = particle_ids.request();
+
+            if (pos_buf.ndim != 2 || pos_buf.shape[1] != 3) {
+                throw std::runtime_error("positions must have shape (N, 3)");
+            }
+            if (id_buf.ndim != 1) {
+                throw std::runtime_error("particle_ids must be 1D array");
+            }
+            if (pos_buf.shape[0] != id_buf.shape[0]) {
+                throw std::runtime_error("positions and particle_ids must have same length");
+            }
+
+            int64_t n_particles = pos_buf.shape[0];
+            return detect_id_ordering(
+                static_cast<const double*>(pos_buf.ptr),
+                static_cast<const int64_t*>(id_buf.ptr),
+                n_particles,
+                grid_size,
+                box_size
+            );
+        },
+        py::arg("positions"),
+        py::arg("particle_ids"),
+        py::arg("grid_size"),
+        py::arg("box_size"),
+        R"pbdoc(
+        Detect ID ordering convention from particle positions and IDs.
+
+        Uses displacement correlations between neighboring IDs to robustly
+        detect the ordering even when particles have moved significantly
+        and wrapped around periodic boundaries.
+
+        Parameters
+        ----------
+        positions : ndarray, shape (N, 3)
+            Particle positions, any order.
+        particle_ids : ndarray, shape (N,)
+            Particle IDs.
+        grid_size : int
+            Lagrangian grid size (N for N^3).
+        box_size : float
+            Simulation box size.
+
+        Returns
+        -------
+        IdOrdering
+            Detected ordering (XMajor or ZMajor).
+
+        Examples
+        --------
+        >>> ordering = ts.origami.detect_id_ordering(pos, ids, 256, 256.0)
+        >>> print(ts.origami.id_ordering_name(ordering))
+        )pbdoc");
+
+    // sort_to_lagrangian_inplace
+    origami_m.def("sort_to_lagrangian_inplace",
+        [](py::array_t<double, py::array::c_style> positions,
+           py::array_t<int64_t, py::array::c_style | py::array::forcecast> particle_ids,
+           int grid_size,
+           IdOrdering ordering,
+           int64_t id_offset) {
+            auto pos_buf = positions.request();
+            auto id_buf = particle_ids.request();
+
+            if (pos_buf.ndim != 2 || pos_buf.shape[1] != 3) {
+                throw std::runtime_error("positions must have shape (N, 3)");
+            }
+            if (id_buf.ndim != 1) {
+                throw std::runtime_error("particle_ids must be 1D array");
+            }
+            if (pos_buf.shape[0] != id_buf.shape[0]) {
+                throw std::runtime_error("positions and particle_ids must have same length");
+            }
+            if (!positions.writeable()) {
+                throw std::runtime_error("positions array must be writeable for in-place sorting");
+            }
+
+            int64_t n_particles = pos_buf.shape[0];
+            sort_to_lagrangian_inplace(
+                static_cast<double*>(pos_buf.ptr),
+                static_cast<const int64_t*>(id_buf.ptr),
+                n_particles,
+                grid_size,
+                ordering,
+                id_offset
+            );
+        },
+        py::arg("positions"),
+        py::arg("particle_ids"),
+        py::arg("grid_size"),
+        py::arg("ordering"),
+        py::arg("id_offset") = 1,
+        R"pbdoc(
+        Sort particles to x-major Lagrangian order (in-place).
+
+        Modifies the positions array in-place using cycle decomposition
+        to minimize memory usage. For N=1024^3, this saves ~24GB compared
+        to creating a copy.
+
+        Parameters
+        ----------
+        positions : ndarray, shape (N, 3)
+            Particle positions - WILL BE MODIFIED.
+        particle_ids : ndarray, shape (N,)
+            Particle IDs.
+        grid_size : int
+            Lagrangian grid size (N for N^3).
+        ordering : IdOrdering
+            ID ordering convention (use detect_id_ordering if unknown).
+        id_offset : int, optional
+            Value to subtract from IDs. Default: 1 (GADGET-4).
+
+        Examples
+        --------
+        >>> ordering = ts.origami.detect_id_ordering(pos, ids, 256, 256.0)
+        >>> ts.origami.sort_to_lagrangian_inplace(pos, ids, 256, ordering)
+        >>> # pos is now in Lagrangian order
+        )pbdoc");
+
+    // sort_to_lagrangian (out-of-place)
+    origami_m.def("sort_to_lagrangian",
+        [](py::array_t<double, py::array::c_style | py::array::forcecast> positions,
+           py::array_t<int64_t, py::array::c_style | py::array::forcecast> particle_ids,
+           int grid_size,
+           IdOrdering ordering,
+           int64_t id_offset) {
+            auto pos_buf = positions.request();
+            auto id_buf = particle_ids.request();
+
+            if (pos_buf.ndim != 2 || pos_buf.shape[1] != 3) {
+                throw std::runtime_error("positions must have shape (N, 3)");
+            }
+            if (id_buf.ndim != 1) {
+                throw std::runtime_error("particle_ids must be 1D array");
+            }
+            if (pos_buf.shape[0] != id_buf.shape[0]) {
+                throw std::runtime_error("positions and particle_ids must have same length");
+            }
+
+            int64_t n_particles = pos_buf.shape[0];
+
+            // Create output array
+            std::vector<py::ssize_t> shape = {static_cast<py::ssize_t>(n_particles), 3};
+            auto result = py::array_t<double>(shape);
+            auto result_buf = result.request();
+
+            sort_to_lagrangian(
+                static_cast<const double*>(pos_buf.ptr),
+                static_cast<const int64_t*>(id_buf.ptr),
+                n_particles,
+                grid_size,
+                ordering,
+                id_offset,
+                static_cast<double*>(result_buf.ptr)
+            );
+
+            return result;
+        },
+        py::arg("positions"),
+        py::arg("particle_ids"),
+        py::arg("grid_size"),
+        py::arg("ordering"),
+        py::arg("id_offset") = 1,
+        R"pbdoc(
+        Sort particles to x-major Lagrangian order (out-of-place).
+
+        Creates a new sorted array, leaving input unchanged.
+        Uses more memory but is safer for debugging.
+
+        Parameters
+        ----------
+        positions : ndarray, shape (N, 3)
+            Particle positions (not modified).
+        particle_ids : ndarray, shape (N,)
+            Particle IDs.
+        grid_size : int
+            Lagrangian grid size (N for N^3).
+        ordering : IdOrdering
+            ID ordering convention.
+        id_offset : int, optional
+            Value to subtract from IDs. Default: 1.
+
+        Returns
+        -------
+        ndarray, shape (N, 3)
+            Sorted positions in Lagrangian order.
+
+        Examples
+        --------
+        >>> sorted_pos = ts.origami.sort_to_lagrangian(pos, ids, 256, ordering)
+        )pbdoc");
+
+    // run_pipeline
+    origami_m.def("run_pipeline",
+        [](py::array_t<double, py::array::c_style> positions,
+           py::array_t<int64_t, py::array::c_style | py::array::forcecast> particle_ids,
+           const OrigamiPipelineConfig& config) {
+            auto pos_buf = positions.request();
+            auto id_buf = particle_ids.request();
+
+            if (pos_buf.ndim != 2 || pos_buf.shape[1] != 3) {
+                throw std::runtime_error("positions must have shape (N, 3)");
+            }
+            if (id_buf.ndim != 1) {
+                throw std::runtime_error("particle_ids must be 1D array");
+            }
+            if (pos_buf.shape[0] != id_buf.shape[0]) {
+                throw std::runtime_error("positions and particle_ids must have same length");
+            }
+
+            int64_t expected = static_cast<int64_t>(config.lagrangian_grid_size) *
+                              config.lagrangian_grid_size * config.lagrangian_grid_size;
+            if (pos_buf.shape[0] != expected) {
+                throw std::runtime_error(
+                    "positions has " + std::to_string(pos_buf.shape[0]) +
+                    " particles, expected " + std::to_string(expected) +
+                    " for lagrangian_grid_size=" + std::to_string(config.lagrangian_grid_size));
+            }
+
+            if (config.sort_in_place && !positions.writeable()) {
+                throw std::runtime_error(
+                    "positions array must be writeable when sort_in_place=True. "
+                    "Use run_pipeline_safe() or make array writeable.");
+            }
+
+            return run_pipeline(
+                static_cast<double*>(pos_buf.ptr),
+                static_cast<const int64_t*>(id_buf.ptr),
+                config
+            );
+        },
+        py::arg("positions"),
+        py::arg("particle_ids"),
+        py::arg("config"),
+        R"pbdoc(
+        Run the complete ORIGAMI analysis pipeline.
+
+        This is the main entry point for ORIGAMI analysis. It handles:
+        1. ID ordering detection (if ordering=Auto)
+        2. ID validation (if validate_ids=True)
+        3. Sorting to Lagrangian order (in-place if sort_in_place=True)
+        4. ORIGAMI morphology classification
+        5. Optional density field computation
+        6. Optional density sampling at particles
+        7. Optional grid deposition
+
+        WARNING: If sort_in_place=True (default), the positions array WILL BE MODIFIED.
+
+        Parameters
+        ----------
+        positions : ndarray, shape (N, 3)
+            Particle positions - may be modified if sort_in_place=True.
+        particle_ids : ndarray, shape (N,)
+            Particle IDs.
+        config : PipelineConfig
+            Pipeline configuration.
+
+        Returns
+        -------
+        PipelineResult
+            Complete result with all requested outputs.
+
+        Examples
+        --------
+        >>> config = ts.origami.PipelineConfig(256, 256.0)
+        >>> config.density_output_cells = 128  # Enable density
+        >>> config.grid_cells = 64             # Enable grid deposition
+        >>> result = ts.origami.run_pipeline(positions, particle_ids, config)
+        >>> print(f"Halo fraction: {result.f_halo:.2%}")
+        )pbdoc");
+
+    // run_pipeline_safe
+    origami_m.def("run_pipeline_safe",
+        [](py::array_t<double, py::array::c_style | py::array::forcecast> positions,
+           py::array_t<int64_t, py::array::c_style | py::array::forcecast> particle_ids,
+           const OrigamiPipelineConfig& config) {
+            auto pos_buf = positions.request();
+            auto id_buf = particle_ids.request();
+
+            if (pos_buf.ndim != 2 || pos_buf.shape[1] != 3) {
+                throw std::runtime_error("positions must have shape (N, 3)");
+            }
+            if (id_buf.ndim != 1) {
+                throw std::runtime_error("particle_ids must be 1D array");
+            }
+            if (pos_buf.shape[0] != id_buf.shape[0]) {
+                throw std::runtime_error("positions and particle_ids must have same length");
+            }
+
+            int64_t expected = static_cast<int64_t>(config.lagrangian_grid_size) *
+                              config.lagrangian_grid_size * config.lagrangian_grid_size;
+            if (pos_buf.shape[0] != expected) {
+                throw std::runtime_error(
+                    "positions has " + std::to_string(pos_buf.shape[0]) +
+                    " particles, expected " + std::to_string(expected) +
+                    " for lagrangian_grid_size=" + std::to_string(config.lagrangian_grid_size));
+            }
+
+            return run_pipeline_safe(
+                static_cast<const double*>(pos_buf.ptr),
+                static_cast<const int64_t*>(id_buf.ptr),
+                config
+            );
+        },
+        py::arg("positions"),
+        py::arg("particle_ids"),
+        py::arg("config"),
+        R"pbdoc(
+        Run the complete ORIGAMI analysis pipeline (safe version).
+
+        This version is safe but uses more memory. The positions array
+        will not be modified, but an internal copy will be made for sorting.
+
+        Parameters
+        ----------
+        positions : ndarray, shape (N, 3)
+            Particle positions (not modified).
+        particle_ids : ndarray, shape (N,)
+            Particle IDs.
+        config : PipelineConfig
+            Pipeline configuration.
+
+        Returns
+        -------
+        PipelineResult
+            Complete result with all requested outputs.
+
+        Examples
+        --------
+        >>> result = ts.origami.run_pipeline_safe(positions, particle_ids, config)
+        )pbdoc");
+
+    // validate_particle_ids
+    origami_m.def("validate_particle_ids",
+        [](py::array_t<int64_t, py::array::c_style | py::array::forcecast> particle_ids,
+           int grid_size,
+           int64_t id_offset) {
+            auto id_buf = particle_ids.request();
+
+            if (id_buf.ndim != 1) {
+                throw std::runtime_error("particle_ids must be 1D array");
+            }
+
+            int64_t n_particles = id_buf.shape[0];
+            validate_particle_ids(
+                static_cast<const int64_t*>(id_buf.ptr),
+                n_particles,
+                grid_size,
+                id_offset
+            );
+        },
+        py::arg("particle_ids"),
+        py::arg("grid_size"),
+        py::arg("id_offset") = 1,
+        R"pbdoc(
+        Validate particle IDs for ORIGAMI computation.
+
+        Checks:
+        - Particle count matches grid_size^3
+        - ID range is [id_offset, id_offset + N^3 - 1]
+        - All IDs are unique
+
+        Parameters
+        ----------
+        particle_ids : ndarray, shape (N,)
+            Particle IDs.
+        grid_size : int
+            Lagrangian grid size.
+        id_offset : int, optional
+            Value subtracted from IDs. Default: 1.
+
+        Raises
+        ------
+        RuntimeError
+            If validation fails.
+
+        Examples
+        --------
+        >>> ts.origami.validate_particle_ids(ids, 256)  # Validates N=256^3
         )pbdoc");
 }
