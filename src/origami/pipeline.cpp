@@ -5,6 +5,7 @@
 
 #include "origami/pipeline.h"
 #include "density/tetra_density.h"
+#include "stats/histogram.h"
 
 #include <cmath>
 #include <algorithm>
@@ -12,6 +13,7 @@
 #include <unordered_map>
 #include <chrono>
 #include <atomic>
+#include <limits>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -603,6 +605,187 @@ OrigamiPipelineResult run_pipeline_impl(
         result.v_halo = grid_result.v_halo;
 
         result.grid_time_ms = get_time_ms() - t0;
+    }
+
+    // === Optional: PDF Computation ===
+    if (config.pdf_n_bins > 0 && !result.particle_density.empty()) {
+        t0 = get_time_ms();
+
+        // Compute overdensity: (1 + delta) = density / mean_density
+        // IMPORTANT: Use mean of particle densities, not grid mean
+        // The grid mean and particle mean can differ significantly
+        std::vector<double> overdensity(n_particles);
+
+        // Compute mean from particle densities
+        double sum = 0.0;
+        #pragma omp parallel for reduction(+:sum)
+        for (int64_t i = 0; i < n_particles; ++i) {
+            sum += result.particle_density[i];
+        }
+        double mean_rho = sum / static_cast<double>(n_particles);
+
+        #pragma omp parallel for
+        for (int64_t i = 0; i < n_particles; ++i) {
+            overdensity[i] = result.particle_density[i] / mean_rho;
+        }
+
+        // Compute overdensity statistics
+        double od_sum = 0.0;
+        #pragma omp parallel for reduction(+:od_sum)
+        for (int64_t i = 0; i < n_particles; ++i) {
+            od_sum += overdensity[i];
+        }
+        result.overdensity_mean = od_sum / n_particles;
+
+        // Determine bin range
+        double range_min = config.pdf_range_min;
+        double range_max = config.pdf_range_max;
+
+        if (range_min <= 0 || range_max <= range_min) {
+            // Auto-detect range from positive overdensity values only
+            double data_min = std::numeric_limits<double>::max();
+            double data_max = 0.0;
+            #pragma omp parallel for reduction(min:data_min) reduction(max:data_max)
+            for (int64_t i = 0; i < n_particles; ++i) {
+                if (overdensity[i] > 0) {
+                    data_min = std::min(data_min, overdensity[i]);
+                    data_max = std::max(data_max, overdensity[i]);
+                }
+            }
+            range_min = std::max(data_min, 1e-3);  // Avoid zero for log bins
+            range_max = data_max * 1.001;          // Small padding
+        }
+
+        result.pdf_n_bins = config.pdf_n_bins;
+
+        if (config.pdf_jackknife) {
+            // Use jackknife conditional histogram
+            result.pdf_jackknife_enabled = true;
+            result.pdf_jackknife_n_subboxes = config.pdf_jackknife_subboxes *
+                                               config.pdf_jackknife_subboxes *
+                                               config.pdf_jackknife_subboxes;
+
+            auto jk_result = stats::compute_jackknife_conditional_histogram(
+                sorted_ptr,
+                overdensity.data(),
+                result.morphology.data(),
+                n_particles,
+                config.box_size,
+                config.pdf_n_bins,
+                range_min,
+                range_max,
+                config.pdf_log_bins,
+                config.pdf_jackknife_subboxes,
+                config.n_threads
+            );
+
+            // Copy bin info
+            result.pdf_bin_edges = std::move(jk_result.all.bin_edges);
+            result.pdf_bin_centers = std::move(jk_result.all.bin_centers);
+
+            // Copy global PDFs
+            result.pdf_all = std::move(jk_result.all.global_pdf);
+            result.pdf_void = std::move(jk_result.void_class.global_pdf);
+            result.pdf_wall = std::move(jk_result.wall_class.global_pdf);
+            result.pdf_filament = std::move(jk_result.filament_class.global_pdf);
+            result.pdf_halo = std::move(jk_result.halo_class.global_pdf);
+
+            // Copy histogram counts
+            result.hist_all = std::move(jk_result.all.global_counts);
+            result.hist_void = std::move(jk_result.void_class.global_counts);
+            result.hist_wall = std::move(jk_result.wall_class.global_counts);
+            result.hist_filament = std::move(jk_result.filament_class.global_counts);
+            result.hist_halo = std::move(jk_result.halo_class.global_counts);
+
+            // Copy jackknife errors
+            result.pdf_all_error = std::move(jk_result.all.pdf_error);
+            result.pdf_void_error = std::move(jk_result.void_class.pdf_error);
+            result.pdf_wall_error = std::move(jk_result.wall_class.pdf_error);
+            result.pdf_filament_error = std::move(jk_result.filament_class.pdf_error);
+            result.pdf_halo_error = std::move(jk_result.halo_class.pdf_error);
+
+        } else {
+            // Simple histogram without jackknife
+            result.pdf_jackknife_enabled = false;
+
+            // Compute histogram for all particles
+            stats::HistogramResult hist_all;
+            if (config.pdf_log_bins) {
+                hist_all = stats::histogram_log(
+                    overdensity.data(), n_particles,
+                    config.pdf_n_bins, range_min, range_max,
+                    config.n_threads
+                );
+            } else {
+                hist_all = stats::histogram(
+                    overdensity.data(), n_particles,
+                    config.pdf_n_bins, range_min, range_max,
+                    config.n_threads
+                );
+            }
+
+            result.pdf_bin_edges = std::move(hist_all.bin_edges);
+            result.pdf_bin_centers = stats::bin_centers(result.pdf_bin_edges, config.pdf_log_bins);
+            result.pdf_all = stats::histogram_to_pdf(hist_all);
+            result.hist_all = std::move(hist_all.counts);
+
+            // Per-class histograms
+            // Extract overdensity values for each class
+            std::vector<double> od_void, od_wall, od_filament, od_halo;
+            for (int64_t i = 0; i < n_particles; ++i) {
+                switch (result.morphology[i]) {
+                    case 0: od_void.push_back(overdensity[i]); break;
+                    case 1: od_wall.push_back(overdensity[i]); break;
+                    case 2: od_filament.push_back(overdensity[i]); break;
+                    case 3: od_halo.push_back(overdensity[i]); break;
+                }
+            }
+
+            // Compute per-class histograms using same bins
+            auto compute_class_pdf = [&](const std::vector<double>& od_class) {
+                if (od_class.empty()) {
+                    return std::make_pair(
+                        std::vector<double>(config.pdf_n_bins, 0.0),
+                        std::vector<int64_t>(config.pdf_n_bins, 0)
+                    );
+                }
+                stats::HistogramResult hist;
+                if (config.pdf_log_bins) {
+                    hist = stats::histogram_log(
+                        od_class.data(), od_class.size(),
+                        config.pdf_n_bins, range_min, range_max,
+                        config.n_threads
+                    );
+                } else {
+                    hist = stats::histogram(
+                        od_class.data(), od_class.size(),
+                        config.pdf_n_bins, range_min, range_max,
+                        config.n_threads
+                    );
+                }
+                return std::make_pair(
+                    stats::histogram_to_pdf(hist),
+                    std::move(hist.counts)
+                );
+            };
+
+            auto [pdf_v, hist_v] = compute_class_pdf(od_void);
+            auto [pdf_w, hist_w] = compute_class_pdf(od_wall);
+            auto [pdf_f, hist_f] = compute_class_pdf(od_filament);
+            auto [pdf_h, hist_h] = compute_class_pdf(od_halo);
+
+            result.pdf_void = std::move(pdf_v);
+            result.pdf_wall = std::move(pdf_w);
+            result.pdf_filament = std::move(pdf_f);
+            result.pdf_halo = std::move(pdf_h);
+
+            result.hist_void = std::move(hist_v);
+            result.hist_wall = std::move(hist_w);
+            result.hist_filament = std::move(hist_f);
+            result.hist_halo = std::move(hist_h);
+        }
+
+        result.pdf_time_ms = get_time_ms() - t0;
     }
 
     result.total_time_ms = get_time_ms() - start_time;

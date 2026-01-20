@@ -509,6 +509,18 @@ void bind_origami(py::module& m) {
         .def_readwrite("density_periodic", &OrigamiPipelineConfig::density_periodic)
         .def_readwrite("grid_cells", &OrigamiPipelineConfig::grid_cells)
         .def_readwrite("sample_density_at_particles", &OrigamiPipelineConfig::sample_density_at_particles)
+        .def_readwrite("pdf_n_bins", &OrigamiPipelineConfig::pdf_n_bins,
+            "Number of PDF bins (0 = skip PDF computation)")
+        .def_readwrite("pdf_log_bins", &OrigamiPipelineConfig::pdf_log_bins,
+            "Use logarithmic bins (recommended for density)")
+        .def_readwrite("pdf_range_min", &OrigamiPipelineConfig::pdf_range_min,
+            "Minimum bin edge (0 = auto-detect)")
+        .def_readwrite("pdf_range_max", &OrigamiPipelineConfig::pdf_range_max,
+            "Maximum bin edge (0 = auto-detect)")
+        .def_readwrite("pdf_jackknife", &OrigamiPipelineConfig::pdf_jackknife,
+            "Enable jackknife resampling for uncertainty estimation")
+        .def_readwrite("pdf_jackknife_subboxes", &OrigamiPipelineConfig::pdf_jackknife_subboxes,
+            "Sub-boxes per dimension for jackknife (2->8, 3->27)")
         .def_readwrite("n_threads", &OrigamiPipelineConfig::n_threads)
         .def_readwrite("seed", &OrigamiPipelineConfig::seed)
         .def_readwrite("validate_ids", &OrigamiPipelineConfig::validate_ids);
@@ -578,7 +590,13 @@ void bind_origami(py::module& m) {
         .def_readonly("density_time_ms", &OrigamiPipelineResult::density_time_ms)
         .def_readonly("sampling_time_ms", &OrigamiPipelineResult::sampling_time_ms)
         .def_readonly("grid_time_ms", &OrigamiPipelineResult::grid_time_ms)
+        .def_readonly("pdf_time_ms", &OrigamiPipelineResult::pdf_time_ms)
         .def_readonly("total_time_ms", &OrigamiPipelineResult::total_time_ms)
+        .def_readonly("pdf_n_bins", &OrigamiPipelineResult::pdf_n_bins)
+        .def_readonly("overdensity_mean", &OrigamiPipelineResult::overdensity_mean)
+        .def_readonly("overdensity_median", &OrigamiPipelineResult::overdensity_median)
+        .def_readonly("pdf_jackknife_enabled", &OrigamiPipelineResult::pdf_jackknife_enabled)
+        .def_readonly("pdf_jackknife_n_subboxes", &OrigamiPipelineResult::pdf_jackknife_n_subboxes)
         .def_property_readonly("morphology", [](const OrigamiPipelineResult& r) {
             return py::array_t<uint8_t>(
                 {static_cast<py::ssize_t>(r.morphology.size())},
@@ -682,7 +700,147 @@ void bind_origami(py::module& m) {
         }, "Mass fractions as tuple (f_void, f_wall, f_filament, f_halo)")
         .def_property_readonly("volume_fractions", [](const OrigamiPipelineResult& r) {
             return std::array<double, 4>{r.v_void, r.v_wall, r.v_filament, r.v_halo};
-        }, "Volume fractions as tuple (v_void, v_wall, v_filament, v_halo)");
+        }, "Volume fractions as tuple (v_void, v_wall, v_filament, v_halo)")
+        // PDF bin information
+        .def_property_readonly("pdf_bin_edges", [](const OrigamiPipelineResult& r) {
+            if (r.pdf_bin_edges.empty()) return py::array_t<double>();
+            return py::array_t<double>(
+                {static_cast<py::ssize_t>(r.pdf_bin_edges.size())},
+                {sizeof(double)},
+                r.pdf_bin_edges.data()
+            );
+        }, "PDF bin edges (n_bins + 1)")
+        .def_property_readonly("pdf_bin_centers", [](const OrigamiPipelineResult& r) {
+            if (r.pdf_bin_centers.empty()) return py::array_t<double>();
+            return py::array_t<double>(
+                {static_cast<py::ssize_t>(r.pdf_bin_centers.size())},
+                {sizeof(double)},
+                r.pdf_bin_centers.data()
+            );
+        }, "PDF bin centers (n_bins)")
+        // PDF arrays
+        .def_property_readonly("pdf_all", [](const OrigamiPipelineResult& r) {
+            if (r.pdf_all.empty()) return py::array_t<double>();
+            return py::array_t<double>(
+                {static_cast<py::ssize_t>(r.pdf_all.size())},
+                {sizeof(double)},
+                r.pdf_all.data()
+            );
+        }, "PDF for all particles")
+        .def_property_readonly("pdf_void", [](const OrigamiPipelineResult& r) {
+            if (r.pdf_void.empty()) return py::array_t<double>();
+            return py::array_t<double>(
+                {static_cast<py::ssize_t>(r.pdf_void.size())},
+                {sizeof(double)},
+                r.pdf_void.data()
+            );
+        }, "PDF for void particles")
+        .def_property_readonly("pdf_wall", [](const OrigamiPipelineResult& r) {
+            if (r.pdf_wall.empty()) return py::array_t<double>();
+            return py::array_t<double>(
+                {static_cast<py::ssize_t>(r.pdf_wall.size())},
+                {sizeof(double)},
+                r.pdf_wall.data()
+            );
+        }, "PDF for wall particles")
+        .def_property_readonly("pdf_filament", [](const OrigamiPipelineResult& r) {
+            if (r.pdf_filament.empty()) return py::array_t<double>();
+            return py::array_t<double>(
+                {static_cast<py::ssize_t>(r.pdf_filament.size())},
+                {sizeof(double)},
+                r.pdf_filament.data()
+            );
+        }, "PDF for filament particles")
+        .def_property_readonly("pdf_halo", [](const OrigamiPipelineResult& r) {
+            if (r.pdf_halo.empty()) return py::array_t<double>();
+            return py::array_t<double>(
+                {static_cast<py::ssize_t>(r.pdf_halo.size())},
+                {sizeof(double)},
+                r.pdf_halo.data()
+            );
+        }, "PDF for halo particles")
+        // Histogram counts
+        .def_property_readonly("hist_all", [](const OrigamiPipelineResult& r) {
+            if (r.hist_all.empty()) return py::array_t<int64_t>();
+            return py::array_t<int64_t>(
+                {static_cast<py::ssize_t>(r.hist_all.size())},
+                {sizeof(int64_t)},
+                r.hist_all.data()
+            );
+        }, "Histogram counts for all particles")
+        .def_property_readonly("hist_void", [](const OrigamiPipelineResult& r) {
+            if (r.hist_void.empty()) return py::array_t<int64_t>();
+            return py::array_t<int64_t>(
+                {static_cast<py::ssize_t>(r.hist_void.size())},
+                {sizeof(int64_t)},
+                r.hist_void.data()
+            );
+        }, "Histogram counts for void particles")
+        .def_property_readonly("hist_wall", [](const OrigamiPipelineResult& r) {
+            if (r.hist_wall.empty()) return py::array_t<int64_t>();
+            return py::array_t<int64_t>(
+                {static_cast<py::ssize_t>(r.hist_wall.size())},
+                {sizeof(int64_t)},
+                r.hist_wall.data()
+            );
+        }, "Histogram counts for wall particles")
+        .def_property_readonly("hist_filament", [](const OrigamiPipelineResult& r) {
+            if (r.hist_filament.empty()) return py::array_t<int64_t>();
+            return py::array_t<int64_t>(
+                {static_cast<py::ssize_t>(r.hist_filament.size())},
+                {sizeof(int64_t)},
+                r.hist_filament.data()
+            );
+        }, "Histogram counts for filament particles")
+        .def_property_readonly("hist_halo", [](const OrigamiPipelineResult& r) {
+            if (r.hist_halo.empty()) return py::array_t<int64_t>();
+            return py::array_t<int64_t>(
+                {static_cast<py::ssize_t>(r.hist_halo.size())},
+                {sizeof(int64_t)},
+                r.hist_halo.data()
+            );
+        }, "Histogram counts for halo particles")
+        // Jackknife errors
+        .def_property_readonly("pdf_all_error", [](const OrigamiPipelineResult& r) {
+            if (r.pdf_all_error.empty()) return py::array_t<double>();
+            return py::array_t<double>(
+                {static_cast<py::ssize_t>(r.pdf_all_error.size())},
+                {sizeof(double)},
+                r.pdf_all_error.data()
+            );
+        }, "Jackknife error for all PDF")
+        .def_property_readonly("pdf_void_error", [](const OrigamiPipelineResult& r) {
+            if (r.pdf_void_error.empty()) return py::array_t<double>();
+            return py::array_t<double>(
+                {static_cast<py::ssize_t>(r.pdf_void_error.size())},
+                {sizeof(double)},
+                r.pdf_void_error.data()
+            );
+        }, "Jackknife error for void PDF")
+        .def_property_readonly("pdf_wall_error", [](const OrigamiPipelineResult& r) {
+            if (r.pdf_wall_error.empty()) return py::array_t<double>();
+            return py::array_t<double>(
+                {static_cast<py::ssize_t>(r.pdf_wall_error.size())},
+                {sizeof(double)},
+                r.pdf_wall_error.data()
+            );
+        }, "Jackknife error for wall PDF")
+        .def_property_readonly("pdf_filament_error", [](const OrigamiPipelineResult& r) {
+            if (r.pdf_filament_error.empty()) return py::array_t<double>();
+            return py::array_t<double>(
+                {static_cast<py::ssize_t>(r.pdf_filament_error.size())},
+                {sizeof(double)},
+                r.pdf_filament_error.data()
+            );
+        }, "Jackknife error for filament PDF")
+        .def_property_readonly("pdf_halo_error", [](const OrigamiPipelineResult& r) {
+            if (r.pdf_halo_error.empty()) return py::array_t<double>();
+            return py::array_t<double>(
+                {static_cast<py::ssize_t>(r.pdf_halo_error.size())},
+                {sizeof(double)},
+                r.pdf_halo_error.data()
+            );
+        }, "Jackknife error for halo PDF");
 
     // detect_id_ordering
     origami_m.def("detect_id_ordering",

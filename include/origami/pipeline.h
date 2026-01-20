@@ -67,6 +67,14 @@ struct OrigamiPipelineConfig {
     // === Optional: Density sampling at particles ===
     bool sample_density_at_particles = true;  ///< Sample density field at particle positions
 
+    // === Optional: PDF computation (set > 0 to enable) ===
+    int pdf_n_bins = 0;                 ///< 0 = skip, >0 = compute overdensity PDF with this many bins
+    bool pdf_log_bins = true;           ///< Use logarithmic bins (recommended for density)
+    double pdf_range_min = 0.0;         ///< Minimum bin edge (0 = auto-detect from data)
+    double pdf_range_max = 0.0;         ///< Maximum bin edge (0 = auto-detect from data)
+    bool pdf_jackknife = false;         ///< Enable jackknife resampling for uncertainty estimation
+    int pdf_jackknife_subboxes = 2;     ///< Sub-boxes per dimension for jackknife (2->8, 3->27)
+
     // === Threading ===
     int n_threads = 0;                  ///< 0 = auto-detect
     uint64_t seed = 0;                  ///< Random seed for density (0 = time-based)
@@ -135,6 +143,38 @@ struct OrigamiPipelineResult {
     double v_filament = 0.0;
     double v_halo = 0.0;
 
+    // === Optional: PDF outputs (if pdf_n_bins > 0) ===
+    std::vector<double> pdf_bin_edges;      ///< Bin edges (n_bins + 1)
+    std::vector<double> pdf_bin_centers;    ///< Bin centers (n_bins)
+    int pdf_n_bins = 0;                     ///< Number of bins
+
+    // Global PDFs (all particles and per-class)
+    std::vector<double> pdf_all;            ///< PDF for all particles
+    std::vector<double> pdf_void;           ///< PDF for void particles
+    std::vector<double> pdf_wall;           ///< PDF for wall particles
+    std::vector<double> pdf_filament;       ///< PDF for filament particles
+    std::vector<double> pdf_halo;           ///< PDF for halo particles
+
+    // Global histogram counts
+    std::vector<int64_t> hist_all;          ///< Histogram counts for all particles
+    std::vector<int64_t> hist_void;         ///< Histogram counts for void
+    std::vector<int64_t> hist_wall;         ///< Histogram counts for wall
+    std::vector<int64_t> hist_filament;     ///< Histogram counts for filament
+    std::vector<int64_t> hist_halo;         ///< Histogram counts for halo
+
+    // Jackknife errors (if pdf_jackknife = true)
+    std::vector<double> pdf_all_error;      ///< Jackknife error for all PDF
+    std::vector<double> pdf_void_error;     ///< Jackknife error for void PDF
+    std::vector<double> pdf_wall_error;     ///< Jackknife error for wall PDF
+    std::vector<double> pdf_filament_error; ///< Jackknife error for filament PDF
+    std::vector<double> pdf_halo_error;     ///< Jackknife error for halo PDF
+
+    // PDF statistics
+    double overdensity_mean = 0.0;          ///< Mean overdensity (should be ~1)
+    double overdensity_median = 0.0;        ///< Median overdensity
+    bool pdf_jackknife_enabled = false;     ///< Whether jackknife was computed
+    int pdf_jackknife_n_subboxes = 0;       ///< Number of jackknife sub-boxes
+
     // === Diagnostics ===
     bool sorting_performed = false;
     double detection_time_ms = 0.0;
@@ -143,6 +183,7 @@ struct OrigamiPipelineResult {
     double density_time_ms = 0.0;
     double sampling_time_ms = 0.0;
     double grid_time_ms = 0.0;
+    double pdf_time_ms = 0.0;
     double total_time_ms = 0.0;
 };
 
