@@ -42,87 +42,6 @@ except ImportError:
         sys.exit(1)
 
 
-def detect_id_ordering(positions, particle_ids, box_size, grid_size):
-    """Detect whether particle IDs use x-major or z-major ordering.
-
-    GADGET-4 typically uses z-major: ID = 1 + z + y*N + x*N^2
-    Some codes use x-major: ID = 1 + x + y*N + z*N^2
-
-    This method uses displacement correlations between neighboring IDs to
-    robustly detect the ordering even when particles have moved significantly
-    and wrapped around periodic boundaries.
-    """
-    grid_size = int(grid_size)
-    n_particles = len(positions)
-
-    # Build a lookup from ID to position (handle 1-indexed IDs)
-    particle_ids_int = particle_ids.astype(np.int64)
-    id_to_idx = {int(pid): i for i, pid in enumerate(particle_ids_int)}
-
-    def get_pos(pid):
-        if pid in id_to_idx:
-            return positions[id_to_idx[pid]]
-        return None
-
-    def periodic_diff(p1, p2, box):
-        """Compute minimum image displacement."""
-        diff = p1 - p2
-        diff = diff - box * np.round(diff / box)
-        return diff
-
-    x_major_score = 0.0
-    z_major_score = 0.0
-    n_valid = 0
-
-    spacing = box_size / grid_size
-
-    # Sample several ID pairs spread across the domain
-    test_ids = [1, grid_size//4, grid_size//2, grid_size*10, grid_size*100]
-
-    for base_id in test_ids:
-        if base_id < 1 or base_id >= n_particles:
-            continue
-
-        p1 = get_pos(base_id)
-        p2 = get_pos(base_id + 1)  # Should differ by 1 in z (z-major) or x (x-major)
-
-        if p1 is None or p2 is None:
-            continue
-
-        diff = periodic_diff(p2, p1, box_size)
-
-        # For z-major: expect diff ~= (0, 0, spacing)
-        # For x-major: expect diff ~= (spacing, 0, 0)
-        z_major_expected = np.array([0, 0, spacing])
-        x_major_expected = np.array([spacing, 0, 0])
-
-        z_major_score += np.linalg.norm(diff - z_major_expected)
-        x_major_score += np.linalg.norm(diff - x_major_expected)
-        n_valid += 1
-
-    # Also check y-layer transitions for additional robustness
-    for base_id in test_ids:
-        next_y_id = base_id + grid_size  # Should move by 1 in y
-
-        p1 = get_pos(base_id)
-        p2 = get_pos(next_y_id)
-
-        if p1 is None or p2 is None:
-            continue
-
-        diff = periodic_diff(p2, p1, box_size)
-
-        # Check which component stays near zero
-        z_major_score += abs(abs(diff[0]) - 0)  # z-major: x should be ~0
-        x_major_score += abs(abs(diff[2]) - 0)  # x-major: z should be ~0
-
-    if n_valid == 0:
-        print("  Warning: Could not verify ID ordering, defaulting to z-major")
-        return 'z-major'
-
-    return 'x-major' if x_major_score < z_major_score else 'z-major'
-
-
 def load_snapshot(snapshot_path, particle_type=1):
     """Load particle data from a GADGET-4 HDF5 snapshot.
 
@@ -202,9 +121,9 @@ def load_snapshot(snapshot_path, particle_type=1):
     return positions, particle_ids, box_size, redshift, time, particle_mass
 
 
-def compute_origami_morphology(positions, particle_ids, box_size, n_threads=0,
-                                id_ordering='auto'):
-    """Compute ORIGAMI morphology classification.
+def run_origami_pipeline(positions, particle_ids, box_size, output_cells=128,
+                          n_samples=100, n_threads=0):
+    """Run unified ORIGAMI pipeline with density and grid outputs.
 
     Parameters
     ----------
@@ -214,15 +133,23 @@ def compute_origami_morphology(positions, particle_ids, box_size, n_threads=0,
         Particle IDs (1-indexed Lagrangian grid positions).
     box_size : float
         Simulation box size.
+    output_cells : int
+        Grid resolution for density and morphology grids.
+    n_samples : int
+        Monte Carlo samples for density computation.
     n_threads : int
         Number of OpenMP threads (0 = auto).
-    id_ordering : str
-        How particle IDs encode Lagrangian positions:
-        - 'auto': Automatically detect (default)
-        - 'x-major': ID = 1 + x + y*N + z*N^2 (x varies fastest)
-        - 'z-major': ID = 1 + z + y*N + x*N^2 (z varies fastest, GADGET-4 default)
+
+    Returns
+    -------
+    result : PipelineResult
+        Complete pipeline result with morphology, density, and grid outputs.
+    density_3d : ndarray
+        3D density field.
+    grid_size : int
+        Lagrangian grid size.
     """
-    print("\nComputing ORIGAMI morphology...")
+    print("\nRunning unified ORIGAMI pipeline...")
 
     # Determine grid size from particle count
     n_particles = len(positions)
@@ -242,116 +169,46 @@ def compute_origami_morphology(positions, particle_ids, box_size, n_threads=0,
 
     if min_id != 1 or max_id != n_particles:
         print(f"    WARNING: IDs should range from 1 to {n_particles:,}")
-        print(
-            "    This may indicate incomplete snapshot loading or non-Lagrangian IDs"
-        )
 
     if unique_ids != n_particles:
         raise ValueError(f"Found {unique_ids:,} unique IDs for {n_particles:,} particles. "
                          "IDs must be unique for ORIGAMI.")
 
-    # Detect or use specified ID ordering
-    if id_ordering == 'auto':
-        id_ordering = detect_id_ordering(positions, particle_ids, box_size, grid_size)
-        print(f"  Detected ID ordering: {id_ordering}")
+    # Configure unified pipeline
+    config = ts.origami.PipelineConfig(grid_size, float(box_size))
+    config.density_output_cells = output_cells
+    config.density_n_samples = n_samples
+    config.sample_density_at_particles = True
+    config.grid_cells = output_cells
+    config.n_threads = n_threads
+    config.n_split = 1  # Single domain to avoid OpenMP issues on macOS
 
-    # Sort particles to x-major order (what ORIGAMI expects)
-    print(f"  Sorting particles to x-major order (from {id_ordering})...")
-    sorted_positions = np.zeros((n_particles, 3), dtype=np.float64)
+    # Run pipeline
+    print("  Running pipeline (ID detection, sorting, morphology, density, grid)...")
+    result = ts.origami.run_pipeline(positions, particle_ids, config)
 
-    # Ensure integer types to prevent float indexing errors
-    particle_ids = particle_ids.astype(np.int64)
+    print(f"  Detected ID ordering: {ts.origami.id_ordering_name(result.detected_ordering)}")
+    print(f"  Pipeline completed in {result.total_time_ms:.1f} ms")
 
-    if id_ordering == 'x-major':
-        # Direct mapping: ID-1 gives x-major index
-        sorted_positions[particle_ids - 1] = positions
-    elif id_ordering == 'z-major':
-        # Convert z-major IDs to x-major indices
-        # z-major: ID = 1 + z + y*N + x*N^2
-        # x-major: idx = x + y*N + z*N^2
-        for i in range(n_particles):
-            idx = int(particle_ids[i]) - 1  # 0-indexed z-major
-            z = idx % grid_size
-            y = (idx // grid_size) % grid_size
-            x = idx // (grid_size * grid_size)
-            xmajor_idx = x + y * grid_size + z * grid_size * grid_size
-            sorted_positions[xmajor_idx] = positions[i]
-    else:
-        raise ValueError(f"Unknown id_ordering: {id_ordering}")
-
-    sorted_positions = np.ascontiguousarray(sorted_positions)
-
-    # Compute and report displacement statistics
-    spacing = box_size / grid_size
-    print(f"  Lagrangian spacing: {spacing:.4f} Mpc/h")
-
-    # Create ORIGAMI config
-    # Note: Using n_split=1 to avoid OpenMP issues with duplicate libomp on macOS
-    # This runs single-threaded but is still reasonably fast
-    config = ts.origami.OrigamiConfig()
-    config.lagrangian_grid_size = grid_size
-    config.box_size = float(box_size)
-    config.n_threads = 1
-    config.n_split = 1  # Single domain to avoid OpenMP issues
-
-    # Compute morphology
-    print("  Running ORIGAMI algorithm...")
-    result = ts.origami.compute_morphology(sorted_positions, config)
-
-    print(f"\n  Results:")
+    print(f"\n  Morphology Results:")
     print(f"    Void:     {result.n_void:>10,} particles ({result.f_void:>6.2%})")
     print(f"    Wall:     {result.n_wall:>10,} particles ({result.f_wall:>6.2%})")
     print(f"    Filament: {result.n_filament:>10,} particles ({result.f_filament:>6.2%})")
     print(f"    Halo:     {result.n_halo:>10,} particles ({result.f_halo:>6.2%})")
 
-    return result, sorted_positions, grid_size
-
-
-def compute_density_and_sample(sorted_positions, box_size, grid_size, result,
-                                output_cells=128, n_samples=100, n_threads=0):
-    """Compute density field and sample at particle positions."""
-    print(f"\nComputing density field ({output_cells}^3)...")
-
-    # Create density config
-    density_config = ts.density.TetraDensityConfig()
-    density_config.lagrangian_grid_size = grid_size
-    density_config.output_cells = output_cells
-    density_config.box_size = float(box_size)
-    density_config.particle_mass = 1.0  # Will normalize
-    density_config.n_samples = n_samples
-    density_config.n_threads = n_threads
-
-    # Compute 3D density
-    density_result = ts.density.compute_tetra_density_3d(sorted_positions, density_config)
-
-    # Reshape density to 3D array [z, y, x]
-    density_3d = np.array(density_result.density).reshape(
+    # Get density as 3D array
+    density_3d = np.array(result.density_3d).reshape(
         output_cells, output_cells, output_cells
     )
+    print(f"\n  Density field ({output_cells}^3):")
+    print(f"    Range: [{density_3d.min():.4e}, {density_3d.max():.4e}]")
+    print(f"    Mean: {result.mean_density:.4e}")
 
-    print(f"  Density range: [{density_3d.min():.4e}, {density_3d.max():.4e}]")
-    print(f"  Mean density: {density_3d.mean():.4e}")
+    print(f"\n  Grid outputs ({output_cells}^3):")
+    print(f"    Halo fraction range: [{np.array(result.halo_fraction_grid).min():.3f}, "
+          f"{np.array(result.halo_fraction_grid).max():.3f}]")
 
-    # Sample density at particle positions
-    print("  Sampling density at particle positions...")
-    ts.origami.sample_density_at_particles(
-        density_3d, sorted_positions, box_size, result
-    )
-
-    return density_3d, density_result
-
-
-def deposit_to_grid(sorted_positions, box_size, result, grid_cells=128):
-    """Deposit morphology classifications onto a grid."""
-    print(f"\nDepositing morphology to {grid_cells}^3 grid...")
-
-    ts.origami.deposit_morphology_to_grid(
-        sorted_positions, box_size, grid_cells, result
-    )
-
-    print("  Grid outputs computed:")
-    print(f"    morphology_grid shape: {result.morphology_grid.shape}")
-    print(f"    halo_fraction range: [{result.halo_fraction_grid.min():.3f}, {result.halo_fraction_grid.max():.3f}]")
+    return result, density_3d, grid_size
 
 
 def save_results(output_path, result, density_3d, positions, box_size, redshift,
@@ -386,7 +243,7 @@ def save_results(output_path, result, density_3d, positions, box_size, redshift,
         # Grid data
         if len(result.morphology_grid) > 0:
             grid = f.create_group('Grid')
-            grid.attrs['cells'] = result.grid_cells
+            grid.attrs['cells'] = result.morph_grid_cells
             grid.create_dataset('morphology', data=np.array(result.morphology_grid),
                                  compression='gzip')
             grid.create_dataset('void_fraction', data=np.array(result.void_fraction_grid),
@@ -558,22 +415,16 @@ def main():
     positions, particle_ids, box_size, redshift, scale_factor, particle_mass = \
         load_snapshot(args.snapshot, args.particle_type)
 
-    # Compute ORIGAMI morphology
-    result, sorted_positions, grid_size = compute_origami_morphology(
-        positions, particle_ids, box_size, args.threads
+    # Run unified ORIGAMI pipeline (handles detection, sorting, morphology, density, grid)
+    result, density_3d, grid_size = run_origami_pipeline(
+        positions, particle_ids, box_size,
+        output_cells=args.resolution,
+        n_samples=args.samples,
+        n_threads=args.threads
     )
 
-    # Compute density and sample at particles
-    density_3d, density_result = compute_density_and_sample(
-        sorted_positions, box_size, grid_size, result,
-        args.resolution, args.samples, args.threads
-    )
-
-    # Deposit morphology to grid
-    deposit_to_grid(sorted_positions, box_size, result, args.resolution)
-
-    # Save results
-    save_results(args.output, result, density_3d, sorted_positions, box_size,
+    # Save results (positions are now sorted in-place)
+    save_results(args.output, result, density_3d, positions, box_size,
                  redshift, scale_factor, grid_size, particle_mass)
 
     # Create visualization

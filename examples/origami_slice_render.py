@@ -98,124 +98,26 @@ def load_snapshot(snapshot_path, particle_type=1):
     return positions, particle_ids, box_size, scale_factor
 
 
-def detect_id_ordering(positions, particle_ids, box_size, grid_size):
-    """Detect whether particle IDs use x-major or z-major ordering.
-
-    This method uses displacement correlations between neighboring IDs to
-    robustly detect the ordering even when particles have moved significantly
-    and wrapped around periodic boundaries.
-    """
-    grid_size = int(grid_size)
-    n_particles = len(positions)
-
-    particle_ids_int = particle_ids.astype(np.int64)
-    id_to_idx = {int(pid): i for i, pid in enumerate(particle_ids_int)}
-
-    def get_pos(pid):
-        if pid in id_to_idx:
-            return positions[id_to_idx[pid]]
-        return None
-
-    def periodic_diff(p1, p2, box):
-        diff = p1 - p2
-        diff = diff - box * np.round(diff / box)
-        return diff
-
-    x_major_score = 0.0
-    z_major_score = 0.0
-    n_valid = 0
-
-    spacing = box_size / grid_size
-    test_ids = [1, grid_size//4, grid_size//2, grid_size*10, grid_size*100]
-
-    for base_id in test_ids:
-        if base_id < 1 or base_id >= n_particles:
-            continue
-
-        p1 = get_pos(base_id)
-        p2 = get_pos(base_id + 1)
-
-        if p1 is None or p2 is None:
-            continue
-
-        diff = periodic_diff(p2, p1, box_size)
-
-        z_major_expected = np.array([0, 0, spacing])
-        x_major_expected = np.array([spacing, 0, 0])
-
-        z_major_score += np.linalg.norm(diff - z_major_expected)
-        x_major_score += np.linalg.norm(diff - x_major_expected)
-        n_valid += 1
-
-    for base_id in test_ids:
-        next_y_id = base_id + grid_size
-
-        p1 = get_pos(base_id)
-        p2 = get_pos(next_y_id)
-
-        if p1 is None or p2 is None:
-            continue
-
-        diff = periodic_diff(p2, p1, box_size)
-        z_major_score += abs(abs(diff[0]) - 0)
-        x_major_score += abs(abs(diff[2]) - 0)
-
-    if n_valid == 0:
-        return 'z-major'
-
-    return 'x-major' if x_major_score < z_major_score else 'z-major'
-
-
-def sort_particles_for_origami(positions, particle_ids, box_size):
-    """Sort particles to x-major order for ORIGAMI."""
+def compute_origami_with_grid(positions, particle_ids, box_size, grid_cells=128):
+    """Compute ORIGAMI morphology and deposit to grid using unified pipeline."""
     n_particles = len(positions)
     grid_size = int(round(n_particles ** (1/3)))
 
-    id_ordering = detect_id_ordering(positions, particle_ids, box_size, grid_size)
-
-    sorted_positions = np.zeros((n_particles, 3), dtype=np.float64)
-
-    # Ensure integer types to prevent float indexing errors
-    particle_ids = particle_ids.astype(np.int64)
-
-    if id_ordering == 'x-major':
-        sorted_positions[particle_ids - 1] = positions
-    else:  # z-major (GADGET-4 default)
-        for i in range(n_particles):
-            idx = int(particle_ids[i]) - 1
-            z = idx % grid_size
-            y = (idx // grid_size) % grid_size
-            x = idx // (grid_size * grid_size)
-            xmajor_idx = x + y * grid_size + z * grid_size * grid_size
-            sorted_positions[xmajor_idx] = positions[i]
-
-    return np.ascontiguousarray(sorted_positions), grid_size
-
-
-def compute_origami_with_grid(positions, particle_ids, box_size, grid_cells=128):
-    """Compute ORIGAMI morphology and deposit to grid."""
-    sorted_positions, grid_size = sort_particles_for_origami(positions, particle_ids, box_size)
-
-    # Compute morphology
-    config = ts.origami.OrigamiConfig()
-    config.lagrangian_grid_size = grid_size
-    config.box_size = float(box_size)
+    # Use unified pipeline with grid output
+    config = ts.origami.PipelineConfig(grid_size, float(box_size))
+    config.grid_cells = grid_cells
     config.n_threads = 1
     config.n_split = 1
 
     print("  Computing ORIGAMI morphology...")
-    result = ts.origami.compute_morphology(sorted_positions, config)
+    result = ts.origami.run_pipeline(positions, particle_ids, config)
 
     if result.is_linear_regime:
         print(f"  WARNING: Field is in LINEAR REGIME ({result.f_void*100:.1f}% void)")
 
-    # Deposit to grid
-    print(f"  Depositing to {grid_cells}^3 grid...")
-    ts.origami.deposit_morphology_to_grid(
-        sorted_positions, box_size, grid_cells, result
-    )
+    print(f"  Deposited to {grid_cells}^3 grid")
 
-    return result, sorted_positions
+    return result, positions
 
 
 def load_origami_result(origami_path):
