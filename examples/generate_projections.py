@@ -22,11 +22,8 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
 
-# Add parent directory to path to import utils
-sys.path.insert(0, str(SCRIPT_DIR.parent))
-
 # Import shared utilities
-from utils import load_snapshot_h5py, infer_grid_size
+from tessera.utils import load_snapshot_h5py, infer_grid_size
 
 # Import tessera (try installed package first, then development build)
 try:

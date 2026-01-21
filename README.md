@@ -358,12 +358,12 @@ The animation script supports callout annotations for labeling cosmic events—e
 
 ## Python Modules
 
-### `visualize` - Visualization Utilities
+### `tessera.visualize` - Visualization Utilities
 
 Reusable matplotlib-based visualization functions with Python 3.10+ type hints:
 
 ```python
-from visualize import plot_density_slice, plot_morphology_slice, create_density_validation_figure
+from tessera.visualize import plot_density_slice, plot_morphology_slice, create_density_validation_figure
 ```
 
 **Core utilities (`visualize.core`):**
@@ -394,12 +394,12 @@ from visualize import plot_density_slice, plot_morphology_slice, create_density_
 - `plot_pdf_comparison()`: Overlaid PDFs for comparison
 - `plot_pdf_with_fit()`: PDF with power-law fit in high-density tail
 
-### `utils` - Shared Utilities
+### `tessera.utils` - Shared Utilities
 
 Helper functions for example and test scripts with Python 3.10+ type hints:
 
 ```python
-from utils import load_snapshot, sort_positions_lagrangian, infer_grid_size
+from tessera.utils import load_snapshot, sort_positions_lagrangian, infer_grid_size
 ```
 
 **Snapshot loading:**

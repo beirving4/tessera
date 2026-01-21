@@ -28,13 +28,8 @@ from typing import Dict, List, Optional, Tuple
 import sys
 import numpy as np
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-# Add repo root to path to import utils
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 # Import shared utilities
-from utils import infer_grid_size, sort_positions_lagrangian
+from tessera.utils import infer_grid_size, sort_positions_lagrangian
 
 # Import tessera
 try:

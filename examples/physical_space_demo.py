@@ -29,11 +29,8 @@ os.environ['OMP_NUM_THREADS'] = '1'
 # Configuration
 SCRIPT_DIR = Path(__file__).parent.resolve()
 
-# Add parent directory to path to import utils
-sys.path.insert(0, str(SCRIPT_DIR.parent))
-
 # Import shared utilities
-from utils import load_snapshot_h5py, infer_grid_size
+from tessera.utils import load_snapshot_h5py, infer_grid_size
 
 # Try to import local config
 try:

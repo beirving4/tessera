@@ -35,11 +35,8 @@ _build_dir = _repo_root / 'build'
 if _build_dir.exists():
     sys.path.insert(0, str(_build_dir))
 
-# Add parent directory to path to import utils
-sys.path.insert(0, str(_script_dir.parent))
-
 # Import shared utilities
-from utils import load_snapshot_h5py, infer_grid_size, check_h5py_available
+from tessera.utils import load_snapshot_h5py, infer_grid_size, check_h5py_available
 
 try:
     import _tessera as ts

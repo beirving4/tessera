@@ -35,20 +35,16 @@ halo_evolution_pipeline.py : Main consolidated pipeline script
 import sys
 from pathlib import Path
 
-# Add repository root to path for consolidated modules
-_repo_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(_repo_root))
-
 # Try to import from consolidated modules first (C++ implementations)
 try:
-    from utils import (
+    from tessera.utils import (
         MergerTree,
         HaloTracker,
         HaloInfo,
         DensityRenderer,
         DensityRenderConfig,
     )
-    from visualize import (
+    from tessera.visualize import (
         create_evolution_animation,
         create_evolution_multipanel as create_multipanel_figure,
         VisualizationConfig,

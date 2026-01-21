@@ -25,11 +25,8 @@ import argparse
 import sys
 from pathlib import Path
 
-# Add parent directory to path to import utils
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 # Import shared utilities
-from utils import (
+from tessera.utils import (
     load_snapshot,
     infer_grid_size,
     sort_positions_lagrangian,

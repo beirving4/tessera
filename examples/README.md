@@ -31,14 +31,14 @@ export PYTHONPATH=/path/to/tessera/build:$PYTHONPATH
 
 ### Additional Dependencies
 
-Some examples use the `visualize/` and `utils/` modules from the repository root:
+The examples use the `tessera.visualize` and `tessera.utils` submodules:
 
 ```python
-from visualize import plot_density_slice, plot_morphology_slice
-from utils import load_snapshot, sort_positions_lagrangian
+from tessera.visualize import plot_density_slice, plot_morphology_slice
+from tessera.utils import load_snapshot, sort_positions_lagrangian
 ```
 
-These are automatically available when running from the repository root.
+These are included in the tessera package and available after installation.
 
 ## Examples
 

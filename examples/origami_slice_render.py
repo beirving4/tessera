@@ -26,11 +26,8 @@ import numpy as np
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 os.environ['OMP_NUM_THREADS'] = '1'
 
-# Add parent directory to path to import utils
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 # Import shared utilities
-from utils import (
+from tessera.utils import (
     load_snapshot_h5py,
     infer_grid_size,
     check_tessera_available,

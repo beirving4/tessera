@@ -224,8 +224,16 @@ else:
     cosmo = None
     halo = None
 
+# =============================================================================
+# Python submodules (utils and visualize)
+# =============================================================================
+
+# Import Python submodules - these are always available
+from . import utils
+from . import visualize
+
 __all__ = [
-    # Submodules
+    # C++ Submodules
     "geom",
     "math",
     "density",
@@ -235,6 +243,9 @@ __all__ = [
     "halo",
     "origami",
     "stats",
+    # Python Submodules
+    "utils",
+    "visualize",
     # Geometry
     "Vec3f",
     "Tetra",

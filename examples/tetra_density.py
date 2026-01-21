@@ -28,9 +28,6 @@ _build_dir = _repo_root / 'build'
 if _build_dir.exists():
     sys.path.insert(0, str(_build_dir))
 
-# Add parent directory to path to import utils
-sys.path.insert(0, str(_script_dir.parent))
-
 try:
     import _tessera as ts
     HAS_CPP = True
@@ -44,7 +41,7 @@ except ImportError:
 
 # Import utils (only used when C++ is available)
 if HAS_CPP:
-    from utils import load_snapshot, infer_grid_size, sort_positions_lagrangian
+    from tessera.utils import load_snapshot, infer_grid_size, sort_positions_lagrangian
 
 
 # =============================================================================

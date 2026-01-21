@@ -45,8 +45,8 @@ except ImportError:
         sys.exit(1)
 
 # Import utils
-from utils import infer_grid_size
-from utils import load_snapshot as utils_load_snapshot
+from tessera.utils import infer_grid_size
+from tessera.utils import load_snapshot as utils_load_snapshot
 
 
 def load_snapshot(snapshot_path, particle_type=1):

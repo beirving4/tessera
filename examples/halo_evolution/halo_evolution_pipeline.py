@@ -58,18 +58,15 @@ from pathlib import Path
 import sys
 import numpy as np
 
-# Add repository root to path for utils and visualize modules
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-# Use consolidated modules from utils and visualize
-from utils import (
+# Use consolidated modules from tessera.utils and tessera.visualize
+from tessera.utils import (
     MergerTree,
     HaloTracker,
     HaloInfo,
     DensityRenderer,
     DensityRenderConfig,
 )
-from visualize import (
+from tessera.visualize import (
     create_evolution_animation,
     create_multipanel_figure,
     VisualizationConfig,
