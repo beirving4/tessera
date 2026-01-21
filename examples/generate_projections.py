@@ -20,12 +20,19 @@ import h5py
 # Set environment variables before any imports
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
+SCRIPT_DIR = Path(__file__).parent.resolve()
+
+# Add parent directory to path to import utils
+sys.path.insert(0, str(SCRIPT_DIR.parent))
+
+# Import shared utilities
+from utils import load_snapshot_h5py, infer_grid_size
+
 # Import tessera (try installed package first, then development build)
 try:
     import _tessera as ts
 except ImportError:
     # Try development build
-    SCRIPT_DIR = Path(__file__).parent.resolve()
     REPO_ROOT = SCRIPT_DIR.parent
     sys.path.insert(0, str(REPO_ROOT / 'build'))
     try:
@@ -44,15 +51,10 @@ from time_series_config import (
 
 def load_snapshot(snapshot_path: Path) -> tuple:
     """Load particle positions and IDs from a GADGET-4 HDF5 snapshot."""
-    with h5py.File(snapshot_path, 'r') as f:
-        positions = np.ascontiguousarray(
-            f['PartType1/Coordinates'][:], dtype=np.float64
-        )
-        particle_ids = np.ascontiguousarray(
-            f['PartType1/ParticleIDs'][:], dtype=np.int64
-        )
-        box_size = float(f['Header'].attrs['BoxSize'])
-
+    # Use utils function for loading
+    positions, particle_ids, box_size, _ = load_snapshot_h5py(
+        snapshot_path, particle_type=1, read_ids=True
+    )
     return positions, particle_ids, box_size
 
 

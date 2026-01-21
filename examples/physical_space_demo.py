@@ -29,6 +29,12 @@ os.environ['OMP_NUM_THREADS'] = '1'
 # Configuration
 SCRIPT_DIR = Path(__file__).parent.resolve()
 
+# Add parent directory to path to import utils
+sys.path.insert(0, str(SCRIPT_DIR.parent))
+
+# Import shared utilities
+from utils import load_snapshot_h5py, infer_grid_size
+
 # Try to import local config
 try:
     from config import SNAPSHOT_BASE, HALO_CENTERS
@@ -51,12 +57,16 @@ def load_snapshot(snapshot_name):
     """Load particle data from GADGET-4 snapshot."""
     import h5py
     snapshot_path = SNAPSHOT_BASE / f"{snapshot_name}.hdf5"
+
+    # Use utils function for loading
+    positions, particle_ids, box_size, scale_factor = load_snapshot_h5py(
+        snapshot_path, particle_type=1, read_ids=True
+    )
+
+    # Read redshift separately (not returned by load_snapshot_h5py)
     with h5py.File(snapshot_path, 'r') as f:
-        positions = np.ascontiguousarray(f['PartType1/Coordinates'][:], dtype=np.float64)
-        particle_ids = np.ascontiguousarray(f['PartType1/ParticleIDs'][:], dtype=np.int64)
-        box_size = float(f['Header'].attrs['BoxSize'])
         redshift = float(f['Header'].attrs['Redshift'])
-        scale_factor = float(f['Header'].attrs['Time'])
+
     return positions, particle_ids, box_size, redshift, scale_factor
 
 

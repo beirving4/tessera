@@ -31,6 +31,12 @@ _build_dir = _repo_root / 'build'
 if _build_dir.exists():
     sys.path.insert(0, str(_build_dir))
 
+# Add parent directory to path to import utils
+sys.path.insert(0, str(_script_dir.parent))
+
+# Import shared utilities
+from utils import load_snapshot_h5py, infer_grid_size, check_h5py_available
+
 try:
     import _tessera as ts
 except ImportError:
@@ -44,7 +50,7 @@ try:
     import h5py
     HAS_H5PY = True
 except ImportError:
-    HAS_H5PY = False
+    HAS_H5PY = check_h5py_available()
 
 
 # Morphology class constants
@@ -98,27 +104,10 @@ def density_colormap(value):
 
 def load_snapshot(snapshot_path, particle_type=1):
     """Load particle data from a GADGET-4 HDF5 snapshot."""
-    if not HAS_H5PY:
-        snapshot = ts.io.read_gadget4_snapshot(
-            str(snapshot_path),
-            particle_types=(1 << particle_type),
-            read_velocities=False,
-            read_ids=True,
-        )
-        particles = snapshot.particles[particle_type]
-        positions = np.array(particles.coordinates, dtype=np.float64)
-        particle_ids = np.array(particles.particle_ids, dtype=np.int64)
-        box_size = snapshot.header.box_size
-        scale_factor = snapshot.header.time
-        return positions, particle_ids, box_size, scale_factor
-
-    with h5py.File(snapshot_path, 'r') as f:
-        part_key = f'PartType{particle_type}'
-        positions = np.ascontiguousarray(f[f'{part_key}/Coordinates'][:], dtype=np.float64)
-        particle_ids = np.ascontiguousarray(f[f'{part_key}/ParticleIDs'][:], dtype=np.int64)
-        box_size = float(f['Header'].attrs['BoxSize'])
-        scale_factor = float(f['Header'].attrs['Time'])
-
+    # Use utils function for loading
+    positions, particle_ids, box_size, scale_factor = load_snapshot_h5py(
+        snapshot_path, particle_type=particle_type, read_ids=True
+    )
     return positions, particle_ids, box_size, scale_factor
 
 
@@ -126,8 +115,8 @@ def process_snapshot(snapshot_path, grid_cells=128):
     """Process a single snapshot to get morphology grid and density using unified pipeline."""
     # Load
     positions, particle_ids, box_size, scale_factor = load_snapshot(snapshot_path)
-    n_particles = len(positions)
-    grid_size = int(round(n_particles ** (1/3)))
+    # Infer grid size using utils function
+    grid_size = infer_grid_size(len(positions))
 
     # Use unified pipeline with grid and density outputs
     config = ts.origami.PipelineConfig(grid_size, float(box_size))

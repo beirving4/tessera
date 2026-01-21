@@ -18,6 +18,11 @@ import numpy as np
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add repo root to path to import utils
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+# Import shared utilities
+from utils import infer_grid_size, sort_positions_lagrangian
 
 # Import tessera (handles platform-specific configuration automatically)
 try:
@@ -105,13 +110,11 @@ def render_density_3d(
     particle_ids = np.array(particles.particle_ids, dtype=np.int64)
     sim_box_size = snapshot.header.box_size
 
-    n_particles = len(positions)
-    grid_size = int(round(n_particles ** (1/3)))
+    # Infer grid size using utils function
+    grid_size = infer_grid_size(len(positions))
 
-    # Sort by Lagrangian ID
-    sorted_positions = ts.density.sort_by_lagrangian_id(
-        positions, particle_ids, grid_size, id_offset=1
-    )
+    # Sort by Lagrangian ID using utils function
+    sorted_positions = sort_positions_lagrangian(positions, particle_ids, grid_size)
 
     # Compute subbox origin
     half_width = box_size / 2.0

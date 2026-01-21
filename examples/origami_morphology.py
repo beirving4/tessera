@@ -28,6 +28,9 @@ _build_dir = _repo_root / 'build'
 if _build_dir.exists():
     sys.path.insert(0, str(_build_dir))
 
+# Add parent directory to path to import utils
+sys.path.insert(0, str(_script_dir.parent))
+
 # Import tessera
 try:
     import _tessera as ts
@@ -41,82 +44,33 @@ except ImportError:
         print("Error: tessera not found. Build the project first.")
         sys.exit(1)
 
+# Import utils
+from utils import infer_grid_size
+from utils import load_snapshot as utils_load_snapshot
+
 
 def load_snapshot(snapshot_path, particle_type=1):
     """Load particle data from a GADGET-4 HDF5 snapshot.
 
-    Handles multi-file snapshots by detecting and loading all chunks.
-    For ORIGAMI, we need the complete particle set sorted by Lagrangian ID.
+    Uses the utils load_snapshot function which handles multi-file snapshots
+    via the C++ reader. For ORIGAMI, we need particle IDs for Lagrangian sorting.
     """
-    snapshot_path = Path(snapshot_path)
     print(f"Loading snapshot from {snapshot_path}...")
 
-    # Detect multi-file snapshot
-    with h5py.File(snapshot_path, 'r') as f:
-        num_files = f['Header'].attrs.get('NumFilesPerSnapshot', 1)
-        box_size = f['Header'].attrs['BoxSize']
-        redshift = f['Header'].attrs['Redshift']
-        time = f['Header'].attrs['Time']
-        num_part_total = f['Header'].attrs['NumPart_Total'][particle_type]
+    # Use utils load_snapshot (handles single/multi-file via C++ reader)
+    positions, particle_ids, header = utils_load_snapshot(
+        snapshot_path, particle_type=particle_type, read_ids=True
+    )
 
-        # Get mass
-        part_key = f'PartType{particle_type}'
-        if part_key in f and 'Masses' in f[part_key]:
-            particle_mass = f[f'{part_key}/Masses'][0]
-        else:
-            particle_mass = f['Header'].attrs['MassTable'][particle_type]
+    box_size = header.box_size
+    redshift = header.redshift
+    time = header.time
+    particle_mass = header.mass_table[particle_type]
 
     print(f"  Box size: {box_size}")
     print(f"  Redshift: {redshift:.4f}")
     print(f"  Scale factor: {time:.4f}")
-    print(f"  Total particles: {num_part_total:,}")
-    print(f"  Number of files: {num_files}")
-
-    if num_files == 1:
-        # Single file - load directly
-        with h5py.File(snapshot_path, 'r') as f:
-            positions = f[f'{part_key}/Coordinates'][:]
-            particle_ids = f[f'{part_key}/ParticleIDs'][:]
-    else:
-        # Multi-file snapshot - load all chunks
-        # Determine file naming pattern
-        base_name = str(snapshot_path)
-        if '.0.hdf5' in base_name:
-            base_pattern = base_name.replace('.0.hdf5', '.{}.hdf5')
-        elif '_0.hdf5' in base_name:
-            base_pattern = base_name.replace('_0.hdf5', '_{}.hdf5')
-        else:
-            # Assume single file if pattern not detected
-            with h5py.File(snapshot_path, 'r') as f:
-                positions = f[f'{part_key}/Coordinates'][:]
-                particle_ids = f[f'{part_key}/ParticleIDs'][:]
-            return positions, particle_ids, box_size, redshift, time, particle_mass
-
-        print(f"  Loading {num_files} chunks...")
-        all_positions = []
-        all_ids = []
-
-        for i in range(num_files):
-            chunk_path = base_pattern.format(i)
-            if not Path(chunk_path).exists():
-                raise FileNotFoundError(f"Snapshot chunk not found: {chunk_path}")
-
-            with h5py.File(chunk_path, 'r') as f:
-                if part_key in f:
-                    all_positions.append(f[f'{part_key}/Coordinates'][:])
-                    all_ids.append(f[f'{part_key}/ParticleIDs'][:])
-
-            if (i + 1) % 10 == 0 or i == num_files - 1:
-                print(f"    Loaded {i + 1}/{num_files} chunks...")
-
-        positions = np.concatenate(all_positions, axis=0)
-        particle_ids = np.concatenate(all_ids, axis=0)
-
-        print(f"  Loaded {len(positions):,} particles from {num_files} files")
-
-    # Verify we have the expected number of particles
-    if len(positions) != num_part_total:
-        print(f"  WARNING: Loaded {len(positions):,} particles, expected {num_part_total:,}")
+    print(f"  Total particles: {len(positions):,}")
 
     return positions, particle_ids, box_size, redshift, time, particle_mass
 
@@ -151,12 +105,8 @@ def run_origami_pipeline(positions, particle_ids, box_size, output_cells=128,
     """
     print("\nRunning unified ORIGAMI pipeline...")
 
-    # Determine grid size from particle count
-    n_particles = len(positions)
-    grid_size = int(round(n_particles ** (1/3)))
-    if grid_size ** 3 != n_particles:
-        raise ValueError(f"Particle count {n_particles} is not a perfect cube. "
-                         f"Nearest cube root: {grid_size} ({grid_size**3} particles)")
+    # Determine grid size from particle count using utils
+    grid_size = infer_grid_size(len(positions))
 
     print(f"  Lagrangian grid: {grid_size}^3")
 

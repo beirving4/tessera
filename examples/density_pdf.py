@@ -25,65 +25,31 @@ import argparse
 import sys
 from pathlib import Path
 
-# Try to find the tessera module
-_script_dir = Path(__file__).parent.resolve()
-_repo_root = _script_dir.parent
-_build_dir = _repo_root / 'build'
-if _build_dir.exists():
-    sys.path.insert(0, str(_build_dir))
+# Add parent directory to path to import utils
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Import the C++ module
+# Import shared utilities
+from utils import (
+    load_snapshot,
+    infer_grid_size,
+    sort_positions_lagrangian,
+    check_tessera_available,
+)
+
+# Import tessera
 try:
-    import _tessera as ts
-    HAS_CPP = True
+    import tessera as ts
 except ImportError:
-    try:
-        import tessera as ts
-        HAS_CPP = hasattr(at, 'density')
-    except ImportError:
-        HAS_CPP = False
-        at = None
+    import _tessera as ts
 
-
-def load_snapshot(path, particle_type=1):
-    """
-    Load particle positions and IDs from a GADGET-4 snapshot.
-    
-    Returns
-    -------
-    positions : ndarray, shape (N, 3)
-    particle_ids : ndarray, shape (N,)
-    header : Gadget4Header
-    """
-    try:
-        import _tessera
-        io = _tessera.io
-    except ImportError:
-        import tessera as _ts
-        io = _ts.io
-    
-    particle_types = 1 << particle_type
-    snap = io.read_gadget4_snapshot(
-        path,
-        particle_types=particle_types,
-        read_velocities=False,
-        read_ids=True
-    )
-    
-    coords = snap.particles[particle_type].coordinates
-    positions = np.array(coords, dtype=np.float64)
-    
-    ids = snap.particles[particle_type].particle_ids
-    particle_ids = np.array(ids, dtype=np.int64)
-    
-    return positions, particle_ids, snap.header
+HAS_CPP = check_tessera_available()
 
 
 def compute_density_field(positions, particle_ids, header, grid_resolution=None,
                           n_samples=100, n_threads=0, particle_type=1):
     """
     Compute 3D density field using tessellation.
-    
+
     Parameters
     ----------
     positions : ndarray
@@ -100,7 +66,7 @@ def compute_density_field(positions, particle_ids, header, grid_resolution=None,
         Number of threads (0 = auto)
     particle_type : int
         Particle type for mass lookup
-    
+
     Returns
     -------
     density_3d : ndarray, shape (N_cell, N_cell, N_cell)
@@ -108,43 +74,37 @@ def compute_density_field(positions, particle_ids, header, grid_resolution=None,
     config : TetraDensityConfig
         Configuration used for computation
     """
-    n_particles = len(positions)
-    lagrangian_grid_size = int(round(n_particles ** (1/3)))
-    
-    if lagrangian_grid_size ** 3 != n_particles:
-        raise ValueError(
-            f"Particle count {n_particles} is not a perfect cube. "
-            f"Tessellation requires N^3 particles."
-        )
-    
+    # Infer grid size from particle count
+    lagrangian_grid_size = infer_grid_size(len(positions))
+
     if grid_resolution is None:
         grid_resolution = lagrangian_grid_size
-    
+
     box_size = header.box_size
-    
+
     # Get particle mass from header
     mass_per_particle = header.mass_table[particle_type]
     if mass_per_particle == 0:
         mass_per_particle = 1.0
-    
-    # Sort by Lagrangian ID
+
+    # Sort by Lagrangian ID using utils function
     print("Sorting particles by Lagrangian ID...")
-    sorted_positions = at.density.sort_by_lagrangian_id(
-        positions, particle_ids, lagrangian_grid_size, id_offset=1
+    sorted_positions = sort_positions_lagrangian(
+        positions, particle_ids, lagrangian_grid_size
     )
-    
+
     # Set up tessellation config
-    config = at.density.TetraDensityConfig()
+    config = ts.density.TetraDensityConfig()
     config.box_size = box_size
     config.lagrangian_grid_size = lagrangian_grid_size
     config.output_cells = grid_resolution
     config.n_samples = n_samples
     config.particle_mass = mass_per_particle
     config.n_threads = n_threads
-    
+
     # Compute 3D density
     print(f"Computing 3D tessellation density field ({grid_resolution}^3)...")
-    result = at.density.compute_tetra_density_3d(sorted_positions, config)
+    result = ts.density.compute_tetra_density_3d(sorted_positions, config)
     
     density_3d = np.array(result.density).reshape(
         (grid_resolution, grid_resolution, grid_resolution)
@@ -241,15 +201,15 @@ def compute_pdf(density, n_bins=100, log_min=None, log_max=None, n_threads=0):
     range_max = 10 ** log_max
     
     # Use C++ histogram
-    hist_result = at.stats.histogram_log(
+    hist_result = ts.stats.histogram_log(
         density_flat, n_bins, range_min, range_max, n_threads
     )
     
     # Compute PDF
-    pdf = at.stats.histogram_to_pdf(hist_result)
+    pdf = ts.stats.histogram_to_pdf(hist_result)
     
     # Get bin centers (geometric mean for log bins)
-    bin_centers = at.stats.bin_centers(hist_result.bin_edges, log_space=True)
+    bin_centers = ts.stats.bin_centers(hist_result.bin_edges, log_space=True)
     
     return bin_centers, hist_result.bin_edges, pdf, hist_result.counts
 
@@ -430,7 +390,7 @@ Examples:
     # Load snapshot
     print(f"Loading snapshot from {args.snapshot}...")
     positions, particle_ids, header = load_snapshot(
-        args.snapshot, particle_type=args.particle_type
+        args.snapshot, particle_type=args.particle_type, read_ids=True
     )
     
     print(f"Box size: {header.box_size}")

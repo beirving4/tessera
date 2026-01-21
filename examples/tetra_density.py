@@ -28,6 +28,9 @@ _build_dir = _repo_root / 'build'
 if _build_dir.exists():
     sys.path.insert(0, str(_build_dir))
 
+# Add parent directory to path to import utils
+sys.path.insert(0, str(_script_dir.parent))
+
 try:
     import _tessera as ts
     HAS_CPP = True
@@ -38,6 +41,10 @@ except ImportError:
     except ImportError:
         HAS_CPP = False
         ts = None
+
+# Import utils (only used when C++ is available)
+if HAS_CPP:
+    from utils import load_snapshot, infer_grid_size, sort_positions_lagrangian
 
 
 # =============================================================================
@@ -602,7 +609,7 @@ def load_gadget4_for_tessellation(
 ) -> Tuple[np.ndarray, np.ndarray, "ts.io.Gadget4Header", int]:
     """
     Load a GADGET-4 snapshot with particle IDs for tessellation.
-    
+
     Parameters
     ----------
     snapshot_path : str
@@ -611,7 +618,7 @@ def load_gadget4_for_tessellation(
         Snapshot number for distributed files
     particle_type : int
         Particle type (default: 1 for DM)
-    
+
     Returns
     -------
     positions : ndarray
@@ -625,41 +632,20 @@ def load_gadget4_for_tessellation(
     """
     if not HAS_CPP:
         raise ImportError("C++ module required for GADGET I/O")
-    
-    particle_types_mask = 1 << particle_type
-    
-    if snapshot_num is not None:
-        snap = ts.io.read_gadget4_snapshot(
-            snapshot_path,
-            snapshot_num=snapshot_num,
-            particle_types=particle_types_mask,
-            read_velocities=False,
-            read_ids=True
-        )
-    else:
-        snap = ts.io.read_gadget4_snapshot(
-            snapshot_path,
-            particle_types=particle_types_mask,
-            read_velocities=False,
-            read_ids=True
-        )
-    
-    coords = snap.particles[particle_type].coordinates
-    ids = snap.particles[particle_type].particle_ids
-    
-    positions = np.array(coords, dtype=np.float64)
-    particle_ids = np.array(ids, dtype=np.int64)
-    
-    n_particles = len(positions)
-    grid_size = int(round(n_particles ** (1/3)))
-    
-    if grid_size ** 3 != n_particles:
-        raise ValueError(
-            f"Particle count {n_particles} is not a perfect cube. "
-            f"Nearest cube root: {grid_size}"
-        )
-    
-    return positions, particle_ids, snap.header, grid_size
+
+    # Use utils load_snapshot function
+    positions, particle_ids, header = load_snapshot(
+        snapshot_path,
+        snapshot_num=snapshot_num,
+        particle_type=particle_type,
+        read_ids=True,
+        read_velocities=False
+    )
+
+    # Infer grid size using utils function
+    grid_size = infer_grid_size(len(positions))
+
+    return positions, particle_ids, header, grid_size
 
 
 # =============================================================================
@@ -747,9 +733,7 @@ Examples:
     # Sort particles by Lagrangian ID
     print("\nSorting particles by Lagrangian ID...")
     if HAS_CPP and not args.python_only:
-        sorted_positions = ts.density.sort_by_lagrangian_id(
-            positions, particle_ids, grid_size, id_offset=1
-        )
+        sorted_positions = sort_positions_lagrangian(positions, particle_ids, grid_size)
     else:
         sorted_positions = sort_particles_by_lagrangian_id(positions, particle_ids, grid_size)
     

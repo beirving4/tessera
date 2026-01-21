@@ -23,6 +23,12 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
 
+# Add parent directory to path to import utils
+sys.path.insert(0, str(SCRIPT_DIR.parent))
+
+# Import shared utilities
+from utils import load_snapshot_h5py, infer_grid_size
+
 try:
     from config import SNAPSHOT_BASE
 except ImportError:
@@ -37,12 +43,13 @@ def load_snapshot(snapshot_name):
     """Load particle data from GADGET-4 snapshot."""
     snapshot_path = SNAPSHOT_BASE / f"{snapshot_name}.hdf5"
 
-    with h5py.File(snapshot_path, 'r') as f:
-        positions = np.ascontiguousarray(f['PartType1/Coordinates'][:], dtype=np.float64)
-        particle_ids = np.ascontiguousarray(f['PartType1/ParticleIDs'][:], dtype=np.int64)
-        box_size = float(f['Header'].attrs['BoxSize'])
+    # Use utils function for loading
+    positions, particle_ids, box_size, _ = load_snapshot_h5py(
+        snapshot_path, particle_type=1, read_ids=True
+    )
 
-    grid_size = int(round(len(positions) ** (1/3)))
+    # Infer grid size using utils function
+    grid_size = infer_grid_size(len(positions))
     return positions, particle_ids, box_size, grid_size
 
 
