@@ -4,7 +4,17 @@ This directory contains example scripts demonstrating how to use the tessera lib
 
 ## Prerequisites
 
-Build the library with Python bindings and HDF5 support:
+**Python 3.10+** is required.
+
+### Quick Install (Recommended)
+
+```bash
+pip install .
+```
+
+### Building from Source
+
+For development or more control over the build:
 
 ```bash
 cd /path/to/tessera
@@ -18,6 +28,17 @@ Add the build directory to your Python path:
 ```bash
 export PYTHONPATH=/path/to/tessera/build:$PYTHONPATH
 ```
+
+### Additional Dependencies
+
+Some examples use the `visualize/` and `utils/` modules from the repository root:
+
+```python
+from visualize import plot_density_slice, plot_morphology_slice
+from utils import load_snapshot, sort_positions_lagrangian
+```
+
+These are automatically available when running from the repository root.
 
 ## Examples
 
@@ -117,11 +138,69 @@ python examples/origami_morphology.py snapshot_034.hdf5 -o origami.h5 --resoluti
 
 Overdensity PDF analysis by morphological class:
 - Histograms and PDFs for all particles and per class
+- Optional jackknife resampling for uncertainty estimation
 - HDF5 output with bin edges and statistics
-- 2x1 figure with shared x-axis (histograms top, PDFs bottom)
 
 ```bash
-python examples/overdensity_pdf_origami.py
+python examples/overdensity_pdf_origami.py snapshot_034.hdf5 -o pdf.h5 --plot pdf.png
+python examples/overdensity_pdf_origami.py snapshot_034.hdf5 -o pdf.h5 --jackknife  # With uncertainties
+```
+
+#### `origami_slice_render.py`
+
+2D thin-slice visualization of ORIGAMI morphology:
+- Slice through 3D morphology grid
+- Discrete colormap for void/wall/filament/halo
+- Publication-quality figures
+
+```bash
+python examples/origami_slice_render.py snapshot_034.hdf5 --plot morphology.png
+```
+
+### Time-Series Visualization
+
+#### `time_series_pipeline.py`
+
+Complete pipeline for Diemer-style cosmic evolution visualization:
+- Generates 2D projections from all snapshots
+- Builds static time-series image (x=time, y=space)
+- Creates evolution animation with callout annotations
+
+```bash
+python examples/time_series_pipeline.py \
+    --snapshot-dir /path/to/snapshots \
+    --output-dir ./output \
+    --n-threads 4
+```
+
+#### `generate_projections.py`
+
+Generate 2D density projections from a series of snapshots:
+- Processes multiple snapshots in parallel
+- Saves projections to HDF5 with metadata
+
+```bash
+python examples/generate_projections.py --snapshot-dir /path/to/snapshots --output-dir ./output
+```
+
+#### `build_time_series.py`
+
+Build static time-series image from pre-computed projections:
+- X-axis represents cosmic time (scale factor)
+- Y-axis represents spatial position
+
+```bash
+python examples/build_time_series.py --projections ./output/density_projections.h5 --output time_series.png
+```
+
+#### `animate_evolution.py`
+
+Create evolution animation with callout annotations:
+- Configurable annotation template for cosmic events
+- MP4/GIF output formats
+
+```bash
+python examples/animate_evolution.py --projections ./output/density_projections.h5 --output evolution.mp4
 ```
 
 ### Statistics
@@ -147,7 +226,7 @@ Overdensity PDF computation:
 ## Quick Reference
 
 ```python
-import _tessera as ts
+import tessera as ts
 
 # List available modules
 print([m for m in dir(ts) if not m.startswith('_')])
