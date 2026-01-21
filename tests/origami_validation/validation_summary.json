@@ -1,5 +1,5 @@
 {
-  "validation_date": "2026-01-20T20:08:39.746405",
+  "validation_date": "2026-01-20T20:54:21.346940",
   "reference": "Falck, Neyrinck & Szalay 2012, ApJ 754, 126",
   "snapshots": {
     "snapshot_034": {
@@ -18,12 +18,12 @@
         "halo": 0.020837783813476562
       },
       "benchmarks": {
-        "load_time_s": 79.40888429200277,
-        "convert_time_s": 132.60158787493128,
-        "original_origami_time_s": 101.2395351669984,
-        "tessera_time_s": 87.75681908300612,
-        "speedup": 1.1536372469384908,
-        "peak_memory_load_mb": 3647.993194580078,
+        "load_time_s": 79.76274812500924,
+        "convert_time_s": 133.36688600003254,
+        "original_origami_time_s": 102.14547874999698,
+        "tessera_time_s": 86.21659212501254,
+        "speedup": 1.1847543057824397,
+        "peak_memory_load_mb": 3647.9932708740234,
         "peak_memory_convert_mb": 384.00048446655273,
         "peak_memory_tessera_mb": 0.000331878662109375
       }
@@ -44,12 +44,12 @@
         "halo": 0.013568878173828125
       },
       "benchmarks": {
-        "load_time_s": 82.69263562501874,
-        "convert_time_s": 131.99539445806295,
-        "original_origami_time_s": 84.92233316705097,
-        "tessera_time_s": 70.22151266608853,
-        "speedup": 1.2093492427436952,
-        "peak_memory_load_mb": 3647.989082336426,
+        "load_time_s": 81.1774364169687,
+        "convert_time_s": 132.15294533409178,
+        "original_origami_time_s": 84.09337995795067,
+        "tessera_time_s": 73.51952158298809,
+        "speedup": 1.1438238191339007,
+        "peak_memory_load_mb": 3647.988967895508,
         "peak_memory_convert_mb": 384.00048446655273,
         "peak_memory_tessera_mb": 0.00028324127197265625
       }

@@ -51,6 +51,12 @@ from utils import (
     check_tessera_available,
 )
 
+# Import visualization utilities
+from visualize import (
+    create_origami_validation_figure,
+    plot_morphology_slices_3panel,
+)
+
 # Import tessera
 try:
     import tessera as ts
@@ -229,133 +235,6 @@ def compare_results(orig_tags, tessera_tags, tessera_result):
     return stats
 
 
-def create_comparison_image(output_dir, label, stats, tessera_result, description):
-    """Create comparison visualization."""
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-
-    # Enable LaTeX-style rendering
-    plt.rcParams['mathtext.fontset'] = 'stix'
-    plt.rcParams['font.family'] = 'STIXGeneral'
-
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-
-    class_names = [r'${\rm Void}$', r'${\rm Wall}$', r'${\rm Filament}$', r'${\rm Halo}$']
-    colors = ['#3498db', '#2ecc71', '#e74c3c', '#9b59b6']
-
-    # Mass fractions pie chart
-    mass_fracs = [stats['mass_fractions']['void'],
-                  stats['mass_fractions']['wall'],
-                  stats['mass_fractions']['filament'],
-                  stats['mass_fractions']['halo']]
-    axes[0].pie(mass_fracs, labels=class_names, colors=colors, autopct='%.1f%%',
-                startangle=90)
-    axes[0].set_title(r'${\rm Mass\ Fractions}$')
-
-    # Volume fractions pie chart
-    vol_fracs = [stats['volume_fractions']['void'],
-                 stats['volume_fractions']['wall'],
-                 stats['volume_fractions']['filament'],
-                 stats['volume_fractions']['halo']]
-    axes[1].pie(vol_fracs, labels=class_names, colors=colors, autopct='%.1f%%',
-                startangle=90)
-    axes[1].set_title(r'${\rm Volume\ Fractions}$')
-
-    # Per-class comparison bar chart
-    x = np.arange(4)
-    width = 0.35
-    class_names_plain = ['Void', 'Wall', 'Filament', 'Halo']
-    orig_counts = [stats['per_class'][n.lower()]['original_fraction'] * 100 for n in class_names_plain]
-    tessera_counts = [stats['per_class'][n.lower()]['tessera_fraction'] * 100 for n in class_names_plain]
-
-    bars1 = axes[2].bar(x - width/2, orig_counts, width, label=r'${\rm Original\ ORIGAMI}$', color='#2c3e50')
-    bars2 = axes[2].bar(x + width/2, tessera_counts, width, label=r'${\rm tessera}$', color='#e67e22')
-    axes[2].set_ylabel(r'${\rm Fraction\ (\%)}$')
-    axes[2].set_xticks(x)
-    axes[2].set_xticklabels(class_names)
-    axes[2].legend()
-    axes[2].set_title(r'${\rm Classification\ Comparison}$')
-
-    match_rate = stats['match_rate'] * 100
-    plt.suptitle(r'${\rm ORIGAMI\ Validation:\ ' + description.replace(' ', r'\ ').replace('(', r'(').replace(')', r')').replace('=', r'=').replace(',', r',') + r'}$' + '\n' + r'${\rm Match\ Rate:}\ ' + f'{match_rate:.2f}' + r'\%$')
-    plt.tight_layout()
-
-    output_path = output_dir / f"origami_{label}.png"
-    plt.savefig(output_path, dpi=150, bbox_inches='tight')
-    plt.close()
-
-    return output_path
-
-
-def create_morphology_slice_image(output_dir, label, tessera_result, grid_size, description):
-    """Create morphology slice visualization."""
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-    from matplotlib.colors import ListedColormap
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-    # Enable LaTeX-style rendering
-    plt.rcParams['mathtext.fontset'] = 'stix'
-    plt.rcParams['font.family'] = 'STIXGeneral'
-
-    # Create colormap for morphology classes
-    colors = ['#3498db', '#2ecc71', '#e74c3c', '#9b59b6']  # Void, Wall, Filament, Halo
-    cmap = ListedColormap(colors)
-
-    # Get morphology grid from result
-    if hasattr(tessera_result, 'morphology_grid') and len(tessera_result.morphology_grid) > 0:
-        morph_grid = np.array(tessera_result.morphology_grid)
-        n_cells = tessera_result.grid_cells
-
-        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-
-        # X-Y slice (z=middle)
-        z_mid = n_cells // 2
-        im0 = axes[0].imshow(morph_grid[z_mid, :, :], cmap=cmap, vmin=0, vmax=3, origin='lower')
-        axes[0].set_title(r'${\rm X\text{-}Y\ Slice}\ (z=' + str(z_mid) + r')$')
-        axes[0].set_xlabel(r'$X$')
-        axes[0].set_ylabel(r'$Y$')
-        divider0 = make_axes_locatable(axes[0])
-        cax0 = divider0.append_axes("right", size="5%", pad=0.05)
-        cbar0 = plt.colorbar(im0, cax=cax0, ticks=[0.375, 1.125, 1.875, 2.625])
-        cbar0.ax.set_yticklabels([r'${\rm Void}$', r'${\rm Wall}$', r'${\rm Filament}$', r'${\rm Halo}$'])
-
-        # X-Z slice (y=middle)
-        y_mid = n_cells // 2
-        im1 = axes[1].imshow(morph_grid[:, y_mid, :], cmap=cmap, vmin=0, vmax=3, origin='lower')
-        axes[1].set_title(r'${\rm X\text{-}Z\ Slice}\ (y=' + str(y_mid) + r')$')
-        axes[1].set_xlabel(r'$X$')
-        axes[1].set_ylabel(r'$Z$')
-        divider1 = make_axes_locatable(axes[1])
-        cax1 = divider1.append_axes("right", size="5%", pad=0.05)
-        cbar1 = plt.colorbar(im1, cax=cax1, ticks=[0.375, 1.125, 1.875, 2.625])
-        cbar1.ax.set_yticklabels([r'${\rm Void}$', r'${\rm Wall}$', r'${\rm Filament}$', r'${\rm Halo}$'])
-
-        # Y-Z slice (x=middle)
-        x_mid = n_cells // 2
-        im2 = axes[2].imshow(morph_grid[:, :, x_mid], cmap=cmap, vmin=0, vmax=3, origin='lower')
-        axes[2].set_title(r'${\rm Y\text{-}Z\ Slice}\ (x=' + str(x_mid) + r')$')
-        axes[2].set_xlabel(r'$Y$')
-        axes[2].set_ylabel(r'$Z$')
-        divider2 = make_axes_locatable(axes[2])
-        cax2 = divider2.append_axes("right", size="5%", pad=0.05)
-        cbar2 = plt.colorbar(im2, cax=cax2, ticks=[0.375, 1.125, 1.875, 2.625])
-        cbar2.ax.set_yticklabels([r'${\rm Void}$', r'${\rm Wall}$', r'${\rm Filament}$', r'${\rm Halo}$'])
-
-        plt.suptitle(r'${\rm Morphology\ Grid:\ ' + description.replace(' ', r'\ ').replace('(', r'(').replace(')', r')').replace('=', r'=').replace(',', r',') + r'}$')
-        plt.tight_layout()
-
-        output_path = output_dir / f"morphology_slices_{label}.png"
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
-        plt.close()
-
-        return output_path
-
-    return None
-
-
 def save_results(output_dir, label, orig_tags, tessera_tags, stats, benchmarks,
                  box_size, redshift, scale_factor, description):
     """Save comparison results to JSON (no HDF5 to keep repo size small)."""
@@ -511,11 +390,21 @@ def main():
 
         # Generate comparison images
         print("Generating images...")
-        img_path = create_comparison_image(SCRIPT_DIR, label, stats, tessera_result, f"{time_label} - {description}")
+        img_path = SCRIPT_DIR / f"origami_{label}.png"
+        create_origami_validation_figure(
+            stats, img_path,
+            title=f"ORIGAMI Validation: {time_label} - {description}",
+        )
         print(f"  Saved: {img_path.name}")
 
-        slice_path = create_morphology_slice_image(SCRIPT_DIR, label, tessera_result, grid_size, f"{time_label}")
-        if slice_path:
+        # Generate morphology slices if grid data available
+        if hasattr(tessera_result, 'morphology_grid') and len(tessera_result.morphology_grid) > 0:
+            morph_grid = np.array(tessera_result.morphology_grid)
+            slice_path = SCRIPT_DIR / f"morphology_slices_{label}.png"
+            plot_morphology_slices_3panel(
+                morph_grid, slice_path,
+                title=f"Morphology Grid: {time_label}",
+            )
             print(f"  Saved: {slice_path.name}")
 
         # Store for summary

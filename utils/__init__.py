@@ -4,6 +4,8 @@ Tessera utility functions for example scripts.
 This package provides shared functionality used across multiple example scripts,
 consolidating common patterns for snapshot loading, halo catalog handling,
 and density computation workflows.
+
+All functions use type hints compatible with Python 3.10+.
 """
 
 from .tessera_helpers import (

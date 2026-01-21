@@ -10,13 +10,22 @@ This module consolidates common functionality used across multiple scripts:
 
 Usage:
     from utils.tessera_helpers import load_snapshot, find_halo_catalog
+
+All functions use type hints compatible with Python 3.10+.
 """
+
+from __future__ import annotations
 
 import re
 import sys
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
+from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    from tessera.io import Gadget4Header, HaloCatalog
 
 # Try to import tessera module
 try:
@@ -38,7 +47,7 @@ except ImportError:
     HAS_H5PY = False
 
 
-def infer_snapshot_number(snapshot_path: Union[str, Path]) -> Optional[int]:
+def infer_snapshot_number(snapshot_path: str | Path) -> int | None:
     """
     Infer snapshot number from filename.
 
@@ -73,9 +82,9 @@ def infer_snapshot_number(snapshot_path: Union[str, Path]) -> Optional[int]:
 
 
 def find_halo_catalog(
-    snapshot_path: Union[str, Path],
-    snapshot_num: Optional[int] = None
-) -> Optional[Path]:
+    snapshot_path: str | Path,
+    snapshot_num: int | None = None,
+) -> Path | None:
     """
     Find the halo catalog file associated with a snapshot.
 
@@ -120,12 +129,12 @@ def find_halo_catalog(
 
 
 def load_snapshot(
-    path: Union[str, Path],
-    snapshot_num: Optional[int] = None,
+    path: str | Path,
+    snapshot_num: int | None = None,
     particle_type: int = 1,
     read_ids: bool = True,
-    read_velocities: bool = False
-) -> Tuple[np.ndarray, Optional[np.ndarray], "Gadget4Header"]:
+    read_velocities: bool = False,
+) -> tuple[NDArray[np.float64], NDArray[np.int64] | None, Gadget4Header]:
     """
     Load particle positions from a GADGET-4 snapshot.
 
@@ -198,10 +207,10 @@ def load_snapshot(
 
 
 def load_snapshot_h5py(
-    path: Union[str, Path],
+    path: str | Path,
     particle_type: int = 1,
-    read_ids: bool = True
-) -> Tuple[np.ndarray, Optional[np.ndarray], float, float]:
+    read_ids: bool = True,
+) -> tuple[NDArray[np.float64], NDArray[np.int64] | None, float, float]:
     """
     Load particle data directly using h5py (fallback when tessera unavailable).
 
@@ -238,7 +247,7 @@ def load_snapshot_h5py(
     return positions, particle_ids, box_size, scale_factor
 
 
-def load_halo_catalog(catalog_path: Union[str, Path]):
+def load_halo_catalog(catalog_path: str | Path) -> HaloCatalog:
     """
     Load GADGET-4 halo catalog using C++ reader.
 
@@ -259,11 +268,11 @@ def load_halo_catalog(catalog_path: Union[str, Path]):
 
 
 def sort_positions_lagrangian(
-    positions: np.ndarray,
-    particle_ids: np.ndarray,
-    grid_size: Optional[int] = None,
-    id_offset: int = 1
-) -> np.ndarray:
+    positions: NDArray[np.floating],
+    particle_ids: NDArray[np.integer],
+    grid_size: int | None = None,
+    id_offset: int = 1,
+) -> NDArray[np.float64]:
     """
     Sort particle positions to Lagrangian order.
 
@@ -383,12 +392,12 @@ def infer_grid_size(n_particles: int) -> int:
 
 
 def extract_2d_slice(
-    density_3d: np.ndarray,
+    density_3d: NDArray[np.floating],
     slice_axis: int,
     slice_min_idx: int,
     slice_max_idx: int,
-    cell_width: float
-) -> np.ndarray:
+    cell_width: float,
+) -> NDArray[np.floating]:
     """
     Extract and project a 2D slice from a 3D density field.
 
@@ -422,12 +431,12 @@ def extract_2d_slice(
 
 
 def save_density_hdf5(
-    filename: Union[str, Path],
-    density: np.ndarray,
-    header,
-    metadata: dict,
-    extent: Optional[Tuple[float, float, float, float]] = None
-):
+    filename: str | Path,
+    density: NDArray[np.floating],
+    header: Gadget4Header,
+    metadata: dict[str, Any],
+    extent: tuple[float, float, float, float] | None = None,
+) -> None:
     """
     Save a density field to an HDF5 file.
 
@@ -482,7 +491,7 @@ def save_density_hdf5(
 
 # Visualization helpers
 
-def get_axis_labels(projection_axis: str) -> Tuple[str, str]:
+def get_axis_labels(projection_axis: str) -> tuple[str, str]:
     """
     Get axis labels for a given projection axis.
 

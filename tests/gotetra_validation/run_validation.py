@@ -55,6 +55,9 @@ from utils import (
     check_tessera_available,
 )
 
+# Import visualization utilities
+from visualize import create_density_validation_figure
+
 # Import tessera
 try:
     import tessera as ts
@@ -209,99 +212,6 @@ def compare_density_fields(at_density, gotetra_density):
     }, at_norm, gt_norm, rel_diff
 
 
-def create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_diff,
-                             title, output_path, stats, extent=None, coord_label='cMpc/h'):
-    """Create a 2x3 comparison figure."""
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
-    from scipy import stats as scipy_stats
-
-    plt.rcParams['mathtext.fontset'] = 'stix'
-    plt.rcParams['font.family'] = 'STIXGeneral'
-
-    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
-
-    # Top row: Density comparison
-    vmin = np.log10(np.maximum(at_norm, 0.01).min())
-    vmax = np.log10(at_norm.max())
-
-    im1 = axes[0, 0].imshow(np.log10(np.maximum(at_norm, 0.01)), origin='lower',
-                            cmap='magma', vmin=vmin, vmax=vmax, extent=extent)
-    axes[0, 0].set_title(r'${\rm tessera}$')
-    divider1 = make_axes_locatable(axes[0, 0])
-    cax1 = divider1.append_axes("right", size="5%", pad=0.05)
-    plt.colorbar(im1, cax=cax1, label=r'$\log_{10}(1+\delta)$')
-
-    im2 = axes[0, 1].imshow(np.log10(np.maximum(gt_norm, 0.01)), origin='lower',
-                            cmap='magma', vmin=vmin, vmax=vmax, extent=extent)
-    axes[0, 1].set_title(r'${\rm Gotetra\ (Reference)}$')
-    divider2 = make_axes_locatable(axes[0, 1])
-    cax2 = divider2.append_axes("right", size="5%", pad=0.05)
-    plt.colorbar(im2, cax=cax2, label=r'$\log_{10}(1+\delta)$')
-
-    diff_abs_max = np.percentile(np.abs(rel_diff[np.isfinite(rel_diff)]), 99)
-    im3 = axes[0, 2].imshow(rel_diff, origin='lower', cmap='RdBu_r',
-                            vmin=-diff_abs_max, vmax=diff_abs_max, extent=extent)
-    axes[0, 2].set_title(r'${\rm Relative\ Difference}$')
-    divider3 = make_axes_locatable(axes[0, 2])
-    cax3 = divider3.append_axes("right", size="5%", pad=0.05)
-    plt.colorbar(im3, cax=cax3, label=r'${\rm (tessera - Gotetra) / Gotetra}$')
-
-    # Bottom row: Statistical comparisons
-    bins = np.logspace(-2, 4, 100)
-    at_flat = at_norm.flatten()
-    gt_flat = gt_norm.flatten()
-
-    axes[1, 0].hist(at_flat[at_flat > 0], bins=bins, alpha=0.7, label=r'${\rm tessera}$',
-                    color='#e74c3c', density=True)
-    axes[1, 0].hist(gt_flat[gt_flat > 0], bins=bins, alpha=0.7, label=r'${\rm Gotetra}$',
-                    color='#3498db', density=True)
-    axes[1, 0].set_xscale('log')
-    axes[1, 0].set_yscale('log')
-    axes[1, 0].set_xlabel(r'$1+\delta$')
-    axes[1, 0].set_ylabel(r'${\rm PDF}$')
-    axes[1, 0].set_title(r'${\rm Overdensity\ PDF}$')
-    axes[1, 0].legend()
-
-    n_sample = min(10000, len(at_flat))
-    idx = np.random.choice(len(at_flat), n_sample, replace=False)
-    axes[1, 1].scatter(gt_flat[idx], at_flat[idx], s=1, alpha=0.5, c='#2c3e50')
-    lims = [min(gt_flat[idx].min(), at_flat[idx].min()),
-            max(gt_flat[idx].max(), at_flat[idx].max())]
-    axes[1, 1].plot(lims, lims, 'r-', linewidth=2, label=r'$1:1$')
-    spearman_r, _ = scipy_stats.spearmanr(at_flat, gt_flat)
-    axes[1, 1].set_xscale('log')
-    axes[1, 1].set_yscale('log')
-    axes[1, 1].set_xlabel(r'${\rm Gotetra}\ (1+\delta)$')
-    axes[1, 1].set_ylabel(r'${\rm tessera}\ (1+\delta)$')
-    axes[1, 1].set_title(r'$r=' + f'{stats["correlation"]:.6f}$')
-    axes[1, 1].legend()
-
-    rel_diff_flat = rel_diff.flatten()
-    valid_diff = rel_diff_flat[np.isfinite(rel_diff_flat) & (gt_flat > 0)]
-    hist_min = np.percentile(valid_diff, 1)
-    hist_max = np.percentile(valid_diff, 99)
-    hist_range = (min(hist_min, -0.5), max(hist_max, 0.5))
-
-    axes[1, 2].hist(valid_diff, bins=100, range=hist_range, alpha=0.7, color='#27ae60', density=True)
-    axes[1, 2].axvline(x=0, color='r', linestyle='--', linewidth=2)
-    axes[1, 2].axvline(x=np.mean(valid_diff), color='blue', linestyle='-', linewidth=2,
-                       label=f'Mean: {np.mean(valid_diff):.4f}')
-    axes[1, 2].set_xlabel(r'${\rm Relative\ Difference}$')
-    axes[1, 2].set_ylabel(r'${\rm PDF}$')
-    axes[1, 2].set_title(f'Diff Distribution (σ={np.std(valid_diff):.4f})')
-    axes[1, 2].legend()
-
-    status = "PASS" if stats['passed'] else "FAIL"
-    plt.suptitle(f'{title}\nCorrelation: {stats["correlation"]:.6f} | {status}', fontsize=14)
-
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches='tight')
-    plt.close()
-
-
 def run_validation(config):
     """Run a single validation test with benchmarking."""
     name = config['name']
@@ -422,8 +332,12 @@ def run_validation(config):
     # Create comparison figure
     image_path = SCRIPT_DIR / f"{name}_comparison.png"
     print(f"\nGenerating comparison figure...")
-    create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_diff,
-                            description, image_path, stats, extent=extent)
+    create_density_validation_figure(
+        at_density, gotetra_density, image_path,
+        title=description,
+        correlation=stats['correlation'],
+        extent=tuple(extent) if extent else None,
+    )
     print(f"  Saved: {image_path.name}")
 
     # Prepare result with benchmarks

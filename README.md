@@ -54,7 +54,7 @@ The library also includes **ORIGAMI morphological classification** (Falck, Neyri
 
 - CMake 3.15+
 - C++17 compiler (GCC 8+, Clang 7+, MSVC 2019+)
-- Python 3.8+ with NumPy
+- Python 3.10+ with NumPy
 - HDF5 (optional, for GADGET-4 I/O)
 - pybind11 (fetched automatically)
 
@@ -341,6 +341,71 @@ The animation script supports callout annotations for labeling cosmic events—e
 - `critical_density()`: Critical density at redshift z
 - `average_density()`: Mean matter density
 
+## Python Modules
+
+### `visualize` - Visualization Utilities
+
+Reusable matplotlib-based visualization functions with Python 3.10+ type hints:
+
+```python
+from visualize import plot_density_slice, plot_morphology_slice, create_density_validation_figure
+```
+
+**Core utilities (`visualize.core`):**
+- `setup_matplotlib_backend()`: Configure matplotlib for non-interactive rendering
+- `setup_publication_style()`: Set rcParams for publication-quality figures
+- `add_colorbar()`: Add colorbar using make_axes_locatable pattern
+- `percentile_clim()`: Compute percentile-based color limits
+- `save_figure()`: Save figure with standard settings
+
+**Density visualization (`visualize.density`):**
+- `plot_density_slice()`: 2D density slice with log scaling and colorbar
+- `plot_density_comparison()`: Side-by-side density comparison panels
+
+**Morphology visualization (`visualize.morphology`):**
+- `MORPHOLOGY_COLORS`, `MORPHOLOGY_NAMES`: Standard colors/names for void/wall/filament/halo
+- `create_morphology_cmap()`: Discrete colormap for ORIGAMI classes
+- `plot_morphology_slice()`: 2D slice of morphology grid
+- `plot_morphology_slices_3panel()`: XY/XZ/YZ tri-panel morphology view
+- `plot_morphology_fractions_pie()`: Pie chart of mass/volume fractions
+- `plot_morphology_comparison_bar()`: Grouped bar chart comparing classifications
+
+**Validation figures (`visualize.comparison`):**
+- `create_density_validation_figure()`: 2x3 panel density comparison (maps + statistics)
+- `create_origami_validation_figure()`: 1x3 ORIGAMI validation (pies + bar chart)
+
+**PDF/histogram plotting (`visualize.pdf`):**
+- `plot_pdf_histogram()`: Single PDF with log scaling
+- `plot_pdf_comparison()`: Overlaid PDFs for comparison
+- `plot_pdf_with_fit()`: PDF with power-law fit in high-density tail
+
+### `utils` - Shared Utilities
+
+Helper functions for example and test scripts with Python 3.10+ type hints:
+
+```python
+from utils import load_snapshot, sort_positions_lagrangian, infer_grid_size
+```
+
+**Snapshot loading:**
+- `load_snapshot()`: Load GADGET-4 snapshot using tessera C++ reader
+- `load_snapshot_h5py()`: Fallback loader using h5py directly
+- `infer_snapshot_number()`: Extract snapshot number from filename
+
+**Halo catalogs:**
+- `find_halo_catalog()`: Find associated fof_subhalo_tab file
+- `load_halo_catalog()`: Load GADGET-4 halo catalog
+
+**Lagrangian sorting:**
+- `sort_positions_lagrangian()`: Sort particles to Lagrangian order
+- `infer_grid_size()`: Infer grid size from particle count
+
+**Density utilities:**
+- `extract_2d_slice()`: Extract 2D slice from 3D density field
+- `save_density_hdf5()`: Save density field to HDF5 with metadata
+- `compute_mean_density()`: Compute mean 3D density
+- `compute_mean_surface_density()`: Compute mean surface density for slice
+
 ## Algorithm
 
 The density computation follows the gotetra algorithm:
@@ -354,16 +419,29 @@ The ORIGAMI algorithm detects shell-crossing by checking for sign reversals in p
 
 ## Validation
 
-The library has been validated against the original gotetra implementation:
+### Density Field Validation
+
+The density computation has been validated against the original gotetra implementation:
 
 | Test Case | Correlation | Mean Relative Diff |
 |-----------|-------------|-------------------|
 | Full box (a=1) | 0.99999 | 0.35% |
 | Full box (a=100) | 0.99999 | 0.40% |
-| Halo subbox (a=1) | 0.99989 | 0.17% |
+| Halo subbox (a=1) | 0.99990 | 16.8% |
 | Halo subbox (a=100) | 0.99999 | 0.15% |
 
 See `tests/gotetra_validation/` for validation scripts and results.
+
+### ORIGAMI Validation
+
+The ORIGAMI morphology classification achieves 100% exact match with the original algorithm:
+
+| Snapshot | Match Rate | tessera Speedup |
+|----------|------------|-----------------|
+| a=1 (z=0) | 100.0000% | 1.18x |
+| a=100 (z=-0.99) | 100.0000% | 1.14x |
+
+See `tests/origami_validation/` for validation scripts and results.
 
 ## References
 
