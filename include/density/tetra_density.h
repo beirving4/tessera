@@ -166,9 +166,11 @@ TetraDensityResult2D compute_tetra_density_2d_projection(
 
 /**
  * Compute a 2D slice density field.
- * 
+ *
  * Extracts and projects a thin slice of the volume.
- * 
+ * NOTE: This allocates the full 3D field first, then extracts the slice.
+ * For memory-constrained situations, use compute_tetra_density_2d_direct().
+ *
  * @param positions Particle positions in Lagrangian order
  * @param config Computation configuration
  * @param projection_axis Axis perpendicular to slice (0=x, 1=y, 2=z)
@@ -179,6 +181,45 @@ TetraDensityResult2D compute_tetra_density_2d_projection(
  */
 TetraDensityResult2D compute_tetra_density_2d_slice(
     const double* positions,
+    const TetraDensityConfig& config,
+    int projection_axis,
+    double slice_min,
+    double slice_max,
+    const UnitTetraSamples* samples = nullptr
+);
+
+/**
+ * Compute a 2D slice density field directly (memory-efficient).
+ *
+ * This is a memory-optimized version that deposits samples directly to a 2D grid,
+ * skipping samples outside the slice bounds. It avoids allocating the full 3D grid,
+ * providing ~N times memory savings where N is the number of cells per dimension.
+ *
+ * For N=256: 3D requires ~128MB vs 2D requires ~0.5MB
+ * For N=512: 3D requires ~1GB vs 2D requires ~2MB
+ *
+ * @param positions Particle positions in Lagrangian order
+ * @param config Computation configuration
+ * @param projection_axis Axis perpendicular to slice (0=x, 1=y, 2=z)
+ * @param slice_min Start of slice along projection axis
+ * @param slice_max End of slice along projection axis
+ * @param samples Optional pre-generated samples
+ * @return TetraDensityResult2D containing the slice surface density
+ */
+TetraDensityResult2D compute_tetra_density_2d_direct(
+    const double* positions,
+    const TetraDensityConfig& config,
+    int projection_axis,
+    double slice_min,
+    double slice_max,
+    const UnitTetraSamples* samples = nullptr
+);
+
+/**
+ * Float input version of direct 2D slice computation.
+ */
+TetraDensityResult2D compute_tetra_density_2d_direct(
+    const float* positions,
     const TetraDensityConfig& config,
     int projection_axis,
     double slice_min,

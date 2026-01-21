@@ -748,5 +748,255 @@ TetraDensityResult2D compute_tetra_density_2d_slice(
     return result;
 }
 
+// =============================================================================
+// Memory-efficient direct 2D slice computation
+// =============================================================================
+
+/**
+ * Core direct 2D slice computation with OpenMP parallelization.
+ * Deposits samples directly to 2D grid, skipping those outside slice bounds.
+ */
+template<typename T>
+static TetraDensityResult2D compute_density_2d_direct_impl(
+    const T* positions,
+    const TetraDensityConfig& config,
+    int projection_axis,
+    double slice_min,
+    double slice_max,
+    const UnitTetraSamples* samples_ptr)
+{
+    int grid_size = config.lagrangian_grid_size;
+    int output_cells = config.gotetra_compatible ? config.output_cells + 1 : config.output_cells;
+    double box_size = config.box_size;
+    double particle_mass = config.particle_mass;
+    int n_samples = config.n_samples;
+
+    // Handle default slice_max
+    if (slice_max < 0) {
+        slice_max = slice_min + box_size * 0.1;
+    }
+
+    // Cell dimensions
+    double cell_width = box_size / output_cells;
+    double inv_cell_width = 1.0 / cell_width;
+
+    // Set up threading
+    int n_threads = config.n_threads;
+#ifdef _OPENMP
+    if (n_threads <= 0) {
+        n_threads = omp_get_max_threads();
+    }
+    omp_set_num_threads(n_threads);
+#else
+    n_threads = 1;
+#endif
+
+    // Generate or use provided samples
+    std::unique_ptr<UnitTetraSamples> local_samples;
+    const UnitTetraSamples* samples;
+    if (samples_ptr) {
+        samples = samples_ptr;
+    } else {
+        local_samples = std::make_unique<UnitTetraSamples>(64, n_samples, config.seed);
+        samples = local_samples.get();
+    }
+
+    // Generate tetrahedron indices
+    auto tetra_indices = generate_tetra_indices(grid_size, config.periodic);
+    int64_t n_tetra = static_cast<int64_t>(tetra_indices.size());
+
+    // Mass per sample
+    double mass_per_sample = particle_mass / static_cast<double>(n_samples) / 6.0;
+
+    // Output grid is 2D
+    int64_t cells_sq = static_cast<int64_t>(output_cells) * output_cells;
+
+    // Thread-local 2D density grids
+    std::vector<std::vector<double>> thread_grids(n_threads);
+    for (int t = 0; t < n_threads; ++t) {
+        thread_grids[t].resize(cells_sq, 0.0);
+    }
+
+    // Counter for tetrahedra and samples processed
+    std::atomic<int64_t> tetra_processed{0};
+    std::atomic<int64_t> samples_deposited{0};
+
+    // projection_axis: 0=x, 1=y, 2=z
+    // For z projection: use (x, y)
+    // For y projection: use (x, z)
+    // For x projection: use (y, z)
+
+    // Main parallel loop over tetrahedra
+    #pragma omp parallel
+    {
+#ifdef _OPENMP
+        int tid = omp_get_thread_num();
+#else
+        int tid = 0;
+#endif
+        double* local_density = thread_grids[tid].data();
+        int64_t local_tetra_count = 0;
+        int64_t local_samples_count = 0;
+
+        // Per-thread random buffer selection
+        std::mt19937 local_gen(config.seed + tid + 1);
+        std::uniform_int_distribution<int> buf_dist(0, samples->n_buffers() - 1);
+
+        double corners[4][3];
+
+        #pragma omp for schedule(dynamic, 256)
+        for (int64_t ti = 0; ti < n_tetra; ++ti) {
+            const auto& idx = tetra_indices[ti];
+
+            // Get and unwrap corner positions
+            unwrap_corners(positions, idx, box_size, corners);
+
+            // Quick bounding box check along projection axis
+            double tetra_min = corners[0][projection_axis];
+            double tetra_max = corners[0][projection_axis];
+            for (int c = 1; c < 4; ++c) {
+                tetra_min = std::min(tetra_min, corners[c][projection_axis]);
+                tetra_max = std::max(tetra_max, corners[c][projection_axis]);
+            }
+
+            // Skip tetrahedra that don't overlap the slice
+            // Handle wrapped coordinates
+            double tetra_min_wrapped = std::fmod(tetra_min, box_size);
+            double tetra_max_wrapped = std::fmod(tetra_max, box_size);
+            if (tetra_min_wrapped < 0) tetra_min_wrapped += box_size;
+            if (tetra_max_wrapped < 0) tetra_max_wrapped += box_size;
+
+            // Simple overlap check (conservative - may include some non-overlapping tetra)
+            bool potentially_overlaps = true;
+            if (tetra_max - tetra_min < box_size * 0.5) {
+                // Tetrahedron doesn't wrap around box
+                if (tetra_max_wrapped < slice_min && tetra_min_wrapped < slice_min) {
+                    potentially_overlaps = false;
+                }
+                if (tetra_min_wrapped > slice_max && tetra_max_wrapped > slice_max) {
+                    potentially_overlaps = false;
+                }
+            }
+
+            if (!potentially_overlaps) {
+                continue;
+            }
+
+            local_tetra_count++;
+
+            // Get sample buffer for this tetrahedron
+            int buf_idx = buf_dist(local_gen);
+            const auto& sample_buf = samples->get_buffer(buf_idx);
+
+            // Distribute samples and deposit onto 2D grid
+            for (int si = 0; si < n_samples; ++si) {
+                double px, py, pz;
+                barycentric_to_physical(corners, sample_buf[si], box_size, px, py, pz);
+
+                // Get position along projection axis
+                double p_proj;
+                if (projection_axis == 0) p_proj = px;
+                else if (projection_axis == 1) p_proj = py;
+                else p_proj = pz;
+
+                // Wrap to [0, box_size)
+                p_proj = std::fmod(p_proj, box_size);
+                if (p_proj < 0) p_proj += box_size;
+
+                // Check if within slice bounds
+                if (p_proj < slice_min || p_proj >= slice_max) {
+                    continue;
+                }
+
+                // Get the two coordinates for 2D output
+                double p_u, p_v;
+                if (projection_axis == 0) {
+                    p_u = py; p_v = pz;
+                } else if (projection_axis == 1) {
+                    p_u = px; p_v = pz;
+                } else {
+                    p_u = px; p_v = py;
+                }
+
+                // Wrap to [0, box_size)
+                p_u = std::fmod(p_u, box_size);
+                p_v = std::fmod(p_v, box_size);
+                if (p_u < 0) p_u += box_size;
+                if (p_v < 0) p_v += box_size;
+
+                // Convert to cell indices
+                int iu = static_cast<int>(p_u * inv_cell_width);
+                int iv = static_cast<int>(p_v * inv_cell_width);
+
+                // Clamp to valid range
+                iu = std::min(iu, output_cells - 1);
+                iv = std::min(iv, output_cells - 1);
+
+                // Deposit to 2D grid
+                int64_t cell_idx = iu + iv * output_cells;
+                local_density[cell_idx] += mass_per_sample;
+                local_samples_count++;
+            }
+        }
+
+        tetra_processed += local_tetra_count;
+        samples_deposited += local_samples_count;
+    }
+
+    // Reduce thread-local grids
+    std::vector<double> density(cells_sq, 0.0);
+    for (int t = 0; t < n_threads; ++t) {
+        for (int64_t i = 0; i < cells_sq; ++i) {
+            density[i] += thread_grids[t][i];
+        }
+    }
+
+    // Convert mass to surface density (mass per unit area)
+    double cell_area = cell_width * cell_width;
+    double inv_cell_area = 1.0 / cell_area;
+    for (int64_t i = 0; i < cells_sq; ++i) {
+        density[i] *= inv_cell_area;
+    }
+
+    // Compute mean surface density
+    double total_surface_mass = std::accumulate(density.begin(), density.end(), 0.0) * cell_area;
+    double mean_surface_density = total_surface_mass / cells_sq;
+
+    TetraDensityResult2D result;
+    result.density = std::move(density);
+    result.cells = output_cells;
+    result.cell_width = cell_width;
+    result.projection_axis = projection_axis;
+    result.slice_min = slice_min;
+    result.slice_max = slice_max;
+    result.mean_surface_density = mean_surface_density;
+
+    return result;
+}
+
+TetraDensityResult2D compute_tetra_density_2d_direct(
+    const double* positions,
+    const TetraDensityConfig& config,
+    int projection_axis,
+    double slice_min,
+    double slice_max,
+    const UnitTetraSamples* samples)
+{
+    return compute_density_2d_direct_impl(positions, config, projection_axis,
+                                          slice_min, slice_max, samples);
+}
+
+TetraDensityResult2D compute_tetra_density_2d_direct(
+    const float* positions,
+    const TetraDensityConfig& config,
+    int projection_axis,
+    double slice_min,
+    double slice_max,
+    const UnitTetraSamples* samples)
+{
+    return compute_density_2d_direct_impl(positions, config, projection_axis,
+                                          slice_min, slice_max, samples);
+}
+
 } // namespace density
 } // namespace tessera

@@ -344,6 +344,81 @@ void bind_tetra_density(py::module& m) {
             Result containing the slice surface density.
         )pbdoc");
     
+    // Memory-efficient direct 2D slice computation
+    m.def("compute_tetra_density_2d_direct",
+        [](py::array_t<double, py::array::c_style | py::array::forcecast> positions,
+           const TetraDensityConfig& config,
+           int projection_axis,
+           double slice_min,
+           double slice_max,
+           std::shared_ptr<UnitTetraSamples> samples) {
+            auto buf = positions.request();
+            if (buf.ndim != 2 || buf.shape[1] != 3) {
+                throw std::runtime_error("positions must have shape (N, 3)");
+            }
+            const double* data = static_cast<const double*>(buf.ptr);
+            return compute_tetra_density_2d_direct(data, config, projection_axis,
+                                                    slice_min, slice_max, samples.get());
+        },
+        py::arg("positions"),
+        py::arg("config"),
+        py::arg("projection_axis") = 2,
+        py::arg("slice_min") = 0.0,
+        py::arg("slice_max") = -1.0,
+        py::arg("samples") = nullptr,
+        R"pbdoc(
+        Compute a 2D slice density field directly (memory-efficient).
+
+        This is a memory-optimized version that deposits samples directly to a 2D grid,
+        skipping samples outside the slice bounds. It avoids allocating the full 3D grid,
+        providing ~N times memory savings where N is the number of cells per dimension.
+
+        Memory comparison (double precision):
+          - 3D with 256 cells: ~128 MB
+          - 2D with 256 cells: ~0.5 MB
+          - 3D with 512 cells: ~1 GB
+          - 2D with 512 cells: ~2 MB
+
+        Parameters
+        ----------
+        positions : ndarray, shape (N, 3)
+            Particle positions in Lagrangian order.
+        config : TetraDensityConfig
+            Computation configuration.
+        projection_axis : int
+            Axis perpendicular to slice (0=x, 1=y, 2=z). Default: 2 (z).
+        slice_min : float
+            Start of slice along projection axis.
+        slice_max : float
+            End of slice. If negative, defaults to slice_min + 10% of box.
+        samples : UnitTetraSamples, optional
+            Pre-generated samples.
+
+        Returns
+        -------
+        TetraDensityResult2D
+            Result containing the slice surface density.
+
+        Notes
+        -----
+        This function deposits Monte Carlo samples directly to a 2D grid,
+        filtering out samples that fall outside the slice bounds. This is
+        more memory-efficient than compute_tetra_density_2d_slice() which
+        allocates the full 3D grid first.
+
+        Examples
+        --------
+        >>> config = ts.density.TetraDensityConfig(256, 256, 100.0)
+        >>> result = ts.density.compute_tetra_density_2d_direct(
+        ...     positions, config,
+        ...     projection_axis=2,  # z-slice
+        ...     slice_min=45.0,
+        ...     slice_max=55.0
+        ... )
+        >>> print(result.density.shape)
+        (256, 256)
+        )pbdoc");
+
     // Sorting function
     m.def("sort_by_lagrangian_id",
         [](py::array_t<double, py::array::c_style | py::array::forcecast> positions,

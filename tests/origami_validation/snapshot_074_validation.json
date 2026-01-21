@@ -4,7 +4,17 @@
   "box_size": 256.0,
   "redshift": -0.99,
   "scale_factor": 100.0000000000001,
-  "created": "2026-01-12T21:39:30.743489",
+  "created": "2026-01-20T20:08:38.933828",
+  "benchmarks": {
+    "load_time_s": 82.69263562501874,
+    "convert_time_s": 131.99539445806295,
+    "original_origami_time_s": 84.92233316705097,
+    "tessera_time_s": 70.22151266608853,
+    "speedup": 1.2093492427436952,
+    "peak_memory_load_mb": 3647.989082336426,
+    "peak_memory_convert_mb": 384.00048446655273,
+    "peak_memory_tessera_mb": 0.00028324127197265625
+  },
   "total_particles": 16777216,
   "matches": 16777216,
   "match_rate": 1.0,
@@ -24,31 +34,31 @@
   "per_class": {
     "void": {
       "original_count": 3657236,
-      "asymptotic_count": 3657236,
+      "tessera_count": 3657236,
       "agreement": 3657236,
       "original_fraction": 0.2179882526397705,
-      "asymptotic_fraction": 0.2179882526397705
+      "tessera_fraction": 0.2179882526397705
     },
     "wall": {
       "original_count": 2909523,
-      "asymptotic_count": 2909523,
+      "tessera_count": 2909523,
       "agreement": 2909523,
       "original_fraction": 0.17342108488082886,
-      "asymptotic_fraction": 0.17342108488082886
+      "tessera_fraction": 0.17342108488082886
     },
     "filament": {
       "original_count": 3104441,
-      "asymptotic_count": 3104441,
+      "tessera_count": 3104441,
       "agreement": 3104441,
       "original_fraction": 0.18503910303115845,
-      "asymptotic_fraction": 0.18503910303115845
+      "tessera_fraction": 0.18503910303115845
     },
     "halo": {
       "original_count": 7106016,
-      "asymptotic_count": 7106016,
+      "tessera_count": 7106016,
       "agreement": 7106016,
       "original_fraction": 0.4235515594482422,
-      "asymptotic_fraction": 0.4235515594482422
+      "tessera_fraction": 0.4235515594482422
     }
   }
 }

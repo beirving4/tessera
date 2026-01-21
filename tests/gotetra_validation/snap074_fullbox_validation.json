@@ -1,5 +1,5 @@
 {
-  "created": "2026-01-12T21:32:59.924557",
+  "created": "2026-01-20T19:52:39.107162",
   "name": "snap074_fullbox",
   "description": "Full Box (a=100, z=-0.99)",
   "snapshot": "snapshot_074",
@@ -7,12 +7,21 @@
   "scale_factor": 100.0000000000001,
   "box_size": 256.0,
   "output_cells": 256,
-  "correlation": 0.9999985428253605,
-  "mean_relative_difference": 0.003967884188539695,
-  "max_relative_difference": 0.02908784029284655,
-  "ts_density_range": [
-    48.58000000000004,
-    41662.45333977804
+  "benchmarks": {
+    "load_time_s": 81.50194295798428,
+    "sort_time_s": 0.20945062499959022,
+    "compute_time_s": 46.51373424998019,
+    "total_time_s": 128.22512783296406,
+    "peak_memory_load_mb": 3647.9892959594727,
+    "peak_memory_sort_mb": 384.0003547668457,
+    "peak_memory_compute_mb": 0.5003786087036133
+  },
+  "correlation": 0.9999986030685755,
+  "mean_relative_difference": 0.003941096506648951,
+  "max_relative_difference": 0.030935194670767392,
+  "at_density_range": [
+    49.08666666666669,
+    41660.77667310983
   ],
   "gotetra_density_range": [
     0.19168612360954285,

@@ -209,9 +209,7 @@ class MergerTree:
             mask = (snap_nums == snap_num) & (subhalo_nrs == subhalo_nr)
             matches = np.where(mask)[0]
 
-        if len(matches) == 0:
-            return None
-        return int(matches[0])
+        return None if len(matches) == 0 else int(matches[0])
 
     def get_scale_factor(self, snap_num: int) -> float:
         """Get scale factor for a snapshot number."""

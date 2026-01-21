@@ -17,157 +17,33 @@ Usage:
 Reference: gotetra (https://github.com/phil-mansfield/gotetra)
 """
 
-
 import contextlib
 import numpy as np
 import h5py
 import argparse
 import sys
-import re
 from pathlib import Path
 
-# Try to find the tessera module
-_script_dir = Path(__file__).parent.resolve()
-_repo_root = _script_dir.parent
-_build_dir = _repo_root / 'build'
-if _build_dir.exists():
-    sys.path.insert(0, str(_build_dir))
+# Add parent directory to path to import utils
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Try to import C++ module
+# Import shared utilities
+from utils import (
+    load_snapshot,
+    find_halo_catalog,
+    load_halo_catalog,
+    infer_snapshot_number,
+    sort_positions_lagrangian,
+    infer_grid_size,
+    compute_mean_density,
+    check_tessera_available,
+)
+
+# Import tessera
 try:
-    import _tessera as ts
-    HAS_CPP = True
+    import tessera as ts
 except ImportError:
-    try:
-        import tessera as ts
-        HAS_CPP = hasattr(at, 'density')
-    except ImportError:
-        HAS_CPP = False
-        at = None
-
-
-def infer_snapshot_number(snapshot_path):
-    """
-    Infer snapshot number from filename.
-    
-    Handles patterns like:
-      - snapshot_034.hdf5 -> 34
-      - snapshot_ics_000.hdf5 -> -1 (ICs)
-      - snapshot_074.0.hdf5 -> 74
-    """
-    path = Path(snapshot_path)
-    name = path.stem
-    
-    # Check for ICs
-    if 'ics' in name.lower():
-        return -1
-    
-    # Try to extract number from snapshot_XXX pattern
-    match = re.search(r'snapshot[_-]?(\d+)', name)
-    if match:
-        return int(match.group(1))
-    
-    return None
-
-
-def find_halo_catalog(snapshot_path, snapshot_num=None):
-    """
-    Find the halo catalog file associated with a snapshot.
-    
-    Parameters
-    ----------
-    snapshot_path : str or Path
-        Path to the snapshot file
-    snapshot_num : int, optional
-        Snapshot number (auto-detected if None)
-    
-    Returns
-    -------
-    catalog_path : Path or None
-        Path to halo catalog file, or None if not found
-    """
-    path = Path(snapshot_path)
-    directory = path.parent
-    
-    if snapshot_num is None:
-        snapshot_num = infer_snapshot_number(snapshot_path)
-    
-    if snapshot_num is None or snapshot_num < 0:
-        # Can't find catalog for ICs or unknown snapshot
-        return None
-    
-    # Look for fof_subhalo_tab_XXX.hdf5
-    catalog_name = f"fof_subhalo_tab_{snapshot_num:03d}.hdf5"
-    catalog_path = directory / catalog_name
-    
-    if catalog_path.exists():
-        return catalog_path
-    
-    # Also try without leading zeros
-    catalog_name = f"fof_subhalo_tab_{snapshot_num}.hdf5"
-    catalog_path = directory / catalog_name
-    
-    if catalog_path.exists():
-        return catalog_path
-    
-    return None
-
-
-def load_snapshot(path, snapshot_num=None, particle_type=1, read_ids=True):
-    """Load particle positions from a GADGET-4 snapshot."""
-    try:
-        import _tessera
-        io = _tessera.io
-    except ImportError:
-        try:
-            import tessera as _ts
-            io = _ts.io
-        except (ImportError, AttributeError):
-            raise ImportError(
-                "Could not import tessera. Make sure the build directory "
-                "is in your PYTHONPATH or the package is installed."
-            )
-    
-    particle_types = 1 << particle_type
-    
-    if snapshot_num is not None:
-        snap = io.read_gadget4_snapshot(
-            path, 
-            snapshot_num=snapshot_num,
-            particle_types=particle_types,
-            read_velocities=False,
-            read_ids=read_ids
-        )
-    else:
-        snap = io.read_gadget4_snapshot(
-            path,
-            particle_types=particle_types,
-            read_velocities=False,
-            read_ids=read_ids
-        )
-    
-    coords = snap.particles[particle_type].coordinates
-    positions = np.array(coords, dtype=np.float64)
-    
-    particle_ids = None
-    if read_ids:
-        ids = snap.particles[particle_type].particle_ids
-        particle_ids = np.array(ids, dtype=np.int64)
-    
-    return positions, particle_ids, snap.header
-
-
-def load_halo_catalog(catalog_path):
-    """Load GADGET-4 halo catalog using C++ reader."""
-    try:
-        import _tessera
-        io = _tessera.io
-    except ImportError:
-        import tessera as _ts
-        io = _ts.io
-    
-    catalog = io.read_gadget4_halo_catalog(str(catalog_path))
-    return catalog
+    import _tessera as ts
 
 
 def compute_3d_density(positions, particle_ids, box_size, grid_resolution=256,
@@ -175,7 +51,7 @@ def compute_3d_density(positions, particle_ids, box_size, grid_resolution=256,
                        subbox_origin=None, subbox_width=None):
     """
     Compute 3D density field using phase-space tessellation.
-    
+
     Parameters
     ----------
     positions : ndarray
@@ -196,7 +72,7 @@ def compute_3d_density(positions, particle_ids, box_size, grid_resolution=256,
         If provided, render only a sub-region starting at (x, y, z)
     subbox_width : float or tuple, optional
         Width of sub-region (single value for cube, or tuple for different dimensions)
-    
+
     Returns
     -------
     density_3d : ndarray, shape (grid_resolution, grid_resolution, grid_resolution)
@@ -206,33 +82,25 @@ def compute_3d_density(positions, particle_ids, box_size, grid_resolution=256,
     n_tetrahedra : int
         Number of tetrahedra processed
     """
-    if not HAS_CPP:
+    if not check_tessera_available():
         raise ImportError("C++ tessellation module not available.")
-    
+
     # Infer Lagrangian grid size
-    n_particles = len(positions)
-    grid_size = int(round(n_particles ** (1/3)))
-    if grid_size ** 3 != n_particles:
-        raise ValueError(
-            f"Particle count {n_particles} is not a perfect cube. "
-            f"Tessellation requires N^3 particles."
-        )
-    
+    grid_size = infer_grid_size(len(positions))
+
     # Sort particles by Lagrangian ID
     print("Sorting particles by Lagrangian ID...")
-    sorted_positions = at.density.sort_by_lagrangian_id(
-        positions, particle_ids, grid_size, id_offset=1
-    )
-    
+    sorted_positions = sort_positions_lagrangian(positions, particle_ids, grid_size)
+
     # Create config
-    config = at.density.TetraDensityConfig()
+    config = ts.density.TetraDensityConfig()
     config.box_size = box_size
     config.lagrangian_grid_size = grid_size
     config.output_cells = grid_resolution
     config.n_samples = n_samples
     config.particle_mass = mass_per_particle
     config.n_threads = n_threads
-    
+
     # Configure sub-box if requested
     if subbox_origin is not None and subbox_width is not None:
         config.subbox_enabled = True
@@ -246,164 +114,57 @@ def compute_3d_density(positions, particle_ids, box_size, grid_resolution=256,
     else:
         render_width = box_size
         print(f"Computing full-box density field ({grid_resolution}^3)...")
-    
+
     # Compute 3D density
-    result = at.density.compute_tetra_density_3d(sorted_positions, config)
+    result = ts.density.compute_tetra_density_3d(sorted_positions, config)
     # C++ uses idx = x + y*N + z*N*N (x varies fastest)
     # With NumPy C-order reshape, this gives density[z, y, x]
     density_3d = np.array(result.density).reshape(
         (grid_resolution, grid_resolution, grid_resolution)
     )
-    
+
     print(f"  Tetrahedra processed: {result.n_tetrahedra:,}")
-    
+
     cell_width = render_width / grid_resolution
     return density_3d, cell_width, result.n_tetrahedra
 
 
-def extract_halo_region(density_3d, cell_width, box_size, halo_pos, extraction_radius):
-    """
-    Extract a cubic region around a halo from the 3D density field.
-
-    Parameters
-    ----------
-    density_3d : ndarray
-        Full 3D density field (ordered as [z, y, x])
-    cell_width : float
-        Width of each cell
-    box_size : float
-        Simulation box size
-    halo_pos : array-like
-        Halo center position [x, y, z]
-    extraction_radius : float
-        Half-width of the extraction cube
-
-    Returns
-    -------
-    sub_density : ndarray
-        Extracted density sub-cube (ordered as [z, y, x])
-    sub_extent : dict
-        Spatial extent of the sub-cube for each plane
-    halo_local_pos : ndarray
-        Halo position in local coordinates of the sub-cube
-    """
-    grid_resolution = density_3d.shape[0]
-    halo_pos = np.array(halo_pos)
-
-    # Calculate cell indices for extraction bounds
-    half_cells = int(np.ceil(extraction_radius / cell_width))
-
-    # Center cell indices [x, y, z]
-    center_idx = (halo_pos / cell_width).astype(int)
-    center_idx = np.clip(center_idx, 0, grid_resolution - 1)
-
-    # Extraction bounds (handle periodic wrapping) - still in [x, y, z] order
-    idx_min = center_idx - half_cells
-    idx_max = center_idx + half_cells
-
-    # Determine if we need to handle periodic boundaries
-    needs_wrapping = np.any(idx_min < 0) or np.any(idx_max >= grid_resolution)
-
-    if needs_wrapping:
-        # Extract with periodic wrapping
-        # Note: density_3d is [z, y, x], so reorder indices when accessing
-        sub_size = 2 * half_cells
-        sub_density = np.zeros((sub_size, sub_size, sub_size), dtype=density_3d.dtype)
-
-        for iz, gz in enumerate(range(idx_min[2], idx_max[2])):  # z (first axis in [z,y,x])
-            for iy, gy in enumerate(range(idx_min[1], idx_max[1])):  # y (middle axis)
-                for ix, gx in enumerate(range(idx_min[0], idx_max[0])):  # x (last axis)
-                    sub_density[iz, iy, ix] = density_3d[
-                        gz % grid_resolution,
-                        gy % grid_resolution,
-                        gx % grid_resolution
-                    ]
-    else:
-        # Direct slicing - reorder from [x,y,z] index bounds to [z,y,x] array order
-        sub_density = density_3d[
-            idx_min[2]:idx_max[2],  # z slice (first axis)
-            idx_min[1]:idx_max[1],  # y slice (middle axis)
-            idx_min[0]:idx_max[0]   # x slice (last axis)
-        ].copy()
-    
-    # Compute spatial extent of sub-cube
-    actual_half_size = half_cells * cell_width
-    sub_extent = {
-        'xy': (-actual_half_size, actual_half_size, -actual_half_size, actual_half_size),
-        'xz': (-actual_half_size, actual_half_size, -actual_half_size, actual_half_size),
-        'yz': (-actual_half_size, actual_half_size, -actual_half_size, actual_half_size),
-    }
-    
-    # Halo is at center of local coordinates
-    halo_local_pos = np.zeros(3)
-    
-    return sub_density, sub_extent, halo_local_pos
-
-
-def save_halo_density_hdf5(filename, sub_density, full_density_3d, header, 
+def save_halo_density_hdf5(filename, sub_density, full_density_3d, header,
                            halo_info, extraction_info, cell_width):
-    """
-    Save the extracted halo density field to HDF5.
-    
-    Parameters
-    ----------
-    filename : str
-        Output filename
-    sub_density : ndarray
-        Extracted density sub-cube around halo
-    full_density_3d : ndarray or None
-        Full 3D density field (optional, for reference)
-    header : Gadget4Header
-        Snapshot header
-    halo_info : dict
-        Information about the selected halo
-    extraction_info : dict
-        Information about the extraction region
-    cell_width : float
-        Width of each cell
-    """
+    """Save the extracted halo density field to HDF5."""
     with h5py.File(filename, 'w') as f:
-        # Store the extracted density field
         dset = f.create_dataset('halo_density', data=sub_density, compression='gzip')
         dset.attrs['units'] = 'mass / volume (code units)'
         dset.attrs['cell_width'] = cell_width
-        
-        # Optionally store full density (can be large!)
+
         if full_density_3d is not None:
             f.create_dataset('full_density', data=full_density_3d, compression='gzip')
-        
-        # Store header/cosmology info
+
         hdr = f.create_group('Header')
         hdr.attrs['BoxSize'] = header.box_size
         hdr.attrs['Redshift'] = header.redshift
         hdr.attrs['Time'] = header.time
         hdr.attrs['NumPartTotal'] = list(header.num_part_total)
         hdr.attrs['MassTable'] = list(header.mass_table)
-        
-        # Store halo info
+
         halo = f.create_group('Halo')
         for key, val in halo_info.items():
             if isinstance(val, np.ndarray):
                 halo.create_dataset(key, data=val)
             else:
                 halo.attrs[key] = val
-        
-        # Store extraction info
+
         ext = f.create_group('Extraction')
         for key, val in extraction_info.items():
             ext.attrs[key] = val
-    
+
     print(f"Saved halo density field to {filename}")
 
 
 def plot_halo_density(sub_density, halo_info, extraction_info, header,
                       output_file=None, cmap='mako', log_scale=True,
                       vmin=None, vmax=None, overdensity=True):
-    """
-    Create tri-panel visualization of density slices through halo center.
-    
-    Shows XY, XZ, and YZ slices through the halo center with R200c circle overlay.
-    """
+    """Create tri-panel visualization of density slices through halo center."""
     try:
         import matplotlib.pyplot as plt
         from matplotlib.colors import LogNorm
@@ -416,25 +177,18 @@ def plot_halo_density(sub_density, halo_info, extraction_info, header,
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 5), dpi=150)
 
-    # Get central slices
     center_idx = sub_density.shape[0] // 2
 
     # XY slice (z=0), XZ slice (y=0), YZ slice (x=0)
-    # Note: density array is [z, y, x] (x varies fastest in flat indexing)
     slices = {
-        'XY': sub_density[center_idx, :, :],  # z=const plane, shape [y, x]
-        'XZ': sub_density[:, center_idx, :],  # y=const plane, shape [z, x]
-        'YZ': sub_density[:, :, center_idx],  # x=const plane, shape [z, y]
+        'XY': sub_density[center_idx, :, :],
+        'XZ': sub_density[:, center_idx, :],
+        'YZ': sub_density[:, :, center_idx],
     }
 
-    # Compute mean density for overdensity scaling
     mean_density = extraction_info.get('mean_3d_density', 1.0)
-
-    # R200c in local coordinates
     r200c = halo_info.get('r_crit200', 0)
     extraction_radius = extraction_info['extraction_radius']
-
-    # Extent for plotting (centered on halo)
     extent = (-extraction_radius, extraction_radius, -extraction_radius, extraction_radius)
 
     axis_labels = {
@@ -454,7 +208,6 @@ def plot_halo_density(sub_density, halo_info, extraction_info, header,
             label = r'$\rho$ (code units)'
 
         if log_scale:
-            # Avoid log(0)
             plot_data = np.maximum(plot_data, plot_data[plot_data > 0].min() * 0.1)
             vmin_val = vmin if vmin is not None else np.percentile(plot_data[plot_data > 0], 1)
             vmax_val = vmax if vmax is not None else np.percentile(plot_data, 99.9)
@@ -474,12 +227,10 @@ def plot_halo_density(sub_density, halo_info, extraction_info, header,
             interpolation='nearest'
         )
 
-        # Mark halo center
         ax.plot(0, 0, 'w+', markersize=15, markeredgewidth=2)
 
-        # Draw R200c circle
         if r200c > 0:
-            circle = Circle((0, 0), r200c, fill=False, color='white', 
+            circle = Circle((0, 0), r200c, fill=False, color='white',
                            linestyle='--', linewidth=1.5, label=f'R200c = {r200c:.2f}')
             ax.add_patch(circle)
 
@@ -487,18 +238,16 @@ def plot_halo_density(sub_density, halo_info, extraction_info, header,
         ax.set_ylabel(f'{axis_labels[plane_name][1]} (code units)', fontsize=10)
         ax.set_title(f'{plane_name} Plane', fontsize=12)
 
-        # Colorbar
         cbar = plt.colorbar(im, ax=ax, shrink=0.8)
         cbar.set_label(label, fontsize=9)
 
-    # Overall title
     halo_idx = halo_info.get('index', '?')
     halo_mass = halo_info.get('mass', 0)
     mass_str = f"{halo_mass:.2e}" if halo_mass > 0 else "N/A"
 
     fig.suptitle(
         f"Halo {halo_idx} Density Field | z = {header.redshift:.3f} | "
-        f"M = {mass_str} (10¹⁰ M☉/h)",
+        f"M = {mass_str} (10^10 M_sun/h)",
         fontsize=14, y=1.02
     )
 
@@ -532,9 +281,8 @@ Examples:
   python halo_density.py snapshot_034.hdf5 -o halo.h5 --catalog fof_subhalo_tab_034.hdf5
         """
     )
-    
-    parser.add_argument('snapshot', type=str,
-                        help='Path to snapshot file')
+
+    parser.add_argument('snapshot', type=str, help='Path to snapshot file')
     parser.add_argument('-o', '--output', type=str, required=True,
                         help='Output HDF5 filename for extracted density')
     parser.add_argument('--catalog', type=str, default=None,
@@ -567,13 +315,13 @@ Examples:
                         help='Maximum value for colorbar')
     parser.add_argument('--save-full', action='store_true',
                         help='Also save full 3D density field (can be large)')
-    
+
     args = parser.parse_args()
-    
-    if not HAS_CPP:
+
+    if not check_tessera_available():
         print("Error: C++ module not available. Cannot compute tessellation.")
         sys.exit(1)
-    
+
     # Find halo catalog
     catalog_path = args.catalog
     if catalog_path is None:
@@ -587,7 +335,7 @@ Examples:
         if not catalog_path.exists():
             print(f"Error: Halo catalog not found: {catalog_path}")
             sys.exit(1)
-    
+
     # Load halo catalog
     print(f"\nLoading halo catalog...")
     catalog = load_halo_catalog(catalog_path)
@@ -596,47 +344,42 @@ Examples:
     print(f"  Groups: {n_groups:,}")
     print(f"  Subhalos: {n_subhalos:,}")
     print(f"  Redshift: {catalog.header.redshift:.4f}")
-    
+
     if n_groups == 0:
         print("Error: No halos found in catalog.")
         sys.exit(1)
-    
+
     # Sort groups by mass to find most massive
     groups = catalog.groups
     group_masses = np.array([g.mass for g in groups])
-    sorted_indices = np.argsort(group_masses)[::-1]  # Descending
-    
+    sorted_indices = np.argsort(group_masses)[::-1]
+
     if args.halo_index >= n_groups:
         print(f"Error: Halo index {args.halo_index} out of range (0-{n_groups-1})")
         sys.exit(1)
-    
+
     # Select halo
     selected_idx = sorted_indices[args.halo_index]
     halo = groups[selected_idx]
-    
-    # Check if R_Crit200 needs unit conversion (GADGET-4 sometimes stores as box fraction)
-    # We detect this by comparing R_Crit200 to R_Mean200
+
+    # Check if R_Crit200 needs unit conversion
     r_crit200 = halo.r_crit200
     r_mean200 = halo.r_mean200
-    
-    # If R_Crit200 is stored as box fraction (typical range 0-0.05 for massive halos)
-    # and R_Mean200 is in physical units (typical range 0.5-5 Mpc/h), convert
+
     if r_crit200 > 0 and r_mean200 > 0:
         if r_crit200 < 0.1 and r_mean200 > 0.5:
-            # R_Crit200 appears to be in box fraction, convert to physical units
             r_crit200_physical = r_crit200 * catalog.header.box_size
             print(f"Note: R_Crit200 appears to be in box fraction, converting to physical units")
         else:
             r_crit200_physical = r_crit200
     elif r_crit200 > 0:
-        # No R_Mean200 for comparison - assume R_Crit200 is in box fraction if < 0.1
         if r_crit200 < 0.1:
             r_crit200_physical = r_crit200 * catalog.header.box_size
         else:
             r_crit200_physical = r_crit200
     else:
         r_crit200_physical = 0
-    
+
     print(f"\nSelected halo (rank {args.halo_index} by mass):")
     print(f"  Catalog index: {selected_idx}")
     print(f"  Position: ({halo.pos[0]:.2f}, {halo.pos[1]:.2f}, {halo.pos[2]:.2f})")
@@ -646,7 +389,7 @@ Examples:
     print(f"  R200c (physical): {r_crit200_physical:.4f} Mpc/h")
     print(f"  R200m: {r_mean200:.4f} Mpc/h")
     print(f"  N_particles: {halo.len:,}")
-    
+
     # Load snapshot
     print(f"\nLoading snapshot from {args.snapshot}...")
     positions, particle_ids, header = load_snapshot(
@@ -654,27 +397,24 @@ Examples:
         particle_type=args.particle_type,
         read_ids=True
     )
-    
+
     box_size = header.box_size
     print(f"  Box size: {box_size}")
     print(f"  Redshift: {header.redshift:.4f}")
     print(f"  Loaded {len(positions):,} particles")
-    
-    # Get particle mass
+
     mass_per_particle = header.mass_table[args.particle_type]
     if mass_per_particle == 0:
         mass_per_particle = 1.0
-    
+
     # Determine extraction radius
-    # Use R_Mean200 if requested, otherwise use R_Crit200 (with unit conversion)
     if args.use_r_mean:
         r200 = r_mean200
         r200_label = "R200m"
     else:
         r200 = r_crit200_physical
         r200_label = "R200c"
-    
-    # Fixed radius overrides the R200-based calculation
+
     if args.fixed_radius is not None:
         extraction_radius = args.fixed_radius
         print(f"\nExtraction region (fixed):")
@@ -685,26 +425,26 @@ Examples:
         print(f"\nExtraction region:")
         print(f"  {r200_label}: {r200:.4f} Mpc/h")
         print(f"  Extraction radius: {extraction_radius:.4f} ({args.radius_factor}x {r200_label})")
-    
-    # Compute sub-box origin (centered on halo)
+
+    # Compute sub-box origin
     halo_pos = np.array(halo.pos)
     subbox_width = 2 * extraction_radius
     subbox_origin = halo_pos - extraction_radius
-    
-    # Handle periodic wrapping of origin
+
+    # Handle periodic wrapping
     for i in range(3):
         if subbox_origin[i] < 0:
             subbox_origin[i] += box_size
         elif subbox_origin[i] >= box_size:
             subbox_origin[i] -= box_size
-    
-    # Compute density field directly for sub-region (high resolution!)
+
+    # Compute density field
     print(f"\nComputing sub-box density field...")
     print(f"  Sub-box origin: ({subbox_origin[0]:.2f}, {subbox_origin[1]:.2f}, {subbox_origin[2]:.2f})")
     print(f"  Sub-box width: {subbox_width:.2f} Mpc/h")
     print(f"  Grid resolution: {args.resolution}^3")
     print(f"  Cell width: {subbox_width / args.resolution:.4f} Mpc/h")
-    
+
     sub_density, cell_width, n_tetra = compute_3d_density(
         positions, particle_ids, box_size,
         grid_resolution=args.resolution,
@@ -714,13 +454,13 @@ Examples:
         subbox_origin=subbox_origin,
         subbox_width=subbox_width
     )
-    
+
     print(f"\nDensity field statistics:")
     print(f"  Shape: {sub_density.shape}")
     print(f"  Min: {sub_density.min():.6e}")
     print(f"  Max: {sub_density.max():.6e}")
     print(f"  Mean: {sub_density.mean():.6e}")
-    
+
     # Prepare info dicts
     halo_info = {
         'index': int(selected_idx),
@@ -733,10 +473,9 @@ Examples:
         'r_mean200': r_mean200,
         'n_particles': halo.len,
     }
-    
-    total_mass = len(positions) * mass_per_particle
-    mean_3d_density = total_mass / (box_size ** 3)
-    
+
+    mean_3d_density = compute_mean_density(len(positions), mass_per_particle, box_size)
+
     extraction_info = {
         'extraction_radius': extraction_radius,
         'radius_factor': args.radius_factor,
@@ -748,13 +487,13 @@ Examples:
         'subbox_width': subbox_width,
         'n_tetrahedra': n_tetra,
     }
-    
+
     # Save to HDF5
     save_halo_density_hdf5(
         args.output, sub_density, None, header,
         halo_info, extraction_info, cell_width
     )
-    
+
     # Optional visualization
     if args.plot:
         print(f"\nGenerating visualization...")
@@ -766,7 +505,7 @@ Examples:
             vmax=args.vmax,
             overdensity=True
         )
-    
+
     print("\nDone!")
 
 

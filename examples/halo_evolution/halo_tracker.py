@@ -93,9 +93,7 @@ class HaloTracker:
 
     def _relative_to_absolute(self, relative_idx: int, tree_start: int) -> int:
         """Convert relative tree index to absolute TreeHalos index."""
-        if relative_idx == -1:
-            return -1
-        return tree_start + relative_idx
+        return -1 if relative_idx == -1 else tree_start + relative_idx
 
     def _make_halo_info(self, tree_index: int) -> HaloInfo:
         """Create HaloInfo from TreeHalos index."""
@@ -153,9 +151,6 @@ class HaloTracker:
             return []
 
         halos = self.tree.tree_halos
-        main_prog = halos['TreeMainProgenitor']
-        descendant = halos['TreeDescendant']
-
         # Get tree start offset for converting relative indices
         tree_start = self._get_tree_start(start_idx)
 
@@ -164,6 +159,7 @@ class HaloTracker:
         # Trace backward (progenitors)
         if backward:
             current = start_idx
+            main_prog = halos['TreeMainProgenitor']
             while True:
                 # TreeMainProgenitor stores relative indices within the tree
                 prog_rel = main_prog[current]
@@ -184,6 +180,8 @@ class HaloTracker:
         # Trace forward (descendants)
         if forward:
             current = start_idx
+            descendant = halos['TreeDescendant']
+
             while True:
                 # TreeDescendant stores relative indices within the tree
                 desc_rel = descendant[current]
@@ -327,10 +325,7 @@ class HaloTracker:
         snap_num: int,
     ) -> Optional[HaloInfo]:
         """Get halo info from branch at specific snapshot."""
-        for halo in branch:
-            if halo.snap_num == snap_num:
-                return halo
-        return None
+        return next((halo for halo in branch if halo.snap_num == snap_num), None)
 
     def get_halo_at_scale_factor(
         self,

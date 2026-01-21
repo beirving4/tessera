@@ -26,22 +26,28 @@ import numpy as np
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 os.environ['OMP_NUM_THREADS'] = '1'
 
-# Try to find the tessera module
-_script_dir = Path(__file__).parent.resolve()
-_repo_root = _script_dir.parent
-_build_dir = _repo_root / 'build'
-if _build_dir.exists():
-    sys.path.insert(0, str(_build_dir))
+# Add parent directory to path to import utils
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Import shared utilities
+from utils import (
+    load_snapshot_h5py,
+    infer_grid_size,
+    check_tessera_available,
+    check_h5py_available,
+)
+
+# Import tessera
 try:
-    import _tessera as ts
+    import tessera as ts
 except ImportError:
     try:
-        import tessera as ts
+        import _tessera as ts
     except ImportError:
         print("Error: tessera not found. Build the project first.")
         sys.exit(1)
 
+# Try h5py for loading pre-computed results
 try:
     import h5py
     HAS_H5PY = True
@@ -74,7 +80,8 @@ def create_morphology_cmap():
 
 def load_snapshot(snapshot_path, particle_type=1):
     """Load particle data from a GADGET-4 HDF5 snapshot."""
-    if not HAS_H5PY:
+    # Try using tessera's C++ reader first
+    if check_tessera_available():
         snapshot = ts.io.read_gadget4_snapshot(
             str(snapshot_path),
             particle_types=(1 << particle_type),
@@ -88,20 +95,16 @@ def load_snapshot(snapshot_path, particle_type=1):
         scale_factor = snapshot.header.time
         return positions, particle_ids, box_size, scale_factor
 
-    with h5py.File(snapshot_path, 'r') as f:
-        part_key = f'PartType{particle_type}'
-        positions = np.ascontiguousarray(f[f'{part_key}/Coordinates'][:], dtype=np.float64)
-        particle_ids = np.ascontiguousarray(f[f'{part_key}/ParticleIDs'][:], dtype=np.int64)
-        box_size = float(f['Header'].attrs['BoxSize'])
-        scale_factor = float(f['Header'].attrs['Time'])
+    # Fallback to h5py
+    if check_h5py_available():
+        return load_snapshot_h5py(snapshot_path, particle_type, read_ids=True)
 
-    return positions, particle_ids, box_size, scale_factor
+    raise ImportError("Neither tessera nor h5py available for loading snapshot")
 
 
 def compute_origami_with_grid(positions, particle_ids, box_size, grid_cells=128):
     """Compute ORIGAMI morphology and deposit to grid using unified pipeline."""
-    n_particles = len(positions)
-    grid_size = int(round(n_particles ** (1/3)))
+    grid_size = infer_grid_size(len(positions))
 
     # Use unified pipeline with grid output
     config = ts.origami.PipelineConfig(grid_size, float(box_size))
@@ -122,6 +125,9 @@ def compute_origami_with_grid(positions, particle_ids, box_size, grid_cells=128)
 
 def load_origami_result(origami_path):
     """Load pre-computed ORIGAMI results from HDF5."""
+    if not HAS_H5PY:
+        raise ImportError("h5py required to load pre-computed ORIGAMI results")
+
     with h5py.File(origami_path, 'r') as f:
         box_size = f['Header'].attrs['box_size']
         scale_factor = f['Header'].attrs['scale_factor']
@@ -223,7 +229,7 @@ def render_morphology_slice(
         if scale_factor is not None:
             redshift = 1.0 / scale_factor - 1.0
             if abs(redshift) < 0.01:
-                title = f'Dominant Morphology ({slice_axis_name}-slice): z ≈ 0 (a = {scale_factor:.2f})'
+                title = f'Dominant Morphology ({slice_axis_name}-slice): z = 0 (a = {scale_factor:.2f})'
             else:
                 title = f'Dominant Morphology ({slice_axis_name}-slice): z = {redshift:.2f} (a = {scale_factor:.4f})'
         else:
@@ -304,14 +310,7 @@ def render_morphology_slice_publication(
     ax.tick_params(labelsize=10)
 
     # Title
-    if scale_factor is not None:
-        redshift = 1.0 / scale_factor - 1.0
-        if abs(redshift) < 0.01:
-            title = f'Dominant Morphology ({slice_axis_name}-slice)'
-        else:
-            title = f'Dominant Morphology ({slice_axis_name}-slice)'
-    else:
-        title = f'Dominant Morphology ({slice_axis_name}-slice)'
+    title = f'Dominant Morphology ({slice_axis_name}-slice)'
     ax.set_title(title, fontsize=12, fontweight='medium')
 
     # Colorbar with class labels
@@ -375,7 +374,7 @@ def main():
         print(f"\nLoading snapshot: {args.snapshot}")
         positions, particle_ids, box_size, scale_factor = load_snapshot(args.snapshot)
 
-        grid_size = int(round(len(positions) ** (1/3)))
+        grid_size = infer_grid_size(len(positions))
         print(f"  Box size: {box_size} Mpc/h")
         print(f"  Scale factor: {scale_factor}")
         print(f"  Particles: {len(positions)} ({grid_size}^3)")

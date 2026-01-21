@@ -6,10 +6,10 @@ This script validates the tessera ORIGAMI implementation by comparing
 its output against the original ORIGAMI code from Falck, Neyrinck & Szalay (2012).
 
 Results are saved to this directory for reproducibility and documentation.
+Memory and runtime benchmarks are included for comparison.
 """
 
 import numpy as np
-import h5py
 import struct
 import subprocess
 import os
@@ -19,6 +19,8 @@ import json
 from datetime import datetime
 import tempfile
 import shutil
+import time
+import tracemalloc
 
 # Set environment variables before any imports
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
@@ -31,6 +33,7 @@ REPO_ROOT = SCRIPT_DIR.parent.parent
 # Add build directory and tests directory to path
 sys.path.insert(0, str(REPO_ROOT / 'build'))
 sys.path.insert(0, str(REPO_ROOT / 'tests'))
+sys.path.insert(0, str(REPO_ROOT))
 
 # Import local configuration
 try:
@@ -41,6 +44,19 @@ except ImportError:
         "Copy config.example.py to config.py and update the paths."
     )
 
+# Import shared utilities
+from utils import (
+    load_snapshot,
+    infer_grid_size,
+    check_tessera_available,
+)
+
+# Import tessera
+try:
+    import tessera as ts
+except ImportError:
+    import _tessera as ts
+
 # Snapshots to validate
 SNAPSHOTS = [
     ("snapshot_034.hdf5", "z=0 (a=1)", "Present day"),
@@ -48,19 +64,13 @@ SNAPSHOTS = [
 ]
 
 
-def load_snapshot(snapshot_path):
-    """Load particle data from GADGET-4 snapshot."""
-    with h5py.File(snapshot_path, 'r') as f:
-        positions = f['PartType1/Coordinates'][:]
-        particle_ids = f['PartType1/ParticleIDs'][:]
-        box_size = float(f['Header'].attrs['BoxSize'])
-        redshift = f['Header'].attrs['Redshift']
-        scale_factor = f['Header'].attrs['Time']
-    return positions, particle_ids, float(box_size), float(redshift), float(scale_factor)
-
-
 def convert_to_xmajor(positions, particle_ids, grid_size):
-    """Convert GADGET z-major ordering to ORIGAMI x-major ordering."""
+    """Convert GADGET z-major ordering to ORIGAMI x-major ordering.
+
+    Note: This is kept as a Python loop because it's specific to the
+    original ORIGAMI code's expected input format (x-major ordering).
+    tessera uses z-major ordering internally.
+    """
     n_particles = len(positions)
     sorted_positions = np.zeros((n_particles, 3), dtype=np.float64)
 
@@ -94,7 +104,7 @@ def read_tag_file(filepath):
 
 
 def run_original_origami(sorted_positions, box_size, grid_size):
-    """Run original ORIGAMI code."""
+    """Run original ORIGAMI code with timing."""
     # Use /tmp for intermediate files (original code has issues with long paths)
     work_dir = Path(tempfile.mkdtemp(prefix='origami_'))
 
@@ -123,7 +133,9 @@ def run_original_origami(sorted_positions, box_size, grid_size):
         f.write(f"npmin\t\t20\n")
         f.write(f"halolabel\ttest\n")
 
-    # Run original ORIGAMI
+    # Run original ORIGAMI with timing
+    t_start = time.perf_counter()
+
     env = os.environ.copy()
     env['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
     result = subprocess.run(
@@ -132,6 +144,8 @@ def run_original_origami(sorted_positions, box_size, grid_size):
         text=True,
         env=env
     )
+
+    t_elapsed = time.perf_counter() - t_start
 
     if result.returncode not in [0, 1]:
         shutil.rmtree(work_dir)
@@ -147,12 +161,13 @@ def run_original_origami(sorted_positions, box_size, grid_size):
     # Clean up temp directory
     shutil.rmtree(work_dir)
 
-    return tags
+    return tags, t_elapsed
 
 
-def run_asymptotic_origami(sorted_positions, box_size, grid_size):
-    """Run tessera ORIGAMI implementation."""
-    import _tessera as ts
+def run_tessera_origami(sorted_positions, box_size, grid_size):
+    """Run tessera ORIGAMI implementation with timing and memory tracking."""
+    tracemalloc.start()
+    t_start = time.perf_counter()
 
     config = ts.origami.OrigamiConfig()
     config.lagrangian_grid_size = grid_size
@@ -165,13 +180,17 @@ def run_asymptotic_origami(sorted_positions, box_size, grid_size):
     # Deposit to grid to compute volume fractions
     ts.origami.deposit_morphology_to_grid(sorted_positions, box_size, 128, result)
 
-    return np.array(result.morphology), result
+    t_elapsed = time.perf_counter() - t_start
+    current_mem, peak_mem = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    return np.array(result.morphology), result, t_elapsed, peak_mem
 
 
-def compare_results(orig_tags, asym_tags, asym_result):
+def compare_results(orig_tags, tessera_tags, tessera_result):
     """Compare morphology classifications."""
     n = len(orig_tags)
-    matches = np.sum(orig_tags == asym_tags)
+    matches = np.sum(orig_tags == tessera_tags)
     match_rate = matches / n
 
     class_names = ['Void', 'Wall', 'Filament', 'Halo']
@@ -181,36 +200,36 @@ def compare_results(orig_tags, asym_tags, asym_result):
         'match_rate': float(match_rate),
         'perfect_match': bool(match_rate == 1.0),
         'mass_fractions': {
-            'void': float(asym_result.f_void),
-            'wall': float(asym_result.f_wall),
-            'filament': float(asym_result.f_filament),
-            'halo': float(asym_result.f_halo),
+            'void': float(tessera_result.f_void),
+            'wall': float(tessera_result.f_wall),
+            'filament': float(tessera_result.f_filament),
+            'halo': float(tessera_result.f_halo),
         },
         'volume_fractions': {
-            'void': float(asym_result.v_void),
-            'wall': float(asym_result.v_wall),
-            'filament': float(asym_result.v_filament),
-            'halo': float(asym_result.v_halo),
+            'void': float(tessera_result.v_void),
+            'wall': float(tessera_result.v_wall),
+            'filament': float(tessera_result.v_filament),
+            'halo': float(tessera_result.v_halo),
         },
         'per_class': {}
     }
 
     for cls_idx, cls_name in enumerate(class_names):
         orig_count = int(np.sum(orig_tags == cls_idx))
-        asym_count = int(np.sum(asym_tags == cls_idx))
-        agreement = int(np.sum((orig_tags == cls_idx) & (asym_tags == cls_idx)))
+        tessera_count = int(np.sum(tessera_tags == cls_idx))
+        agreement = int(np.sum((orig_tags == cls_idx) & (tessera_tags == cls_idx)))
         stats['per_class'][cls_name.lower()] = {
             'original_count': orig_count,
-            'asymptotic_count': asym_count,
+            'tessera_count': tessera_count,
             'agreement': agreement,
             'original_fraction': orig_count / n,
-            'asymptotic_fraction': asym_count / n,
+            'tessera_fraction': tessera_count / n,
         }
 
     return stats
 
 
-def create_comparison_image(output_dir, label, stats, asym_result, description):
+def create_comparison_image(output_dir, label, stats, tessera_result, description):
     """Create comparison visualization."""
     import matplotlib
     matplotlib.use('Agg')
@@ -248,10 +267,10 @@ def create_comparison_image(output_dir, label, stats, asym_result, description):
     width = 0.35
     class_names_plain = ['Void', 'Wall', 'Filament', 'Halo']
     orig_counts = [stats['per_class'][n.lower()]['original_fraction'] * 100 for n in class_names_plain]
-    asym_counts = [stats['per_class'][n.lower()]['asymptotic_fraction'] * 100 for n in class_names_plain]
+    tessera_counts = [stats['per_class'][n.lower()]['tessera_fraction'] * 100 for n in class_names_plain]
 
     bars1 = axes[2].bar(x - width/2, orig_counts, width, label=r'${\rm Original\ ORIGAMI}$', color='#2c3e50')
-    bars2 = axes[2].bar(x + width/2, asym_counts, width, label=r'${\rm tessera}$', color='#e67e22')
+    bars2 = axes[2].bar(x + width/2, tessera_counts, width, label=r'${\rm tessera}$', color='#e67e22')
     axes[2].set_ylabel(r'${\rm Fraction\ (\%)}$')
     axes[2].set_xticks(x)
     axes[2].set_xticklabels(class_names)
@@ -269,7 +288,7 @@ def create_comparison_image(output_dir, label, stats, asym_result, description):
     return output_path
 
 
-def create_morphology_slice_image(output_dir, label, asym_result, grid_size, description):
+def create_morphology_slice_image(output_dir, label, tessera_result, grid_size, description):
     """Create morphology slice visualization."""
     import matplotlib
     matplotlib.use('Agg')
@@ -286,9 +305,9 @@ def create_morphology_slice_image(output_dir, label, asym_result, grid_size, des
     cmap = ListedColormap(colors)
 
     # Get morphology grid from result
-    if hasattr(asym_result, 'morphology_grid') and len(asym_result.morphology_grid) > 0:
-        morph_grid = np.array(asym_result.morphology_grid)
-        n_cells = asym_result.grid_cells
+    if hasattr(tessera_result, 'morphology_grid') and len(tessera_result.morphology_grid) > 0:
+        morph_grid = np.array(tessera_result.morphology_grid)
+        n_cells = tessera_result.grid_cells
 
         fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
@@ -337,7 +356,8 @@ def create_morphology_slice_image(output_dir, label, asym_result, grid_size, des
     return None
 
 
-def save_results(output_dir, label, orig_tags, asym_tags, stats, box_size, redshift, scale_factor, description):
+def save_results(output_dir, label, orig_tags, tessera_tags, stats, benchmarks,
+                 box_size, redshift, scale_factor, description):
     """Save comparison results to JSON (no HDF5 to keep repo size small)."""
     # Save JSON summary only
     json_path = output_dir / f"{label}_validation.json"
@@ -349,6 +369,7 @@ def save_results(output_dir, label, orig_tags, asym_tags, stats, box_size, redsh
             'redshift': redshift,
             'scale_factor': scale_factor,
             'created': datetime.now().isoformat(),
+            'benchmarks': benchmarks,
             **stats
         }, f, indent=2)
 
@@ -381,33 +402,65 @@ def main():
             print(f"  WARNING: Snapshot not found: {snap_path}")
             continue
 
-        # Load snapshot
+        # Load snapshot using shared utilities
         print("Loading snapshot...")
-        positions, particle_ids, box_size, redshift, scale_factor = load_snapshot(snap_path)
+        t_load_start = time.perf_counter()
+        tracemalloc.start()
+
+        positions, particle_ids, snap_header = load_snapshot(
+            snap_path,
+            particle_type=1,
+            read_ids=True
+        )
+
+        current_mem, peak_mem_load = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+        t_load = time.perf_counter() - t_load_start
+
         n_particles = len(positions)
-        grid_size = int(round(n_particles ** (1/3)))
+        grid_size = infer_grid_size(n_particles)
+        box_size = snap_header.box_size
+        redshift = snap_header.redshift
+        scale_factor = snap_header.time
 
         print(f"  Particles: {n_particles:,}")
         print(f"  Grid: {grid_size}^3")
         print(f"  Box size: {box_size}")
         print(f"  Redshift: {redshift:.4f}")
         print(f"  Scale factor: {scale_factor:.4f}")
+        print(f"  Load time: {t_load:.2f}s, Peak memory: {peak_mem_load / 1024**2:.1f} MB")
 
-        # Convert to x-major ordering
+        # Convert to x-major ordering (required for original ORIGAMI)
         print("\nConverting to x-major ordering...")
+        t_convert_start = time.perf_counter()
+        tracemalloc.start()
+
         sorted_positions = convert_to_xmajor(positions, particle_ids, grid_size)
 
+        current_mem, peak_mem_convert = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+        t_convert = time.perf_counter() - t_convert_start
+        print(f"  Convert time: {t_convert:.2f}s, Peak memory: {peak_mem_convert / 1024**2:.1f} MB")
+
         # Run original ORIGAMI
-        print("Running original ORIGAMI code...")
-        orig_tags = run_original_origami(sorted_positions, box_size, grid_size)
+        print("\nRunning original ORIGAMI code...")
+        orig_tags, t_original = run_original_origami(sorted_positions, box_size, grid_size)
+        print(f"  Original ORIGAMI time: {t_original:.2f}s")
 
         # Run tessera ORIGAMI
         print("Running tessera ORIGAMI...")
-        asym_tags, asym_result = run_asymptotic_origami(sorted_positions, box_size, grid_size)
+        tessera_tags, tessera_result, t_tessera, peak_mem_tessera = run_tessera_origami(
+            sorted_positions, box_size, grid_size
+        )
+        print(f"  tessera time: {t_tessera:.2f}s, Peak memory: {peak_mem_tessera / 1024**2:.1f} MB")
+
+        # Compute speedup
+        speedup = t_original / t_tessera if t_tessera > 0 else float('inf')
+        print(f"  Speedup: {speedup:.2f}x")
 
         # Compare results
         print("\nComparing results...")
-        stats = compare_results(orig_tags, asym_tags, asym_result)
+        stats = compare_results(orig_tags, tessera_tags, tessera_result)
 
         # Print comparison
         print(f"\n  Match rate: {stats['match_rate']:.6%} ({stats['matches']:,}/{stats['total_particles']:,})")
@@ -419,8 +472,8 @@ def main():
         for cls_name in class_names:
             s = stats['per_class'][cls_name]
             orig_pct = f"{s['original_count']:,} ({s['original_fraction']:.2%})"
-            asym_pct = f"{s['asymptotic_count']:,} ({s['asymptotic_fraction']:.2%})"
-            print(f"  {cls_name.capitalize():<10} {orig_pct:>14} {asym_pct:>16} {s['agreement']:>12,}")
+            tessera_pct = f"{s['tessera_count']:,} ({s['tessera_fraction']:.2%})"
+            print(f"  {cls_name.capitalize():<10} {orig_pct:>14} {tessera_pct:>16} {s['agreement']:>12,}")
 
         print(f"\n  Mass Fractions:   Void={stats['mass_fractions']['void']:.2%}, "
               f"Wall={stats['mass_fractions']['wall']:.2%}, "
@@ -436,26 +489,42 @@ def main():
         else:
             print(f"\n  RESULT: {stats['total_particles'] - stats['matches']:,} disagreements")
 
+        # Prepare benchmarks
+        benchmarks = {
+            'load_time_s': t_load,
+            'convert_time_s': t_convert,
+            'original_origami_time_s': t_original,
+            'tessera_time_s': t_tessera,
+            'speedup': speedup,
+            'peak_memory_load_mb': peak_mem_load / 1024**2,
+            'peak_memory_convert_mb': peak_mem_convert / 1024**2,
+            'peak_memory_tessera_mb': peak_mem_tessera / 1024**2,
+        }
+
         # Save results
         print("\nSaving results...")
         _, json_path = save_results(
-            SCRIPT_DIR, label, orig_tags, asym_tags, stats,
+            SCRIPT_DIR, label, orig_tags, tessera_tags, stats, benchmarks,
             box_size, redshift, scale_factor, description
         )
         print(f"  Saved: {json_path.name}")
 
         # Generate comparison images
         print("Generating images...")
-        img_path = create_comparison_image(SCRIPT_DIR, label, stats, asym_result, f"{time_label} - {description}")
+        img_path = create_comparison_image(SCRIPT_DIR, label, stats, tessera_result, f"{time_label} - {description}")
         print(f"  Saved: {img_path.name}")
 
-        slice_path = create_morphology_slice_image(SCRIPT_DIR, label, asym_result, grid_size, f"{time_label}")
+        slice_path = create_morphology_slice_image(SCRIPT_DIR, label, tessera_result, grid_size, f"{time_label}")
         if slice_path:
             print(f"  Saved: {slice_path.name}")
 
-        all_results[label] = stats
+        # Store for summary
+        all_results[label] = {
+            'stats': stats,
+            'benchmarks': benchmarks,
+        }
 
-    # Save combined summary (note: paths are excluded to keep repo clean)
+    # Save combined summary
     summary = {
         'validation_date': datetime.now().isoformat(),
         'reference': 'Falck, Neyrinck & Szalay 2012, ApJ 754, 126',
@@ -463,12 +532,15 @@ def main():
     }
 
     all_passed = True
-    for label, stats in all_results.items():
+    for label, data in all_results.items():
+        stats = data['stats']
+        benchmarks = data['benchmarks']
         summary['snapshots'][label] = {
             'match_rate': stats['match_rate'],
             'perfect_match': stats['perfect_match'],
             'mass_fractions': stats['mass_fractions'],
             'volume_fractions': stats['volume_fractions'],
+            'benchmarks': benchmarks,
         }
         if not stats['perfect_match']:
             all_passed = False
@@ -482,13 +554,17 @@ def main():
     print(f"\n{'='*70}")
     print("VALIDATION COMPLETE")
     print("=" * 70)
-    print(f"\nResults saved to: {SCRIPT_DIR}")
-    print("\nSummary:")
-    for label, stats in all_results.items():
-        status = "PASS" if stats['perfect_match'] else "FAIL"
-        print(f"  {label}: {status} ({stats['match_rate']:.4%} match)")
 
-    print(f"\nOverall: {'ALL TESTS PASSED' if all_passed else 'SOME TESTS FAILED'}")
+    print("\n  Benchmark Summary:")
+    print(f"  {'Snapshot':<15} {'Original (s)':<14} {'tessera (s)':<14} {'Speedup':<10} {'Match Rate':<12} {'Status':<8}")
+    print(f"  {'-'*15} {'-'*14} {'-'*14} {'-'*10} {'-'*12} {'-'*8}")
+    for label, data in all_results.items():
+        stats = data['stats']
+        benchmarks = data['benchmarks']
+        status = "PASS" if stats['perfect_match'] else "FAIL"
+        print(f"  {label:<15} {benchmarks['original_origami_time_s']:<14.2f} {benchmarks['tessera_time_s']:<14.2f} {benchmarks['speedup']:<10.2f}x {stats['match_rate']:<12.4%} {status:<8}")
+
+    print(f"\n  Overall: {'ALL TESTS PASSED' if all_passed else 'SOME TESTS FAILED'}")
 
     return 0 if all_passed else 1
 

@@ -12,6 +12,8 @@ The validation compares:
 Results are saved as JSON summaries and 2x3 comparison images showing:
 - Top row: tessera density, gotetra density, relative difference
 - Bottom row: Overdensity PDF comparison, scatter plot, relative difference histogram
+
+Memory and runtime benchmarks are included for comparison.
 """
 
 import os
@@ -20,6 +22,8 @@ from pathlib import Path
 import json
 from datetime import datetime
 import numpy as np
+import time
+import tracemalloc
 
 # Set environment variables before any imports
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
@@ -29,8 +33,11 @@ os.environ['OMP_NUM_THREADS'] = '1'  # Avoid OpenMP threading issues on macOS
 SCRIPT_DIR = Path(__file__).parent.resolve()
 REPO_ROOT = SCRIPT_DIR.parent.parent
 
-# Try to import local config
+# Add paths
 sys.path.insert(0, str(REPO_ROOT / 'tests'))
+sys.path.insert(0, str(REPO_ROOT))
+
+# Try to import local config
 try:
     from config import SNAPSHOT_BASE, GOTETRA_BASE
 except ImportError:
@@ -39,95 +46,71 @@ except ImportError:
         "Copy config.example.py to config.py and update the paths."
     )
 
-# Import tessera (try installed package first, then development build)
+# Import shared utilities
+from utils import (
+    load_snapshot,
+    sort_positions_lagrangian,
+    infer_grid_size,
+    compute_mean_density,
+    check_tessera_available,
+)
+
+# Import tessera
 try:
-    import _tessera as ts
+    import tessera as ts
 except ImportError:
-    sys.path.insert(0, str(REPO_ROOT / 'build'))
     import _tessera as ts
 
+
 # Validation configurations
-# - Use original gotetra reference files that were validated to work
-# - Subbox parameters are read from gotetra headers to ensure exact match
 VALIDATIONS = [
     {
         'name': 'snap034_fullbox',
         'snapshot': 'snapshot_034',
         'gotetra_ref': GOTETRA_BASE / 'gotetra_test' / 'output' / 'full_z_projection.gtet',
         'description': 'Full Box (a=1, z=0)',
-        'subbox': None,  # Full box, no subbox
+        'subbox': None,
     },
     {
         'name': 'snap074_fullbox',
         'snapshot': 'snapshot_074',
         'gotetra_ref': GOTETRA_BASE / 'gotetra_validation_refs' / 'snap074_fullbox' / 'full_box.gtet',
         'description': 'Full Box (a=100, z=-0.99)',
-        'subbox': None,  # Full box, no subbox
+        'subbox': None,
     },
     {
         'name': 'snap034_halo',
         'snapshot': 'snapshot_034',
         'gotetra_ref': GOTETRA_BASE / 'halo_comparison_results' / 'gotetra_snap034' / 'halo_density.gtet',
         'description': 'Group 0 Halo (a=1, z=0)',
-        'subbox': 'from_header',  # Read subbox params from gotetra header
+        'subbox': 'from_header',
     },
     {
         'name': 'snap074_halo',
         'snapshot': 'snapshot_074',
         'gotetra_ref': GOTETRA_BASE / 'halo_comparison_results' / 'gotetra_snap074' / 'halo_density.gtet',
         'description': 'Group 0 Halo (a=100, z=-0.99)',
-        # Note: gotetra header has incorrect origin (pixel alignment issue)
-        # Use bounds.cfg origin and computed width = 129 * pixel_width = 10.0806
         'subbox': {
             'origin': (147.52755737304688, 146.6825408935547, 75.38079071044922),
-            'width': 10.080586080586081,  # 129 * (256/3276) = 129 * 0.07814408
+            'width': 10.080586080586081,
         },
     },
 ]
 
 
-def load_snapshot(snapshot_path):
-    """Load particle data from GADGET-4 snapshot."""
-    import h5py
-    with h5py.File(snapshot_path, 'r') as f:
-        # Convert to required dtypes for tessera
-        positions = np.ascontiguousarray(f['PartType1/Coordinates'][:], dtype=np.float64)
-        particle_ids = np.ascontiguousarray(f['PartType1/ParticleIDs'][:], dtype=np.int64)
-        box_size = float(f['Header'].attrs['BoxSize'])
-        redshift = f['Header'].attrs['Redshift']
-        scale_factor = f['Header'].attrs['Time']
-    return positions, particle_ids, box_size, float(redshift), float(scale_factor)
+def read_gotetra_reference(gtet_path):
+    """Read reference density field from gotetra .gtet file."""
+    from tessera.gotetra_compat import read_header, read_grid
+    header = read_header(str(gtet_path))
+    grid = read_grid(str(gtet_path))
+    return grid, header
 
 
-def sort_positions_lagrangian(positions, particle_ids, grid_size):
-    """Sort positions by Lagrangian ID (x-major ordering for gotetra)."""
-    import _tessera as ts
-    return ts.density.sort_by_lagrangian_id(positions, particle_ids, grid_size)
-
-
-def compute_asymptotic_density_2d(sorted_positions, box_size, grid_size, output_cells,
+def compute_density_2d_projection(sorted_positions, box_size, grid_size, output_cells,
                                    subbox=None, scale_factor=1.0):
-    """Compute 2D z-projected density field using tessera.
-
-    Args:
-        sorted_positions: Particle positions sorted by Lagrangian ID (comoving coordinates)
-        box_size: Simulation box size (comoving)
-        grid_size: Lagrangian grid size (e.g., 256 for 256^3 particles)
-        output_cells: Number of output cells per dimension
-        subbox: Subbox parameters (comoving coordinates) or None for full box
-        scale_factor: Scale factor 'a' for physical space computation. If != 1.0,
-                      positions and box parameters are scaled to physical coordinates
-                      before density computation. This effectively computes density
-                      in physical space while keeping the output grid in comoving coords.
-
-    Returns:
-        2D density array
-    """
-    import _tessera as ts
-
+    """Compute 2D z-projected density field using tessera."""
     # Scale to physical coordinates if requested
     if scale_factor != 1.0:
-        # Scale positions: r_phys = r_com * a
         positions_scaled = sorted_positions * scale_factor
         box_size_scaled = box_size * scale_factor
     else:
@@ -138,21 +121,19 @@ def compute_asymptotic_density_2d(sorted_positions, box_size, grid_size, output_
     config.lagrangian_grid_size = grid_size
     config.box_size = box_size_scaled
     config.output_cells = output_cells
-    config.n_threads = 1  # Single thread to avoid OpenMP issues on macOS
-    config.n_samples = 50  # Same as gotetra "Particles = 50"
+    config.n_threads = 1
+    config.n_samples = 50
     config.periodic = True
     config.particle_mass = 1.0
 
     if subbox is not None:
         config.subbox_enabled = True
         width = subbox['width']
-        # Scale subbox parameters to physical if needed
         if scale_factor != 1.0:
             width_scaled = width * scale_factor
         else:
             width_scaled = width
 
-        # Use exact origin from gotetra header if available, otherwise compute from center
         if 'origin' in subbox:
             origin = subbox['origin']
             if scale_factor != 1.0:
@@ -168,33 +149,49 @@ def compute_asymptotic_density_2d(sorted_positions, box_size, grid_size, output_
                 config.subbox_origin = (center[0] - width/2, center[1] - width/2, center[2] - width/2)
         config.subbox_width = (width_scaled, width_scaled, width_scaled)
 
-    # Use Z-axis projection (axis=2)
     result = ts.density.compute_tetra_density_2d_projection(positions_scaled, config, 2)
     return result.density
 
 
-def read_gotetra_reference(gtet_path):
-    """Read reference density field from gotetra .gtet file."""
-    from tessera.gotetra_compat import read_header, read_grid
-    header = read_header(str(gtet_path))
-    grid = read_grid(str(gtet_path))
-    return grid, header
+def compute_density_2d_direct(sorted_positions, box_size, grid_size, output_cells,
+                               slice_min, slice_max, scale_factor=1.0):
+    """Compute 2D slice density field directly (memory-efficient)."""
+    if scale_factor != 1.0:
+        positions_scaled = sorted_positions * scale_factor
+        box_size_scaled = box_size * scale_factor
+        slice_min_scaled = slice_min * scale_factor
+        slice_max_scaled = slice_max * scale_factor
+    else:
+        positions_scaled = sorted_positions
+        box_size_scaled = box_size
+        slice_min_scaled = slice_min
+        slice_max_scaled = slice_max
+
+    config = ts.density.TetraDensityConfig()
+    config.lagrangian_grid_size = grid_size
+    config.box_size = box_size_scaled
+    config.output_cells = output_cells
+    config.n_threads = 1
+    config.n_samples = 50
+    config.periodic = True
+    config.particle_mass = 1.0
+
+    result = ts.density.compute_tetra_density_2d_direct(
+        positions_scaled, config, 2, slice_min_scaled, slice_max_scaled
+    )
+    return result.density
 
 
 def compare_density_fields(at_density, gotetra_density):
     """Compare two density fields and compute statistics."""
-    # Normalize both fields (convert to overdensity: 1 + delta)
     at_norm = at_density / np.mean(at_density)
     gt_norm = gotetra_density / np.mean(gotetra_density)
 
-    # Flatten for correlation
     at_flat = at_norm.flatten()
     gt_flat = gt_norm.flatten()
 
-    # Compute Pearson correlation
     correlation = np.corrcoef(at_flat, gt_flat)[0, 1]
 
-    # Compute relative differences (only where gotetra > 0)
     mask = gt_norm > 0
     rel_diff = np.zeros_like(at_norm)
     rel_diff[mask] = (at_norm[mask] - gt_norm[mask]) / gt_norm[mask]
@@ -214,52 +211,36 @@ def compare_density_fields(at_density, gotetra_density):
 
 def create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_diff,
                              title, output_path, stats, extent=None, coord_label='cMpc/h'):
-    """Create a 2x3 comparison figure.
-
-    Args:
-        extent: [xmin, xmax, ymin, ymax] for coordinate display, or None for pixel indices
-        coord_label: Label for coordinate units (e.g., 'cMpc/h' or 'Mpc/h')
-    """
+    """Create a 2x3 comparison figure."""
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     from mpl_toolkits.axes_grid1 import make_axes_locatable
     from scipy import stats as scipy_stats
 
-    # Enable LaTeX-style rendering
     plt.rcParams['mathtext.fontset'] = 'stix'
     plt.rcParams['font.family'] = 'STIXGeneral'
 
     fig, axes = plt.subplots(2, 3, figsize=(15, 10))
 
-    # ===== Top Row: Density comparison =====
-
-    # Top Left: tessera density
+    # Top row: Density comparison
     vmin = np.log10(np.maximum(at_norm, 0.01).min())
     vmax = np.log10(at_norm.max())
+
     im1 = axes[0, 0].imshow(np.log10(np.maximum(at_norm, 0.01)), origin='lower',
                             cmap='magma', vmin=vmin, vmax=vmax, extent=extent)
     axes[0, 0].set_title(r'${\rm tessera}$')
     divider1 = make_axes_locatable(axes[0, 0])
     cax1 = divider1.append_axes("right", size="5%", pad=0.05)
     plt.colorbar(im1, cax=cax1, label=r'$\log_{10}(1+\delta)$')
-    if extent is not None:
-        axes[0, 0].set_xlabel(r'${\rm ' + coord_label + r'}$')
-        axes[0, 0].set_ylabel(r'${\rm ' + coord_label + r'}$')
 
-    # Top Middle: Gotetra density
     im2 = axes[0, 1].imshow(np.log10(np.maximum(gt_norm, 0.01)), origin='lower',
                             cmap='magma', vmin=vmin, vmax=vmax, extent=extent)
     axes[0, 1].set_title(r'${\rm Gotetra\ (Reference)}$')
     divider2 = make_axes_locatable(axes[0, 1])
     cax2 = divider2.append_axes("right", size="5%", pad=0.05)
     plt.colorbar(im2, cax=cax2, label=r'$\log_{10}(1+\delta)$')
-    if extent is not None:
-        axes[0, 1].set_xlabel(r'${\rm ' + coord_label + r'}$')
-        axes[0, 1].set_ylabel(r'${\rm ' + coord_label + r'}$')
 
-    # Top Right: Relative difference map (no clipping - use percentile-based limits)
-    # Use symmetric percentile limits to show the full distribution
     diff_abs_max = np.percentile(np.abs(rel_diff[np.isfinite(rel_diff)]), 99)
     im3 = axes[0, 2].imshow(rel_diff, origin='lower', cmap='RdBu_r',
                             vmin=-diff_abs_max, vmax=diff_abs_max, extent=extent)
@@ -267,14 +248,9 @@ def create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_
     divider3 = make_axes_locatable(axes[0, 2])
     cax3 = divider3.append_axes("right", size="5%", pad=0.05)
     plt.colorbar(im3, cax=cax3, label=r'${\rm (tessera - Gotetra) / Gotetra}$')
-    if extent is not None:
-        axes[0, 2].set_xlabel(r'${\rm ' + coord_label + r'}$')
-        axes[0, 2].set_ylabel(r'${\rm ' + coord_label + r'}$')
 
-    # ===== Bottom Row: Statistical comparisons =====
-
-    # Bottom Left: Overdensity PDF comparison
-    bins = np.logspace(-2, 4, 100)  # Extended range for high overdensities
+    # Bottom row: Statistical comparisons
+    bins = np.logspace(-2, 4, 100)
     at_flat = at_norm.flatten()
     gt_flat = gt_norm.flatten()
 
@@ -289,50 +265,37 @@ def create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_
     axes[1, 0].set_title(r'${\rm Overdensity\ PDF}$')
     axes[1, 0].legend()
 
-    # Bottom Middle: Scatter plot (one-to-one comparison)
-    # Subsample for performance
     n_sample = min(10000, len(at_flat))
     idx = np.random.choice(len(at_flat), n_sample, replace=False)
-
     axes[1, 1].scatter(gt_flat[idx], at_flat[idx], s=1, alpha=0.5, c='#2c3e50')
-
-    # Add 1:1 line
     lims = [min(gt_flat[idx].min(), at_flat[idx].min()),
             max(gt_flat[idx].max(), at_flat[idx].max())]
     axes[1, 1].plot(lims, lims, 'r-', linewidth=2, label=r'$1:1$')
-
-    # Compute Spearman correlation for comparison
     spearman_r, _ = scipy_stats.spearmanr(at_flat, gt_flat)
-
     axes[1, 1].set_xscale('log')
     axes[1, 1].set_yscale('log')
     axes[1, 1].set_xlabel(r'${\rm Gotetra}\ (1+\delta)$')
     axes[1, 1].set_ylabel(r'${\rm tessera}\ (1+\delta)$')
-    axes[1, 1].set_title(r'${\rm Pearson}\ r=' + f'{stats["correlation"]:.6f}' + r',\ {\rm Spearman}\ r=' + f'{spearman_r:.4f}' + r'$')
+    axes[1, 1].set_title(r'$r=' + f'{stats["correlation"]:.6f}$')
     axes[1, 1].legend()
 
-    # Bottom Right: Relative difference histogram (use adaptive range)
     rel_diff_flat = rel_diff.flatten()
     valid_diff = rel_diff_flat[np.isfinite(rel_diff_flat) & (gt_flat > 0)]
-
-    # Use percentile-based range to show full distribution
     hist_min = np.percentile(valid_diff, 1)
     hist_max = np.percentile(valid_diff, 99)
     hist_range = (min(hist_min, -0.5), max(hist_max, 0.5))
 
-    axes[1, 2].hist(valid_diff, bins=100, range=hist_range, alpha=0.7,
-                    color='#27ae60', density=True)
+    axes[1, 2].hist(valid_diff, bins=100, range=hist_range, alpha=0.7, color='#27ae60', density=True)
     axes[1, 2].axvline(x=0, color='r', linestyle='--', linewidth=2)
     axes[1, 2].axvline(x=np.mean(valid_diff), color='blue', linestyle='-', linewidth=2,
-                       label=r'${\rm Mean:}\ ' + f'{np.mean(valid_diff):.4f}' + r'$')
+                       label=f'Mean: {np.mean(valid_diff):.4f}')
     axes[1, 2].set_xlabel(r'${\rm Relative\ Difference}$')
     axes[1, 2].set_ylabel(r'${\rm PDF}$')
-    axes[1, 2].set_title(r'${\rm Diff\ Distribution}\ (\sigma=' + f'{np.std(valid_diff):.4f}' + r')$')
+    axes[1, 2].set_title(f'Diff Distribution (σ={np.std(valid_diff):.4f})')
     axes[1, 2].legend()
 
-    # Overall title
     status = "PASS" if stats['passed'] else "FAIL"
-    plt.suptitle(r'${\rm ' + title.replace(' ', r'\ ') + r'}$' + '\n' + r'${\rm Correlation:}\ ' + f'{stats["correlation"]:.6f}' + r'\ |\ {\rm ' + status + r'}$', fontsize=14)
+    plt.suptitle(f'{title}\nCorrelation: {stats["correlation"]:.6f} | {status}', fontsize=14)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
@@ -340,7 +303,7 @@ def create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_
 
 
 def run_validation(config):
-    """Run a single validation test."""
+    """Run a single validation test with benchmarking."""
     name = config['name']
     snapshot_name = config['snapshot']
     gotetra_ref = config['gotetra_ref']
@@ -360,68 +323,84 @@ def run_validation(config):
         print(f"  WARNING: Snapshot not found: {snapshot_path}")
         return None
 
-    # Read gotetra reference first to get parameters
+    # Read gotetra reference
     print("Reading gotetra reference...")
     gotetra_density, header = read_gotetra_reference(gotetra_ref)
     output_cells = gotetra_density.shape[0]
     print(f"  Reference shape: {gotetra_density.shape}")
-    print(f"  Reference range: [{gotetra_density.min():.4e}, {gotetra_density.max():.4e}]")
 
     # Extract subbox parameters
     subbox = None
     if subbox_config == 'from_header':
-        # Read subbox parameters from gotetra header
         origin = header.loc.origin
         span = header.loc.span
         width = float(span[0])
         center = (origin[0] + width/2, origin[1] + width/2, origin[2] + width/2)
         subbox = {'center': center, 'width': width, 'origin': tuple(origin), 'span': tuple(span)}
-        print(f"  Subbox from header:")
-        print(f"    Origin: ({origin[0]:.6f}, {origin[1]:.6f}, {origin[2]:.6f})")
-        print(f"    Span: ({span[0]:.6f}, {span[1]:.6f}, {span[2]:.6f})")
-        print(f"    Pixel width: {header.pw:.8f}")
-        print(f"    Using width: {width:.6f}")
+        print(f"  Subbox from header: origin={origin[:3]}, width={width:.4f}")
     elif subbox_config is not None:
-        # Use explicit subbox parameters
         subbox = subbox_config.copy()
         if 'origin' in subbox and 'center' not in subbox:
-            # Convert origin to center for reporting
             width = subbox['width']
             origin = subbox['origin']
             subbox['center'] = (origin[0] + width/2, origin[1] + width/2, origin[2] + width/2)
-        print(f"  Subbox (explicit):")
-        print(f"    Origin: ({subbox.get('origin', 'N/A')})")
-        print(f"    Width: {subbox['width']:.6f}")
+        print(f"  Subbox (explicit): width={subbox['width']:.4f}")
 
-    # Load snapshot
+    # Load snapshot using shared utilities
     print("Loading snapshot...")
-    positions, particle_ids, box_size, redshift, scale_factor = load_snapshot(snapshot_path)
+    t_load_start = time.perf_counter()
+    tracemalloc.start()
+
+    positions, particle_ids, snap_header = load_snapshot(
+        snapshot_path,
+        particle_type=1,
+        read_ids=True
+    )
+
+    current_mem, peak_mem_load = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    t_load = time.perf_counter() - t_load_start
+
     n_particles = len(positions)
-    grid_size = int(round(n_particles ** (1/3)))
+    grid_size = infer_grid_size(n_particles)
+    box_size = snap_header.box_size
 
     print(f"  Particles: {n_particles:,}")
     print(f"  Grid: {grid_size}^3")
     print(f"  Box size: {box_size}")
-    print(f"  Redshift: {redshift:.4f}")
-    print(f"  Scale factor: {scale_factor:.4f}")
+    print(f"  Load time: {t_load:.2f}s, Peak memory: {peak_mem_load / 1024**2:.1f} MB")
 
     # Sort positions
     print("Sorting positions to Lagrangian order...")
+    t_sort_start = time.perf_counter()
+    tracemalloc.start()
+
     sorted_positions = sort_positions_lagrangian(positions, particle_ids, grid_size)
 
-    # For full box comparisons, gotetra outputs N+1 pixels with boundary zeros
-    # We need to trim the gotetra output and use N output cells for AT
+    current_mem, peak_mem_sort = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    t_sort = time.perf_counter() - t_sort_start
+    print(f"  Sort time: {t_sort:.2f}s, Peak memory: {peak_mem_sort / 1024**2:.1f} MB")
+
+    # Trim gotetra for full box
     if subbox is None:
-        # Full box: trim gotetra's boundary row/col of zeros
         gotetra_density = gotetra_density[:-1, :-1]
         output_cells = gotetra_density.shape[0]
-        print(f"  Trimmed gotetra to {output_cells}x{output_cells} (removed boundary zeros)")
+        print(f"  Trimmed gotetra to {output_cells}x{output_cells}")
 
     # Compute tessera density
     print(f"Computing tessera density ({output_cells}x{output_cells})...")
-    at_density = compute_asymptotic_density_2d(sorted_positions, box_size, grid_size,
+    t_compute_start = time.perf_counter()
+    tracemalloc.start()
+
+    at_density = compute_density_2d_projection(sorted_positions, box_size, grid_size,
                                                 output_cells, subbox=subbox)
-    print(f"  AT shape: {at_density.shape}")
+
+    current_mem, peak_mem_compute = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    t_compute = time.perf_counter() - t_compute_start
+
+    print(f"  Compute time: {t_compute:.2f}s, Peak memory: {peak_mem_compute / 1024**2:.1f} MB")
     print(f"  AT range: [{at_density.min():.4e}, {at_density.max():.4e}]")
 
     # Compare
@@ -430,37 +409,41 @@ def run_validation(config):
 
     print(f"\n  Correlation: {stats['correlation']:.6f}")
     print(f"  Mean relative difference: {stats['mean_relative_difference']:.4e}")
-    print(f"  Max relative difference: {stats['max_relative_difference']:.4e}")
     print(f"  RESULT: {'PASS' if stats['passed'] else 'FAIL'}")
 
-    # Compute extent for coordinate display
+    # Compute extent
     if subbox is not None:
-        # Subbox: use origin and width
         origin = subbox.get('origin', (0, 0, 0))
         width = subbox['width']
         extent = [origin[0], origin[0] + width, origin[1], origin[1] + width]
-        coord_label = 'cMpc/h'
     else:
-        # Full box
         extent = [0, box_size, 0, box_size]
-        coord_label = 'cMpc/h'
 
     # Create comparison figure
     image_path = SCRIPT_DIR / f"{name}_comparison.png"
     print(f"\nGenerating comparison figure...")
     create_comparison_figure(at_density, gotetra_density, at_norm, gt_norm, rel_diff,
-                            description, image_path, stats, extent=extent, coord_label=coord_label)
+                            description, image_path, stats, extent=extent)
     print(f"  Saved: {image_path.name}")
 
-    # Prepare result
+    # Prepare result with benchmarks
     result = {
         'name': name,
         'description': description,
         'snapshot': snapshot_name,
-        'redshift': redshift,
-        'scale_factor': scale_factor,
+        'redshift': snap_header.redshift,
+        'scale_factor': snap_header.time,
         'box_size': box_size,
         'output_cells': output_cells,
+        'benchmarks': {
+            'load_time_s': t_load,
+            'sort_time_s': t_sort,
+            'compute_time_s': t_compute,
+            'total_time_s': t_load + t_sort + t_compute,
+            'peak_memory_load_mb': peak_mem_load / 1024**2,
+            'peak_memory_sort_mb': peak_mem_sort / 1024**2,
+            'peak_memory_compute_mb': peak_mem_compute / 1024**2,
+        },
         **stats
     }
 
@@ -494,18 +477,12 @@ def main():
         if result:
             all_results[config['name']] = result
 
-    # Save summary (note: paths are excluded to keep repo clean)
+    # Save summary
     all_passed = all(r.get('passed', False) for r in all_results.values())
     summary = {
         'validation_date': datetime.now().isoformat(),
         'reference': 'gotetra: github.com/phil-mansfield/gotetra',
         'method': 'Tetrahedron-based phase-space tessellation for density field computation',
-        'notes': [
-            'Validation compares z-projected density slices',
-            'Full box comparisons use 256^3 output grid',
-            'Halo comparisons use 10 cMpc/h subbox centered on Group 0 halo',
-            'Correlation > 0.999 indicates excellent numerical agreement'
-        ],
         'results': all_results,
         'all_tests_passed': all_passed
     }
@@ -517,13 +494,16 @@ def main():
     print(f"\n{'=' * 70}")
     print("VALIDATION COMPLETE")
     print("=" * 70)
-    print(f"\nResults saved to: {SCRIPT_DIR}")
-    print("\nSummary:")
-    for name, result in all_results.items():
-        status = "PASS" if result['passed'] else "FAIL"
-        print(f"  {name}: {status} (r={result['correlation']:.6f})")
 
-    print(f"\nOverall: {'ALL TESTS PASSED' if all_passed else 'SOME TESTS FAILED'}")
+    print("\n  Benchmark Summary:")
+    print(f"  {'Test':<20} {'Time (s)':<12} {'Peak Mem (MB)':<15} {'Correlation':<12} {'Status':<8}")
+    print(f"  {'-'*20} {'-'*12} {'-'*15} {'-'*12} {'-'*8}")
+    for name, result in all_results.items():
+        bench = result['benchmarks']
+        status = "PASS" if result['passed'] else "FAIL"
+        print(f"  {name:<20} {bench['total_time_s']:<12.2f} {bench['peak_memory_compute_mb']:<15.1f} {result['correlation']:<12.6f} {status:<8}")
+
+    print(f"\n  Overall: {'ALL TESTS PASSED' if all_passed else 'SOME TESTS FAILED'}")
 
     return 0 if all_passed else 1
 
