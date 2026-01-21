@@ -21,6 +21,22 @@ namespace origami {
 
 namespace {
 
+/**
+ * Check if parallel execution should be used.
+ * Returns true only if OpenMP is available AND n_threads != 1.
+ * This allows:
+ * - Cluster (n_threads=0 or >1): parallel execution
+ * - macOS workaround (n_threads=1): serial execution
+ * - Non-OpenMP builds: serial execution
+ */
+inline bool use_parallel([[maybe_unused]] int n_threads) {
+#ifdef _OPENMP
+    return n_threads != 1;
+#else
+    return false;
+#endif
+}
+
 // Helper: safe modulo that handles negative values (periodic boundaries)
 inline int goodmod(int a, int b) {
     if (a >= b) return a - b;
@@ -282,25 +298,59 @@ OrigamiResult compute_morphology_impl(
     result.n_filament = 0;
     result.n_halo = 0;
 
-    for (int64_t i = 0; i < np; ++i) {
-        // Count crossings from Cartesian axes
-        uint8_t mn = (m[i] % 2 == 0) + (m[i] % 3 == 0) + (m[i] % 5 == 0);
+    if (use_parallel(config.n_threads)) {
+        // Parallel version with reduction
+        int64_t count_void = 0, count_wall = 0, count_filament = 0, count_halo = 0;
 
-        // Count crossings from diagonals (combined with respective Cartesian axis)
-        uint8_t m0n = (m[i] % 2 == 0) + (m0[i] % 2 == 0) + (m0[i] % 3 == 0);
-        uint8_t m1n = (m[i] % 3 == 0) + (m1[i] % 2 == 0) + (m1[i] % 3 == 0);
-        uint8_t m2n = (m[i] % 5 == 0) + (m2[i] % 2 == 0) + (m2[i] % 3 == 0);
+        #pragma omp parallel for reduction(+:count_void, count_wall, count_filament, count_halo)
+        for (int64_t i = 0; i < np; ++i) {
+            // Count crossings from Cartesian axes
+            uint8_t mn = (m[i] % 2 == 0) + (m[i] % 3 == 0) + (m[i] % 5 == 0);
 
-        // Take maximum of all crossing counts
-        uint8_t final_morph = std::max({mn, m0n, m1n, m2n});
-        result.morphology[i] = final_morph;
+            // Count crossings from diagonals (combined with respective Cartesian axis)
+            uint8_t m0n = (m[i] % 2 == 0) + (m0[i] % 2 == 0) + (m0[i] % 3 == 0);
+            uint8_t m1n = (m[i] % 3 == 0) + (m1[i] % 2 == 0) + (m1[i] % 3 == 0);
+            uint8_t m2n = (m[i] % 5 == 0) + (m2[i] % 2 == 0) + (m2[i] % 3 == 0);
 
-        // Count particles per class
-        switch (final_morph) {
-            case 0: ++result.n_void; break;
-            case 1: ++result.n_wall; break;
-            case 2: ++result.n_filament; break;
-            case 3: ++result.n_halo; break;
+            // Take maximum of all crossing counts
+            uint8_t final_morph = std::max({mn, m0n, m1n, m2n});
+            result.morphology[i] = final_morph;
+
+            // Count particles per class
+            switch (final_morph) {
+                case 0: ++count_void; break;
+                case 1: ++count_wall; break;
+                case 2: ++count_filament; break;
+                case 3: ++count_halo; break;
+            }
+        }
+
+        result.n_void = count_void;
+        result.n_wall = count_wall;
+        result.n_filament = count_filament;
+        result.n_halo = count_halo;
+    } else {
+        // Serial version
+        for (int64_t i = 0; i < np; ++i) {
+            // Count crossings from Cartesian axes
+            uint8_t mn = (m[i] % 2 == 0) + (m[i] % 3 == 0) + (m[i] % 5 == 0);
+
+            // Count crossings from diagonals (combined with respective Cartesian axis)
+            uint8_t m0n = (m[i] % 2 == 0) + (m0[i] % 2 == 0) + (m0[i] % 3 == 0);
+            uint8_t m1n = (m[i] % 3 == 0) + (m1[i] % 2 == 0) + (m1[i] % 3 == 0);
+            uint8_t m2n = (m[i] % 5 == 0) + (m2[i] % 2 == 0) + (m2[i] % 3 == 0);
+
+            // Take maximum of all crossing counts
+            uint8_t final_morph = std::max({mn, m0n, m1n, m2n});
+            result.morphology[i] = final_morph;
+
+            // Count particles per class
+            switch (final_morph) {
+                case 0: ++result.n_void; break;
+                case 1: ++result.n_wall; break;
+                case 2: ++result.n_filament; break;
+                case 3: ++result.n_halo; break;
+            }
         }
     }
 
@@ -438,8 +488,73 @@ void deposit_morphology_to_grid(
     std::vector<int> count_filament(n_cells_total, 0);
     std::vector<int> count_halo(n_cells_total, 0);
 
-    // Note: Not parallelizing this loop due to race conditions on counts
-    // Could use atomic operations or reduction, but this is usually fast enough
+#ifdef _OPENMP
+    // Parallel version with thread-local count arrays
+    int max_threads = omp_get_max_threads();
+
+    // Allocate thread-local count arrays
+    std::vector<std::vector<int>> tl_void(max_threads);
+    std::vector<std::vector<int>> tl_wall(max_threads);
+    std::vector<std::vector<int>> tl_filament(max_threads);
+    std::vector<std::vector<int>> tl_halo(max_threads);
+
+    for (int t = 0; t < max_threads; ++t) {
+        tl_void[t].resize(n_cells_total, 0);
+        tl_wall[t].resize(n_cells_total, 0);
+        tl_filament[t].resize(n_cells_total, 0);
+        tl_halo[t].resize(n_cells_total, 0);
+    }
+
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+
+        #pragma omp for
+        for (int64_t i = 0; i < n_particles; ++i) {
+            double px = positions[i * 3 + 0];
+            double py = positions[i * 3 + 1];
+            double pz = positions[i * 3 + 2];
+
+            // Wrap to box
+            while (px < 0) px += box_size;
+            while (px >= box_size) px -= box_size;
+            while (py < 0) py += box_size;
+            while (py >= box_size) py -= box_size;
+            while (pz < 0) pz += box_size;
+            while (pz >= box_size) pz -= box_size;
+
+            // Get cell index
+            int ix = static_cast<int>(px * inv_cell_width) % grid_cells;
+            int iy = static_cast<int>(py * inv_cell_width) % grid_cells;
+            int iz = static_cast<int>(pz * inv_cell_width) % grid_cells;
+
+            // Grid is [z, y, x] ordered
+            int64_t cell_idx = static_cast<int64_t>(iz) * grid_cells * grid_cells +
+                               static_cast<int64_t>(iy) * grid_cells +
+                               static_cast<int64_t>(ix);
+
+            // Increment thread-local count for this class
+            switch (morphology[i]) {
+                case 0: ++tl_void[tid][cell_idx]; break;
+                case 1: ++tl_wall[tid][cell_idx]; break;
+                case 2: ++tl_filament[tid][cell_idx]; break;
+                case 3: ++tl_halo[tid][cell_idx]; break;
+            }
+        }
+    }
+
+    // Reduce thread-local counts into global counts
+    #pragma omp parallel for
+    for (int64_t c = 0; c < n_cells_total; ++c) {
+        for (int t = 0; t < max_threads; ++t) {
+            count_void[c] += tl_void[t][c];
+            count_wall[c] += tl_wall[t][c];
+            count_filament[c] += tl_filament[t][c];
+            count_halo[c] += tl_halo[t][c];
+        }
+    }
+#else
+    // Serial version (no OpenMP)
     for (int64_t i = 0; i < n_particles; ++i) {
         double px = positions[i * 3 + 0];
         double py = positions[i * 3 + 1];
@@ -471,6 +586,7 @@ void deposit_morphology_to_grid(
             case 3: ++count_halo[cell_idx]; break;
         }
     }
+#endif
 
     // Compute fractions and dominant class
     #pragma omp parallel for
@@ -496,6 +612,8 @@ void deposit_morphology_to_grid(
 
     // Compute volume fractions based on dominant class per cell
     int64_t vol_void = 0, vol_wall = 0, vol_filament = 0, vol_halo = 0;
+
+    #pragma omp parallel for reduction(+:vol_void, vol_wall, vol_filament, vol_halo)
     for (int64_t c = 0; c < n_cells_total; ++c) {
         switch (result.morphology_grid[c]) {
             case 0: ++vol_void; break;
@@ -504,6 +622,7 @@ void deposit_morphology_to_grid(
             case 3: ++vol_halo; break;
         }
     }
+
     double inv_n_cells = 1.0 / static_cast<double>(n_cells_total);
     result.v_void = static_cast<double>(vol_void) * inv_n_cells;
     result.v_wall = static_cast<double>(vol_wall) * inv_n_cells;

@@ -733,7 +733,16 @@ OrigamiPipelineResult run_pipeline_impl(
 
             // Per-class histograms
             // Extract overdensity values for each class
-            std::vector<double> od_void, od_wall, od_filament, od_halo;
+            // Pre-allocate using known counts for efficiency
+            std::vector<double> od_void;
+            std::vector<double> od_wall;
+            std::vector<double> od_filament;
+            std::vector<double> od_halo;
+            od_void.reserve(result.n_void);
+            od_wall.reserve(result.n_wall);
+            od_filament.reserve(result.n_filament);
+            od_halo.reserve(result.n_halo);
+
             for (int64_t i = 0; i < n_particles; ++i) {
                 switch (result.morphology[i]) {
                     case 0: od_void.push_back(overdensity[i]); break;
