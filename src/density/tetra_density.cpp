@@ -576,17 +576,21 @@ static TetraDensityResult3D compute_density_3d_impl(
         tetra_processed += local_tetra_count;
     }
     
-    // Reduce thread-local grids
+    // Reduce thread-local grids (parallelized over cells)
     std::vector<double> density(cells_cu, 0.0);
-    for (int t = 0; t < n_threads; ++t) {
-        for (int64_t i = 0; i < cells_cu; ++i) {
-            density[i] += thread_grids[t][i];
+    #pragma omp parallel for
+    for (int64_t i = 0; i < cells_cu; ++i) {
+        double sum = 0.0;
+        for (int t = 0; t < n_threads; ++t) {
+            sum += thread_grids[t][i];
         }
+        density[i] = sum;
     }
-    
-    // Convert mass to density (mass per unit volume)
+
+    // Convert mass to density (mass per unit volume) - fused with parallel loop
     double cell_volume = cell_width * cell_width * cell_width;
     double inv_cell_volume = 1.0 / cell_volume;
+    #pragma omp parallel for
     for (int64_t i = 0; i < cells_cu; ++i) {
         density[i] *= inv_cell_volume;
     }
@@ -943,17 +947,21 @@ static TetraDensityResult2D compute_density_2d_direct_impl(
         samples_deposited += local_samples_count;
     }
 
-    // Reduce thread-local grids
+    // Reduce thread-local grids (parallelized over cells)
     std::vector<double> density(cells_sq, 0.0);
-    for (int t = 0; t < n_threads; ++t) {
-        for (int64_t i = 0; i < cells_sq; ++i) {
-            density[i] += thread_grids[t][i];
+    #pragma omp parallel for
+    for (int64_t i = 0; i < cells_sq; ++i) {
+        double sum = 0.0;
+        for (int t = 0; t < n_threads; ++t) {
+            sum += thread_grids[t][i];
         }
+        density[i] = sum;
     }
 
     // Convert mass to surface density (mass per unit area)
     double cell_area = cell_width * cell_width;
     double inv_cell_area = 1.0 / cell_area;
+    #pragma omp parallel for
     for (int64_t i = 0; i < cells_sq; ++i) {
         density[i] *= inv_cell_area;
     }

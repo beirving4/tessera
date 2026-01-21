@@ -112,7 +112,8 @@ OrigamiResult compute_morphology_impl(
 #endif
 
     // Main loop: parallelized over spatial subdomains
-    #pragma omp parallel for default(none) \
+    // Dynamic scheduling helps with load imbalance when early-termination varies
+    #pragma omp parallel for default(none) schedule(dynamic, 1) \
         shared(positions, flags) \
         firstprivate(np1d, ng4, box_t, negb2, b2, nsplit)
     for (int s = 0; s < nsplit * nsplit * nsplit; ++s) {
