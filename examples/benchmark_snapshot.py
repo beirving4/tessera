@@ -23,6 +23,20 @@ except ImportError:
     import _tessera as ts
 
 import numpy as np
+from datetime import timedelta
+
+
+def format_time(elapsed_seconds: float) -> str:
+    """Format time in human-readable form using timedelta for longer durations."""
+    if elapsed_seconds < 1.0:
+        return f"{elapsed_seconds:.6f} seconds"
+    td = timedelta(seconds=elapsed_seconds)
+    return str(td)
+
+
+def format_time_ms(ms: float) -> str:
+    """Format time given in milliseconds."""
+    return format_time(ms / 1000.0)
 
 
 def get_memory_usage_mb():
@@ -147,8 +161,8 @@ def main():
     print("=" * 70)
     print()
 
-    print(f"{'Stage':<25} {'Serial (ms)':<15} {'Parallel (ms)':<15} {'Speedup':<10}")
-    print("-" * 65)
+    print(f"{'Stage':<20} {'Serial':<22} {'Parallel':<22} {'Speedup':<10}")
+    print("-" * 75)
 
     stages = [
         ('Sorting', 'sorting_time_ms'),
@@ -166,23 +180,21 @@ def main():
             speedup_str = f"{speedup:.2f}x"
         else:
             speedup_str = "N/A"
-        print(f"{name:<25} {s:<15.2f} {p:<15.2f} {speedup_str:<10}")
+        print(f"{name:<20} {format_time_ms(s):<22} {format_time_ms(p):<22} {speedup_str:<10}")
 
-    print("-" * 65)
-    s_total = serial_result['total_time_s'] * 1000
-    p_total = parallel_result['total_time_s'] * 1000
+    print("-" * 75)
+    s_total = serial_result['total_time_s']
+    p_total = parallel_result['total_time_s']
     speedup = s_total / p_total if p_total > 0 else float('inf')
-    print(f"{'TOTAL PIPELINE':<25} {s_total:<15.2f} {p_total:<15.2f} {speedup:.2f}x")
+    print(f"{'TOTAL PIPELINE':<20} {format_time(s_total):<22} {format_time(p_total):<22} {speedup:.2f}x")
 
     print()
     print("MEMORY USAGE")
-    print("-" * 65)
-    print(f"{'Metric':<35} {'Serial (MB)':<15} {'Parallel (MB)':<15}")
-    print("-" * 65)
-    print(f"{'After read':<35} {serial_result['mem_after_read_mb']:<15.1f} {parallel_result['mem_after_read_mb']:<15.1f}")
-    print(f"{'Peak during read':<35} {serial_result['mem_peak_read_mb']:<15.1f} {parallel_result['mem_peak_read_mb']:<15.1f}")
-    print(f"{'After pipeline':<35} {serial_result['mem_after_pipeline_mb']:<15.1f} {parallel_result['mem_after_pipeline_mb']:<15.1f}")
-    print(f"{'Peak during pipeline':<35} {serial_result['mem_peak_pipeline_mb']:<15.1f} {parallel_result['mem_peak_pipeline_mb']:<15.1f}")
+    print("-" * 75)
+    print(f"{'Metric':<30} {'Serial':<22} {'Parallel':<22}")
+    print("-" * 75)
+    print(f"{'Peak during read':<30} {serial_result['mem_peak_read_mb']:,.1f} MB{'':<14} {parallel_result['mem_peak_read_mb']:,.1f} MB")
+    print(f"{'Peak during pipeline':<30} {serial_result['mem_peak_pipeline_mb']:,.1f} MB{'':<14} {parallel_result['mem_peak_pipeline_mb']:,.1f} MB")
 
     print()
     print("MORPHOLOGY COUNTS (should be identical)")

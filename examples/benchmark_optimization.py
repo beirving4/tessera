@@ -24,6 +24,20 @@ except ImportError:
     import _tessera as ts
 
 import numpy as np
+from datetime import timedelta
+
+
+def format_time(elapsed_seconds: float) -> str:
+    """Format time in human-readable form using timedelta for longer durations."""
+    if elapsed_seconds < 1.0:
+        return f"{elapsed_seconds:.6f} seconds"
+    td = timedelta(seconds=elapsed_seconds)
+    return str(td)
+
+
+def format_time_ms(ms: float) -> str:
+    """Format time given in milliseconds."""
+    return format_time(ms / 1000.0)
 
 
 def run_benchmark(positions, particle_ids, grid_size, box_size, n_threads=1):
@@ -98,11 +112,11 @@ def print_results(results, label=""):
     print(f"\n{'=' * 60}")
     print(f"RESULTS{': ' + label if label else ''}")
     print(f"{'=' * 60}")
-    print(f"Total time:      {results['total_time_ms']:,.1f} ms")
-    print(f"  Sorting:       {results['sorting_time_ms']:,.1f} ms")
-    print(f"  Morphology:    {results['morphology_time_ms']:,.1f} ms")
-    print(f"  Density:       {results['density_time_ms']:,.1f} ms")
-    print(f"  Grid:          {results['grid_time_ms']:,.1f} ms")
+    print(f"Total time:      {format_time_ms(results['total_time_ms'])}")
+    print(f"  Sorting:       {format_time_ms(results['sorting_time_ms'])}")
+    print(f"  Morphology:    {format_time_ms(results['morphology_time_ms'])}")
+    print(f"  Density:       {format_time_ms(results['density_time_ms'])}")
+    print(f"  Grid:          {format_time_ms(results['grid_time_ms'])}")
     print(f"Peak memory:     {results['peak_memory_mb']:,.1f} MB")
     print(f"\nMorphology counts:")
     print(f"  Void:     {results['n_void']:,}")
@@ -113,24 +127,24 @@ def print_results(results, label=""):
 
 def print_comparison(current, baseline):
     """Print comparison between current and baseline."""
-    print(f"\n{'=' * 60}")
+    print(f"\n{'=' * 75}")
     print("COMPARISON (Current vs Baseline)")
-    print(f"{'=' * 60}")
+    print(f"{'=' * 75}")
 
     def speedup(curr, base):
         if curr > 0:
             return base / curr
         return float('inf')
 
-    print(f"{'Metric':<20} {'Baseline':<15} {'Current':<15} {'Change':<15}")
-    print("-" * 65)
+    print(f"{'Metric':<15} {'Baseline':<22} {'Current':<22} {'Change':<15}")
+    print("-" * 75)
 
     # Time comparisons
     metrics = [
-        ('Total time (ms)', 'total_time_ms'),
-        ('Morphology (ms)', 'morphology_time_ms'),
-        ('Sorting (ms)', 'sorting_time_ms'),
-        ('Density (ms)', 'density_time_ms'),
+        ('Total time', 'total_time_ms'),
+        ('Morphology', 'morphology_time_ms'),
+        ('Sorting', 'sorting_time_ms'),
+        ('Density', 'density_time_ms'),
     ]
 
     for name, key in metrics:
@@ -138,14 +152,16 @@ def print_comparison(current, baseline):
         curr_val = current[key]
         sp = speedup(curr_val, base_val)
         change = f"{sp:.2f}x {'faster' if sp > 1 else 'slower'}"
-        print(f"{name:<20} {base_val:<15.1f} {curr_val:<15.1f} {change:<15}")
+        print(f"{name:<15} {format_time_ms(base_val):<22} {format_time_ms(curr_val):<22} {change:<15}")
 
     # Memory comparison
     base_mem = baseline['peak_memory_mb']
     curr_mem = current['peak_memory_mb']
     mem_diff = curr_mem - base_mem
     mem_pct = (mem_diff / base_mem) * 100 if base_mem > 0 else 0
-    print(f"{'Peak memory (MB)':<20} {base_mem:<15.1f} {curr_mem:<15.1f} {mem_diff:+.1f} ({mem_pct:+.1f}%)")
+    base_mem_str = f"{base_mem:,.1f} MB"
+    curr_mem_str = f"{curr_mem:,.1f} MB"
+    print(f"{'Peak memory':<15} {base_mem_str:<22} {curr_mem_str:<22} {mem_diff:+.1f} MB ({mem_pct:+.1f}%)")
 
 
 def main():
