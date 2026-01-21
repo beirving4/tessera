@@ -60,7 +60,10 @@ inline int64_t par(int x, int y, int z, int ng) {
  * Ported exactly from origamitag.c, including:
  * - Cartesian axis checks (x, y, z)
  * - Diagonal checks (6 directions for robustness)
- * - Prime encoding (2, 3, 5) for axis crossing tracking
+ *
+ * Optimized with bit-packed crossing flags:
+ * - Bit 0: x crossed, Bit 1: y crossed, Bit 2: z crossed
+ * - Bit 3-4: m0 diagonals, Bit 5-6: m1 diagonals, Bit 7-8: m2 diagonals
  */
 template<typename T>
 OrigamiResult compute_morphology_impl(
@@ -80,16 +83,26 @@ OrigamiResult compute_morphology_impl(
 
     const int64_t np = static_cast<int64_t>(np1d) * np1d * np1d;
     const int ng4 = np1d / 4;  // Search range limit
-    const double b2 = boxsize / 2.0;
-    const double negb2 = -boxsize / 2.0;
 
-    // Allocate morphology arrays
-    // m: Cartesian axis crossings (encoded with primes 2, 3, 5)
-    // m0, m1, m2: diagonal crossings for each axis plane
-    std::vector<uint8_t> m(np, 1);
-    std::vector<uint8_t> m0(np, 1);
-    std::vector<uint8_t> m1(np, 1);
-    std::vector<uint8_t> m2(np, 1);
+    // Use native type T for arithmetic (avoids float->double->float conversions)
+    const T box_t = static_cast<T>(boxsize);
+    const T b2 = box_t / static_cast<T>(2);
+    const T negb2 = -b2;
+
+    // Bit flags for crossing detection (replaces 4 separate uint8_t arrays)
+    // Total: 9 bits packed into uint16_t (saves 50% memory: 2N vs 4N bytes)
+    constexpr uint16_t BIT_X = 1 << 0;      // x-axis crossed
+    constexpr uint16_t BIT_Y = 1 << 1;      // y-axis crossed
+    constexpr uint16_t BIT_Z = 1 << 2;      // z-axis crossed
+    constexpr uint16_t BIT_M0_D1 = 1 << 3;  // m0 diagonal 1 (y+h, z+h)
+    constexpr uint16_t BIT_M0_D2 = 1 << 4;  // m0 diagonal 2 (y+h, z-h)
+    constexpr uint16_t BIT_M1_D1 = 1 << 5;  // m1 diagonal 1 (x+h, z+h)
+    constexpr uint16_t BIT_M1_D2 = 1 << 6;  // m1 diagonal 2 (x+h, z-h)
+    constexpr uint16_t BIT_M2_D1 = 1 << 7;  // m2 diagonal 1 (x+h, y+h)
+    constexpr uint16_t BIT_M2_D2 = 1 << 8;  // m2 diagonal 2 (x+h, y-h)
+
+    // Single bit-packed array (0 = no crossings detected yet)
+    std::vector<uint16_t> flags(np, 0);
 
     // Set number of threads
 #ifdef _OPENMP
@@ -100,8 +113,8 @@ OrigamiResult compute_morphology_impl(
 
     // Main loop: parallelized over spatial subdomains
     #pragma omp parallel for default(none) \
-        shared(positions, m, m0, m1, m2) \
-        firstprivate(np1d, ng4, boxsize, negb2, b2, nsplit)
+        shared(positions, flags) \
+        firstprivate(np1d, ng4, box_t, negb2, b2, nsplit)
     for (int s = 0; s < nsplit * nsplit * nsplit; ++s) {
         // Compute subdomain bounds
         int zstart = s / (nsplit * nsplit);
@@ -125,51 +138,80 @@ OrigamiResult compute_morphology_impl(
                 for (int z = zstart; z < zend; ++z) {
                     int64_t i = par(x, y, z, np1d);
 
+                    // Prefetch next particle's position data (z+1 or y+1 or x+1)
+                    if (z + 1 < zend) {
+                        int64_t i_next = par(x, y, z + 1, np1d);
+                        __builtin_prefetch(&positions[i_next * 3], 0, 1);
+                    }
+
+                    // Cache current particle's position
+                    const T px = positions[i * 3 + 0];
+                    const T py = positions[i * 3 + 1];
+                    const T pz = positions[i * 3 + 2];
+
                     // ========================================
-                    // Cartesian axis checks
+                    // Cartesian axis checks (optimized loop pattern)
                     // ========================================
 
-                    // X-direction
-                    for (int h = 1; std::abs(h) < ng4; h = -h + isneg(h)) {
-                        int64_t i2 = par(goodmod(x + h, np1d), y, z, np1d);
-                        double dx = static_cast<double>(positions[i2 * 3 + 0]) -
-                                   static_cast<double>(positions[i * 3 + 0]);
-                        if (dx < negb2) dx += boxsize;
-                        if (dx > b2) dx -= boxsize;
-                        if (dx * h < 0.0) {
-                            if (m[i] % 2 > 0) {
-                                m[i] *= 2;
-                            }
+                    // X-direction: check positive then negative offsets
+                    // Using alternating pattern for early termination
+                    for (int h = 1; h < ng4; ++h) {
+                        // Check positive offset
+                        int64_t i2p = par(goodmod(x + h, np1d), y, z, np1d);
+                        T dxp = positions[i2p * 3 + 0] - px;
+                        if (dxp < negb2) dxp += box_t;
+                        if (dxp > b2) dxp -= box_t;
+                        if (dxp < static_cast<T>(0)) {
+                            flags[i] |= BIT_X;
+                            break;
+                        }
+                        // Check negative offset
+                        int64_t i2n = par(goodmod(x - h, np1d), y, z, np1d);
+                        T dxn = positions[i2n * 3 + 0] - px;
+                        if (dxn < negb2) dxn += box_t;
+                        if (dxn > b2) dxn -= box_t;
+                        if (dxn > static_cast<T>(0)) {
+                            flags[i] |= BIT_X;
                             break;
                         }
                     }
 
                     // Y-direction
-                    for (int h = 1; std::abs(h) < ng4; h = -h + isneg(h)) {
-                        int64_t i2 = par(x, goodmod(y + h, np1d), z, np1d);
-                        double dx = static_cast<double>(positions[i2 * 3 + 1]) -
-                                   static_cast<double>(positions[i * 3 + 1]);
-                        if (dx < negb2) dx += boxsize;
-                        if (dx > b2) dx -= boxsize;
-                        if (dx * h < 0.0) {
-                            if (m[i] % 3 > 0) {
-                                m[i] *= 3;
-                            }
+                    for (int h = 1; h < ng4; ++h) {
+                        int64_t i2p = par(x, goodmod(y + h, np1d), z, np1d);
+                        T dxp = positions[i2p * 3 + 1] - py;
+                        if (dxp < negb2) dxp += box_t;
+                        if (dxp > b2) dxp -= box_t;
+                        if (dxp < static_cast<T>(0)) {
+                            flags[i] |= BIT_Y;
+                            break;
+                        }
+                        int64_t i2n = par(x, goodmod(y - h, np1d), z, np1d);
+                        T dxn = positions[i2n * 3 + 1] - py;
+                        if (dxn < negb2) dxn += box_t;
+                        if (dxn > b2) dxn -= box_t;
+                        if (dxn > static_cast<T>(0)) {
+                            flags[i] |= BIT_Y;
                             break;
                         }
                     }
 
                     // Z-direction
-                    for (int h = 1; std::abs(h) < ng4; h = -h + isneg(h)) {
-                        int64_t i2 = par(x, y, goodmod(z + h, np1d), np1d);
-                        double dx = static_cast<double>(positions[i2 * 3 + 2]) -
-                                   static_cast<double>(positions[i * 3 + 2]);
-                        if (dx < negb2) dx += boxsize;
-                        if (dx > b2) dx -= boxsize;
-                        if (dx * h < 0.0) {
-                            if (m[i] % 5 > 0) {
-                                m[i] *= 5;
-                            }
+                    for (int h = 1; h < ng4; ++h) {
+                        int64_t i2p = par(x, y, goodmod(z + h, np1d), np1d);
+                        T dxp = positions[i2p * 3 + 2] - pz;
+                        if (dxp < negb2) dxp += box_t;
+                        if (dxp > b2) dxp -= box_t;
+                        if (dxp < static_cast<T>(0)) {
+                            flags[i] |= BIT_Z;
+                            break;
+                        }
+                        int64_t i2n = par(x, y, goodmod(z - h, np1d), np1d);
+                        T dxn = positions[i2n * 3 + 2] - pz;
+                        if (dxn < negb2) dxn += box_t;
+                        if (dxn > b2) dxn -= box_t;
+                        if (dxn > static_cast<T>(0)) {
+                            flags[i] |= BIT_Z;
                             break;
                         }
                     }
@@ -182,16 +224,14 @@ OrigamiResult compute_morphology_impl(
                     // Direction: (y+h, z+h)
                     for (int h = 1; h < ng4; h = -h + isneg(h)) {
                         int64_t i2 = par(x, goodmod(y + h, np1d), goodmod(z + h, np1d), np1d);
-                        double d1 = static_cast<double>(positions[i2 * 3 + 1]) -
-                                   static_cast<double>(positions[i * 3 + 1]);
-                        double d2 = static_cast<double>(positions[i2 * 3 + 2]) -
-                                   static_cast<double>(positions[i * 3 + 2]);
-                        if (d1 < negb2) d1 += boxsize;
-                        if (d1 > b2) d1 -= boxsize;
-                        if (d2 < negb2) d2 += boxsize;
-                        if (d2 > b2) d2 -= boxsize;
-                        if ((d1 + d2) * h < 0.0) {
-                            m0[i] *= 2;
+                        T d1 = positions[i2 * 3 + 1] - py;
+                        T d2 = positions[i2 * 3 + 2] - pz;
+                        if (d1 < negb2) d1 += box_t;
+                        if (d1 > b2) d1 -= box_t;
+                        if (d2 < negb2) d2 += box_t;
+                        if (d2 > b2) d2 -= box_t;
+                        if ((d1 + d2) * static_cast<T>(h) < static_cast<T>(0)) {
+                            flags[i] |= BIT_M0_D1;
                             break;
                         }
                     }
@@ -199,16 +239,14 @@ OrigamiResult compute_morphology_impl(
                     // Direction: (y+h, z-h)
                     for (int h = 1; h < ng4; h = -h + isneg(h)) {
                         int64_t i2 = par(x, goodmod(y + h, np1d), goodmod(z - h, np1d), np1d);
-                        double d1 = static_cast<double>(positions[i2 * 3 + 1]) -
-                                   static_cast<double>(positions[i * 3 + 1]);
-                        double d2 = static_cast<double>(positions[i2 * 3 + 2]) -
-                                   static_cast<double>(positions[i * 3 + 2]);
-                        if (d1 < negb2) d1 += boxsize;
-                        if (d1 > b2) d1 -= boxsize;
-                        if (d2 < negb2) d2 += boxsize;
-                        if (d2 > b2) d2 -= boxsize;
-                        if ((d1 - d2) * h < 0.0) {
-                            m0[i] *= 3;
+                        T d1 = positions[i2 * 3 + 1] - py;
+                        T d2 = positions[i2 * 3 + 2] - pz;
+                        if (d1 < negb2) d1 += box_t;
+                        if (d1 > b2) d1 -= box_t;
+                        if (d2 < negb2) d2 += box_t;
+                        if (d2 > b2) d2 -= box_t;
+                        if ((d1 - d2) * static_cast<T>(h) < static_cast<T>(0)) {
+                            flags[i] |= BIT_M0_D2;
                             break;
                         }
                     }
@@ -217,16 +255,14 @@ OrigamiResult compute_morphology_impl(
                     // Direction: (x+h, z+h)
                     for (int h = 1; h < ng4; h = -h + isneg(h)) {
                         int64_t i2 = par(goodmod(x + h, np1d), y, goodmod(z + h, np1d), np1d);
-                        double d1 = static_cast<double>(positions[i2 * 3 + 0]) -
-                                   static_cast<double>(positions[i * 3 + 0]);
-                        double d2 = static_cast<double>(positions[i2 * 3 + 2]) -
-                                   static_cast<double>(positions[i * 3 + 2]);
-                        if (d1 < negb2) d1 += boxsize;
-                        if (d1 > b2) d1 -= boxsize;
-                        if (d2 < negb2) d2 += boxsize;
-                        if (d2 > b2) d2 -= boxsize;
-                        if ((d1 + d2) * h < 0.0) {
-                            m1[i] *= 2;
+                        T d1 = positions[i2 * 3 + 0] - px;
+                        T d2 = positions[i2 * 3 + 2] - pz;
+                        if (d1 < negb2) d1 += box_t;
+                        if (d1 > b2) d1 -= box_t;
+                        if (d2 < negb2) d2 += box_t;
+                        if (d2 > b2) d2 -= box_t;
+                        if ((d1 + d2) * static_cast<T>(h) < static_cast<T>(0)) {
+                            flags[i] |= BIT_M1_D1;
                             break;
                         }
                     }
@@ -234,16 +270,14 @@ OrigamiResult compute_morphology_impl(
                     // Direction: (x+h, z-h)
                     for (int h = 1; h < ng4; h = -h + isneg(h)) {
                         int64_t i2 = par(goodmod(x + h, np1d), y, goodmod(z - h, np1d), np1d);
-                        double d1 = static_cast<double>(positions[i2 * 3 + 0]) -
-                                   static_cast<double>(positions[i * 3 + 0]);
-                        double d2 = static_cast<double>(positions[i2 * 3 + 2]) -
-                                   static_cast<double>(positions[i * 3 + 2]);
-                        if (d1 < negb2) d1 += boxsize;
-                        if (d1 > b2) d1 -= boxsize;
-                        if (d2 < negb2) d2 += boxsize;
-                        if (d2 > b2) d2 -= boxsize;
-                        if ((d1 - d2) * h < 0.0) {
-                            m1[i] *= 3;
+                        T d1 = positions[i2 * 3 + 0] - px;
+                        T d2 = positions[i2 * 3 + 2] - pz;
+                        if (d1 < negb2) d1 += box_t;
+                        if (d1 > b2) d1 -= box_t;
+                        if (d2 < negb2) d2 += box_t;
+                        if (d2 > b2) d2 -= box_t;
+                        if ((d1 - d2) * static_cast<T>(h) < static_cast<T>(0)) {
+                            flags[i] |= BIT_M1_D2;
                             break;
                         }
                     }
@@ -252,16 +286,14 @@ OrigamiResult compute_morphology_impl(
                     // Direction: (x+h, y+h)
                     for (int h = 1; h < ng4; h = -h + isneg(h)) {
                         int64_t i2 = par(goodmod(x + h, np1d), goodmod(y + h, np1d), z, np1d);
-                        double d1 = static_cast<double>(positions[i2 * 3 + 0]) -
-                                   static_cast<double>(positions[i * 3 + 0]);
-                        double d2 = static_cast<double>(positions[i2 * 3 + 1]) -
-                                   static_cast<double>(positions[i * 3 + 1]);
-                        if (d1 < negb2) d1 += boxsize;
-                        if (d1 > b2) d1 -= boxsize;
-                        if (d2 < negb2) d2 += boxsize;
-                        if (d2 > b2) d2 -= boxsize;
-                        if ((d1 + d2) * h < 0.0) {
-                            m2[i] *= 2;
+                        T d1 = positions[i2 * 3 + 0] - px;
+                        T d2 = positions[i2 * 3 + 1] - py;
+                        if (d1 < negb2) d1 += box_t;
+                        if (d1 > b2) d1 -= box_t;
+                        if (d2 < negb2) d2 += box_t;
+                        if (d2 > b2) d2 -= box_t;
+                        if ((d1 + d2) * static_cast<T>(h) < static_cast<T>(0)) {
+                            flags[i] |= BIT_M2_D1;
                             break;
                         }
                     }
@@ -269,16 +301,14 @@ OrigamiResult compute_morphology_impl(
                     // Direction: (x+h, y-h)
                     for (int h = 1; h < ng4; h = -h + isneg(h)) {
                         int64_t i2 = par(goodmod(x + h, np1d), goodmod(y - h, np1d), z, np1d);
-                        double d1 = static_cast<double>(positions[i2 * 3 + 0]) -
-                                   static_cast<double>(positions[i * 3 + 0]);
-                        double d2 = static_cast<double>(positions[i2 * 3 + 1]) -
-                                   static_cast<double>(positions[i * 3 + 1]);
-                        if (d1 < negb2) d1 += boxsize;
-                        if (d1 > b2) d1 -= boxsize;
-                        if (d2 < negb2) d2 += boxsize;
-                        if (d2 > b2) d2 -= boxsize;
-                        if ((d1 - d2) * h < 0.0) {
-                            m2[i] *= 3;
+                        T d1 = positions[i2 * 3 + 0] - px;
+                        T d2 = positions[i2 * 3 + 1] - py;
+                        if (d1 < negb2) d1 += box_t;
+                        if (d1 > b2) d1 -= box_t;
+                        if (d2 < negb2) d2 += box_t;
+                        if (d2 > b2) d2 -= box_t;
+                        if ((d1 - d2) * static_cast<T>(h) < static_cast<T>(0)) {
+                            flags[i] |= BIT_M2_D2;
                             break;
                         }
                     }
@@ -298,22 +328,26 @@ OrigamiResult compute_morphology_impl(
     result.n_filament = 0;
     result.n_halo = 0;
 
+    // Helper lambda to count bits (crossings) from flags
+    auto count_crossings = [](uint16_t f) -> uint8_t {
+        // Count Cartesian crossings: bits 0, 1, 2
+        uint8_t mn = ((f & BIT_X) != 0) + ((f & BIT_Y) != 0) + ((f & BIT_Z) != 0);
+        // m0n: x-cross + m0 diagonals (bits 0, 3, 4)
+        uint8_t m0n = ((f & BIT_X) != 0) + ((f & BIT_M0_D1) != 0) + ((f & BIT_M0_D2) != 0);
+        // m1n: y-cross + m1 diagonals (bits 1, 5, 6)
+        uint8_t m1n = ((f & BIT_Y) != 0) + ((f & BIT_M1_D1) != 0) + ((f & BIT_M1_D2) != 0);
+        // m2n: z-cross + m2 diagonals (bits 2, 7, 8)
+        uint8_t m2n = ((f & BIT_Z) != 0) + ((f & BIT_M2_D1) != 0) + ((f & BIT_M2_D2) != 0);
+        return std::max({mn, m0n, m1n, m2n});
+    };
+
     if (use_parallel(config.n_threads)) {
         // Parallel version with reduction
         int64_t count_void = 0, count_wall = 0, count_filament = 0, count_halo = 0;
 
         #pragma omp parallel for reduction(+:count_void, count_wall, count_filament, count_halo)
         for (int64_t i = 0; i < np; ++i) {
-            // Count crossings from Cartesian axes
-            uint8_t mn = (m[i] % 2 == 0) + (m[i] % 3 == 0) + (m[i] % 5 == 0);
-
-            // Count crossings from diagonals (combined with respective Cartesian axis)
-            uint8_t m0n = (m[i] % 2 == 0) + (m0[i] % 2 == 0) + (m0[i] % 3 == 0);
-            uint8_t m1n = (m[i] % 3 == 0) + (m1[i] % 2 == 0) + (m1[i] % 3 == 0);
-            uint8_t m2n = (m[i] % 5 == 0) + (m2[i] % 2 == 0) + (m2[i] % 3 == 0);
-
-            // Take maximum of all crossing counts
-            uint8_t final_morph = std::max({mn, m0n, m1n, m2n});
+            uint8_t final_morph = count_crossings(flags[i]);
             result.morphology[i] = final_morph;
 
             // Count particles per class
@@ -332,16 +366,7 @@ OrigamiResult compute_morphology_impl(
     } else {
         // Serial version
         for (int64_t i = 0; i < np; ++i) {
-            // Count crossings from Cartesian axes
-            uint8_t mn = (m[i] % 2 == 0) + (m[i] % 3 == 0) + (m[i] % 5 == 0);
-
-            // Count crossings from diagonals (combined with respective Cartesian axis)
-            uint8_t m0n = (m[i] % 2 == 0) + (m0[i] % 2 == 0) + (m0[i] % 3 == 0);
-            uint8_t m1n = (m[i] % 3 == 0) + (m1[i] % 2 == 0) + (m1[i] % 3 == 0);
-            uint8_t m2n = (m[i] % 5 == 0) + (m2[i] % 2 == 0) + (m2[i] % 3 == 0);
-
-            // Take maximum of all crossing counts
-            uint8_t final_morph = std::max({mn, m0n, m1n, m2n});
+            uint8_t final_morph = count_crossings(flags[i]);
             result.morphology[i] = final_morph;
 
             // Count particles per class
