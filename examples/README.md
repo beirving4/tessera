@@ -240,6 +240,40 @@ python examples/halo_evolution/halo_evolution_pipeline.py \
 
 **Note:** On macOS, there may be HDF5 library conflicts between h5py and tessera. Use `--extract-branch-only` to save branch info, then run density rendering separately with `--branch-file`.
 
+### Benchmarking
+
+#### `benchmark_snapshot.py`
+
+Compare serial vs parallel ORIGAMI pipeline performance on a real GADGET-4 snapshot:
+- In-place sorting (serial) vs out-of-place sorting (parallel)
+- Per-stage timing breakdown (sorting, morphology, density, grid, PDF)
+- Memory usage tracking with tracemalloc
+- Human-readable time formatting using `timedelta`
+
+```bash
+python examples/benchmark_snapshot.py /path/to/snapshot.hdf5
+python examples/benchmark_snapshot.py /path/to/snapshot.hdf5 --output-cells 128 --n-samples 20
+```
+
+#### `benchmark_optimization.py`
+
+Benchmark script for validating ORIGAMI optimizations with baseline comparison:
+- Save results as baseline for later comparison
+- Compare current implementation against saved baseline
+- Validates morphology results match exactly
+- Reports speedup/slowdown for each pipeline stage
+
+```bash
+# Save current results as baseline
+python examples/benchmark_optimization.py /path/to/snapshot.hdf5 --save-baseline baseline.npz
+
+# Compare against baseline after optimization
+python examples/benchmark_optimization.py /path/to/snapshot.hdf5 --compare baseline.npz
+
+# Multi-threaded benchmark
+python examples/benchmark_optimization.py /path/to/snapshot.hdf5 --n-threads 4
+```
+
 ### Statistics
 
 #### `histogram.py`

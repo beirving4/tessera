@@ -459,8 +459,8 @@ The ORIGAMI morphology classification achieves 100% exact match with the origina
 
 | Snapshot | Match Rate | tessera Speedup |
 |----------|------------|-----------------|
-| a=1 (z=0) | 100.0000% | 1.18x |
-| a=100 (z=-0.99) | 100.0000% | 1.14x |
+| a=1 (z=0) | 100.0000% | 1.15x |
+| a=100 (z=-0.99) | 100.0000% | 1.15x |
 
 See `tests/origami_validation/` for validation scripts and results.
 
