@@ -5,39 +5,51 @@ Halo Evolution Visualization Pipeline
 Generates animations and multi-panel figures showing the evolution
 of a dark matter halo across cosmic time.
 
+This is the consolidated pipeline that uses:
+- C++ MergerTree/HaloTracker for high-performance tree traversal (utils/)
+- C++ tessera density computation for density field rendering
+- Visualization functions from the visualize/ module
+
 Usage
 -----
 # Basic usage - trace most massive halo at final snapshot
-python halo_evolution_pipeline.py \
-    --tree-file /path/to/trees.hdf5 \
-    --snapshot-dir /path/to/snapshots \
+python halo_evolution_pipeline.py \\
+    --tree-file /path/to/trees.hdf5 \\
+    --snapshot-dir /path/to/snapshots \\
     --output-dir ./halo_evolution_output
 
 # Specific tree
-python halo_evolution_pipeline.py \
-    --tree-file /path/to/trees.hdf5 \
-    --snapshot-dir /path/to/snapshots \
-    --output-dir ./output \
-    --tree-id 0 \
+python halo_evolution_pipeline.py \\
+    --tree-file /path/to/trees.hdf5 \\
+    --snapshot-dir /path/to/snapshots \\
+    --output-dir ./output \\
+    --tree-id 0 \\
     --a-min 0.1
 
 # Multi-panel figure only (no animation)
-python halo_evolution_pipeline.py \
-    --tree-file /path/to/trees.hdf5 \
-    --snapshot-dir /path/to/snapshots \
-    --output-dir ./output \
-    --no-animation \
+python halo_evolution_pipeline.py \\
+    --tree-file /path/to/trees.hdf5 \\
+    --snapshot-dir /path/to/snapshots \\
+    --output-dir ./output \\
+    --no-animation \\
     --epochs 0.1 1.0 10.0 100.0
 
 Note
 ----
-On macOS, there may be HDF5 library conflicts between h5py (used for merger trees)
-and tessera (uses HighFive). If you encounter crashes, try running the pipeline
-in two stages:
+On macOS, there may be HDF5 library conflicts between h5py and tessera.
+If you encounter crashes, try running the pipeline in two stages:
   1. First run with --extract-branch-only to save branch info
   2. Then run density rendering separately
 
 This issue does not affect Linux systems.
+
+See Also
+--------
+- utils.MergerTree: C++ merger tree reader
+- utils.HaloTracker: C++ branch tracer
+- utils.DensityRenderer: Density field computation
+- visualize.create_evolution_multipanel: Multi-panel figure generation
+- visualize.create_evolution_animation: Animation generation
 """
 
 import argparse
@@ -46,13 +58,18 @@ from pathlib import Path
 import sys
 import numpy as np
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add repository root to path for utils and visualize modules
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from halo_evolution.merger_tree import MergerTree
-from halo_evolution.halo_tracker import HaloTracker
-from halo_evolution.density_renderer import DensityRenderer, DensityRenderConfig
-from halo_evolution.visualize_evolution import (
+# Use consolidated modules from utils and visualize
+from utils import (
+    MergerTree,
+    HaloTracker,
+    HaloInfo,
+    DensityRenderer,
+    DensityRenderConfig,
+)
+from visualize import (
     create_evolution_animation,
     create_multipanel_figure,
     VisualizationConfig,
@@ -136,33 +153,32 @@ def main():
         with open(args.branch_file, 'r') as f:
             branch_data = json.load(f)
 
-        # Reconstruct HaloInfo objects
-        from halo_evolution.halo_tracker import HaloInfo
+        # Reconstruct HaloInfo objects using C++ class
         branch = []
         for halo_dict in branch_data['halos']:
-            branch.append(HaloInfo(
-                tree_index=halo_dict['tree_index'],
-                snap_num=halo_dict['snap_num'],
-                subhalo_nr=halo_dict['subhalo_nr'],
-                group_nr=halo_dict['group_nr'],
-                scale_factor=halo_dict['scale_factor'],
-                redshift=halo_dict['redshift'],
-                position=np.array(halo_dict['position']),
-                velocity=np.array(halo_dict['velocity']),
-                mass=halo_dict['mass'],
-                m200c=halo_dict['m200c'],
-                r200c=halo_dict['r200c'],
-            ))
+            halo = HaloInfo()
+            halo.tree_index = halo_dict['tree_index']
+            halo.snap_num = halo_dict['snap_num']
+            halo.subhalo_nr = halo_dict['subhalo_nr']
+            halo.group_nr = halo_dict['group_nr']
+            halo.scale_factor = halo_dict['scale_factor']
+            halo.redshift = halo_dict['redshift']
+            halo.position = tuple(halo_dict['position'])
+            halo.velocity = tuple(halo_dict['velocity'])
+            halo.mass = halo_dict['mass']
+            halo.m200c = halo_dict['m200c']
+            halo.r200c = halo_dict['r200c']
+            branch.append(halo)
         box_size = branch_data['box_size']
         print(f"  Loaded {len(branch)} halos from branch file")
         print()
 
     else:
-        # Load merger tree
+        # Load merger tree (C++ implementation for high performance)
         print(f"Loading merger tree: {args.tree_file}")
-        tree = MergerTree(args.tree_file)
+        tree = MergerTree(str(args.tree_file))
         tracker = HaloTracker(tree)
-        print(f"  {tree}")
+        print(f"  Trees: {tree.n_trees()}, Halos: {tree.n_halos()}")
         print()
 
         # Trace halo branch

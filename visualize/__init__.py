@@ -41,6 +41,15 @@ from .pdf import (
     plot_pdf_comparison,
 )
 
+from .evolution import (
+    EvolutionVisualizationConfig,
+    VisualizationConfig,
+    auto_select_epochs,
+    create_evolution_multipanel,
+    create_multipanel_figure,
+    create_evolution_animation,
+)
+
 __all__ = [
     # Core utilities
     'setup_matplotlib_backend',
@@ -66,4 +75,11 @@ __all__ = [
     # PDF/histogram plotting
     'plot_pdf_histogram',
     'plot_pdf_comparison',
+    # Evolution visualization
+    'EvolutionVisualizationConfig',
+    'VisualizationConfig',
+    'auto_select_epochs',
+    'create_evolution_multipanel',
+    'create_multipanel_figure',
+    'create_evolution_animation',
 ]

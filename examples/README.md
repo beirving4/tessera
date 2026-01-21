@@ -203,6 +203,43 @@ Create evolution animation with callout annotations:
 python examples/animate_evolution.py --projections ./output/density_projections.h5 --output evolution.mp4
 ```
 
+### Halo Evolution
+
+#### `halo_evolution/halo_evolution_pipeline.py`
+
+Complete pipeline for visualizing the evolution of a dark matter halo across cosmic time:
+- High-performance C++ merger tree reading with SIMD-optimized search
+- Staged data loading (~36x faster first lookup by loading only search data initially)
+- Branch tracing with coordinate unwrapping for smooth tracking
+- Density field rendering centered on halo position at each epoch
+- Multi-panel figures and MP4 animations
+
+```bash
+# Trace most massive halo and generate visualization
+python examples/halo_evolution/halo_evolution_pipeline.py \
+    --tree-file /path/to/trees.hdf5 \
+    --snapshot-dir /path/to/snapshots \
+    --output-dir ./halo_evolution_output
+
+# Specific tree with scale factor limits
+python examples/halo_evolution/halo_evolution_pipeline.py \
+    --tree-file /path/to/trees.hdf5 \
+    --snapshot-dir /path/to/snapshots \
+    --output-dir ./output \
+    --tree-id 0 \
+    --a-min 0.1
+
+# Multi-panel figure only (no animation)
+python examples/halo_evolution/halo_evolution_pipeline.py \
+    --tree-file /path/to/trees.hdf5 \
+    --snapshot-dir /path/to/snapshots \
+    --output-dir ./output \
+    --no-animation \
+    --epochs 0.1 1.0 10.0 100.0
+```
+
+**Note:** On macOS, there may be HDF5 library conflicts between h5py and tessera. Use `--extract-branch-only` to save branch info, then run density rendering separately with `--branch-file`.
+
 ### Statistics
 
 #### `histogram.py`

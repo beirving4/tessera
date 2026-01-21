@@ -6,6 +6,7 @@
 
 #ifdef TESSERA_HAS_HDF5
 #include "io/gadget4.h"
+#include "io/merger_tree.h"
 #endif
 
 namespace py = pybind11;
@@ -342,6 +343,219 @@ void bind_io(py::module& m) {
           "  path: Path to a single HDF5 file or a directory containing distributed files\n"
           "  snapshot_num: Snapshot number (inferred from directory name if -1)\n"
           "  read_ids: Whether to read particle IDs");
+
+    // =========================================================================
+    // Merger Tree I/O
+    // =========================================================================
+
+    // MergerTreeHeader
+    py::class_<MergerTreeHeader>(m, "MergerTreeHeader",
+        R"pbdoc(
+        Merger tree file header information.
+
+        Loaded immediately when MergerTree is constructed (small data).
+
+        Units (GADGET-4 internal code units):
+        - box_size: Mpc/h
+        - Masses: 10^10 M_sun/h
+        )pbdoc")
+        .def(py::init<>())
+        .def_readwrite("n_trees", &MergerTreeHeader::n_trees, "Number of trees (z=0 halos)")
+        .def_readwrite("n_halos", &MergerTreeHeader::n_halos, "Total number of halos")
+        .def_readwrite("n_files", &MergerTreeHeader::n_files, "Number of distributed files")
+        .def_readwrite("last_snap", &MergerTreeHeader::last_snap, "Last snapshot number")
+        .def_readwrite("snap_times", &MergerTreeHeader::snap_times, "Scale factor at each snapshot")
+        .def_readwrite("snap_redshifts", &MergerTreeHeader::snap_redshifts, "Redshift at each snapshot")
+        .def_readwrite("box_size", &MergerTreeHeader::box_size, "Simulation box size [Mpc/h]")
+        .def_readwrite("hubble", &MergerTreeHeader::hubble, "Hubble parameter h")
+        .def_readwrite("omega_matter", &MergerTreeHeader::omega_matter, "Matter density Omega_m")
+        .def_readwrite("omega_lambda", &MergerTreeHeader::omega_lambda, "Dark energy density Omega_Lambda")
+        .def("n_snapshots", &MergerTreeHeader::n_snapshots, "Number of snapshots")
+        .def("get_scale_factor", &MergerTreeHeader::get_scale_factor, py::arg("snap_num"),
+             "Get scale factor for a snapshot number")
+        .def("get_redshift", &MergerTreeHeader::get_redshift, py::arg("snap_num"),
+             "Get redshift for a snapshot number")
+        .def("__repr__", [](const MergerTreeHeader& h) {
+            return "MergerTreeHeader(n_trees=" + std::to_string(h.n_trees) +
+                   ", n_halos=" + std::to_string(h.n_halos) +
+                   ", box_size=" + std::to_string(h.box_size) + ")";
+        });
+
+    // HaloInfo
+    py::class_<HaloInfo>(m, "HaloInfo",
+        R"pbdoc(
+        Information about a single halo at one snapshot.
+
+        Units (GADGET-4 internal code units):
+        - Positions: Mpc/h
+        - Velocities: km/s
+        - Masses: 10^10 M_sun/h
+        - Radii: Mpc/h
+        )pbdoc")
+        .def(py::init<>())
+        .def_readwrite("tree_index", &HaloInfo::tree_index, "Index in TreeHalos arrays")
+        .def_readwrite("snap_num", &HaloInfo::snap_num, "Snapshot number")
+        .def_readwrite("subhalo_nr", &HaloInfo::subhalo_nr, "Subhalo index in catalog")
+        .def_readwrite("group_nr", &HaloInfo::group_nr, "FOF group index")
+        .def_readwrite("scale_factor", &HaloInfo::scale_factor, "Scale factor a = 1/(1+z)")
+        .def_readwrite("redshift", &HaloInfo::redshift, "Redshift z")
+        .def_readwrite("position", &HaloInfo::position, "Comoving position [Mpc/h]")
+        .def_readwrite("velocity", &HaloInfo::velocity, "Velocity [km/s]")
+        .def_readwrite("mass", &HaloInfo::mass, "Subhalo mass [10^10 M_sun/h]")
+        .def_readwrite("m200c", &HaloInfo::m200c, "M200 critical [10^10 M_sun/h]")
+        .def_readwrite("r200c", &HaloInfo::r200c, "R200 critical [Mpc/h]")
+        .def("is_valid", &HaloInfo::is_valid, "Check if this is a valid halo")
+        .def("__repr__", [](const HaloInfo& h) {
+            return "HaloInfo(snap=" + std::to_string(h.snap_num) +
+                   ", a=" + std::to_string(h.scale_factor) +
+                   ", mass=" + std::to_string(h.mass) + ")";
+        });
+
+    // TreeTableEntry
+    py::class_<TreeTableEntry>(m, "TreeTableEntry",
+        "Tree table entry for locating halos within a specific tree")
+        .def(py::init<>())
+        .def_readwrite("start_offset", &TreeTableEntry::start_offset, "Start index in TreeHalos")
+        .def_readwrite("length", &TreeTableEntry::length, "Number of halos in this tree")
+        .def_readwrite("tree_id", &TreeTableEntry::tree_id, "Tree identifier");
+
+    // MergerTree
+    py::class_<MergerTree>(m, "MergerTree",
+        R"pbdoc(
+        GADGET-4 Merger Tree Reader.
+
+        Efficient reader for GADGET-4 merger tree HDF5 files with lazy loading.
+        Header information is loaded immediately; TreeTable and TreeHalos are
+        loaded on first access to minimize memory usage.
+
+        Uses SIMD-optimized search when AVX2 is available (8x parallel comparison).
+
+        Examples
+        --------
+        >>> tree = ts.io.MergerTree("trees.hdf5")
+        >>> print(f"Found {tree.n_trees()} trees")
+        >>>
+        >>> # Find a halo
+        >>> idx = tree.find_halo_in_tree(snap_num=74, subhalo_nr=0)
+        >>> if idx is not None:
+        ...     info = tree.make_halo_info(idx)
+        ...     print(f"Mass: {info.mass}")
+        )pbdoc")
+        .def(py::init<const std::string&>(), py::arg("filename"),
+             "Construct merger tree reader from HDF5 file")
+        .def("header", &MergerTree::header, py::return_value_policy::reference_internal,
+             "Get header information")
+        .def("n_trees", &MergerTree::n_trees, "Number of trees (z=0 halos)")
+        .def("n_halos", &MergerTree::n_halos, "Total number of halos")
+        .def("n_snapshots", &MergerTree::n_snapshots, "Number of snapshots")
+        .def("box_size", &MergerTree::box_size, "Simulation box size [Mpc/h]")
+        .def("get_scale_factor", &MergerTree::get_scale_factor, py::arg("snap_num"),
+             "Get scale factor for a snapshot number")
+        .def("get_redshift", &MergerTree::get_redshift, py::arg("snap_num"),
+             "Get redshift for a snapshot number")
+        .def("find_nearest_snapshot", &MergerTree::find_nearest_snapshot,
+             py::arg("scale_factor"),
+             "Find snapshot number nearest to given scale factor")
+        .def("get_tree_entry", &MergerTree::get_tree_entry, py::arg("tree_id"),
+             py::return_value_policy::reference_internal,
+             "Get tree table entry for a specific tree")
+        .def("get_tree_indices", &MergerTree::get_tree_indices, py::arg("tree_id"),
+             "Get (start_index, end_index) for halos in a specific tree")
+        .def("get_root_halo_index", &MergerTree::get_root_halo_index, py::arg("tree_id"),
+             "Get TreeHalos index of the root halo for a tree")
+        .def("find_halo_in_tree", &MergerTree::find_halo_in_tree,
+             py::arg("snap_num"),
+             py::arg("subhalo_nr"),
+             py::arg("tree_id") = std::nullopt,
+             "Find TreeHalos index for a snapshot/subhalo combination.\n"
+             "Returns None if not found. Uses SIMD-optimized search on AVX2 systems.")
+        .def("make_halo_info", &MergerTree::make_halo_info, py::arg("tree_index"),
+             "Create HaloInfo from a TreeHalos index")
+        .def("search_data_loaded", &MergerTree::search_data_loaded,
+             "Check if search data (snap_num, subhalo_nr) is loaded")
+        .def("halos_loaded", &MergerTree::halos_loaded,
+             "Check if full TreeHalos data is loaded")
+        .def("table_loaded", &MergerTree::table_loaded,
+             "Check if TreeTable data is loaded")
+        .def("clear_cache", &MergerTree::clear_cache,
+             "Clear cached TreeTable and TreeHalos data to free memory")
+        .def("memory_usage", &MergerTree::memory_usage,
+             "Get approximate memory usage in bytes")
+        .def("__repr__", [](MergerTree& t) {
+            return "MergerTree(n_trees=" + std::to_string(t.n_trees()) +
+                   ", n_halos=" + std::to_string(t.n_halos()) +
+                   ", loaded=" + (t.halos_loaded() ? "True" : "False") + ")";
+        });
+
+    // HaloTracker
+    py::class_<HaloTracker>(m, "HaloTracker",
+        R"pbdoc(
+        Halo Branch Tracer.
+
+        Traces progenitor and descendant branches through merger trees.
+        Uses prefetching for efficient pointer-chasing through tree links.
+
+        Examples
+        --------
+        >>> tree = ts.io.MergerTree("trees.hdf5")
+        >>> tracker = ts.io.HaloTracker(tree)
+        >>>
+        >>> # Trace from z=0 most massive halo
+        >>> branch = tracker.trace_main_branch(
+        ...     snap_num=74,
+        ...     subhalo_nr=0,
+        ...     backward=True,
+        ...     forward=False,
+        ...     a_min=0.1
+        ... )
+        >>>
+        >>> for halo in branch:
+        ...     print(f"a={halo.scale_factor:.3f}: M200={halo.m200c:.2e}")
+        )pbdoc")
+        .def(py::init<MergerTree&>(), py::arg("tree"),
+             py::keep_alive<1, 2>(),  // Keep tree alive as long as tracker exists
+             "Construct halo tracker from merger tree")
+        .def("trace_main_branch", &HaloTracker::trace_main_branch,
+             py::arg("snap_num"),
+             py::arg("subhalo_nr"),
+             py::arg("backward") = true,
+             py::arg("forward") = true,
+             py::arg("a_min") = std::nullopt,
+             py::arg("a_max") = std::nullopt,
+             "Trace the main branch through a halo.\n\n"
+             "Parameters:\n"
+             "  snap_num: Reference snapshot number\n"
+             "  subhalo_nr: Subhalo index at reference snapshot\n"
+             "  backward: Trace progenitors (earlier times)\n"
+             "  forward: Trace descendants (later times)\n"
+             "  a_min: Minimum scale factor (optional)\n"
+             "  a_max: Maximum scale factor (optional)\n\n"
+             "Returns:\n"
+             "  List of HaloInfo sorted by scale factor (early to late)")
+        .def("trace_from_tree_id", &HaloTracker::trace_from_tree_id,
+             py::arg("tree_id"),
+             py::arg("backward") = true,
+             py::arg("forward") = true,
+             py::arg("a_min") = std::nullopt,
+             py::arg("a_max") = std::nullopt,
+             "Trace main branch starting from a tree's root halo.\n"
+             "tree_id=0 is the most massive z=0 halo.")
+        .def("trace_all_progenitors", &HaloTracker::trace_all_progenitors,
+             py::arg("snap_num"),
+             py::arg("subhalo_nr"),
+             py::arg("a_min") = std::nullopt,
+             "Trace ALL progenitor branches (not just main branch).\n\n"
+             "Returns dict mapping snap_num -> list of HaloInfo at that snapshot.\n"
+             "Useful for visualizing mergers.")
+        .def("unwrap_coordinates", &HaloTracker::unwrap_coordinates,
+             py::arg("branch"),
+             py::arg("box_size") = std::nullopt,
+             "Unwrap periodic coordinates for smooth tracking.\n"
+             "Modifies positions in-place.");
+
+    // Free function
+    m.def("read_merger_tree_header", &read_merger_tree_header, py::arg("filename"),
+          "Read merger tree header only (small, fast)");
 
     // Flag to indicate HDF5 support is available
     m.attr("HAS_HDF5") = true;

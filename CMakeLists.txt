@@ -89,6 +89,7 @@ file(GLOB_RECURSE ORIGAMI_SOURCES "src/origami/*.cpp")
 # Remove HDF5-dependent files when HDF5 is disabled
 if(NOT BUILD_WITH_HDF5)
     list(FILTER IO_SOURCES EXCLUDE REGEX "gadget4\\.cpp$")
+    list(FILTER IO_SOURCES EXCLUDE REGEX "merger_tree\\.cpp$")
 endif()
 
 set(ALL_SOURCES

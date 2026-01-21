@@ -2,6 +2,19 @@
 """
 Standalone density rendering script (avoids h5py for macOS compatibility).
 
+.. deprecated::
+    This script is superseded by halo_evolution_pipeline.py which uses
+    the consolidated utils and visualize modules:
+
+        python halo_evolution_pipeline.py \\
+            --branch-file branch_data.json \\
+            --snapshot-dir /path/to/snapshots \\
+            --output-dir ./output
+
+    See also:
+    - utils.DensityRenderer: High-level density rendering class
+    - visualize.create_evolution_multipanel: Multi-panel figure generation
+
 This script loads branch data from JSON and renders density fields using
 only tessera, avoiding the HDF5 library conflict on macOS.
 """

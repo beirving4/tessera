@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """
 Density rendering using pure Python implementation (fallback for C++ issues).
+
+.. deprecated::
+    This script is superseded by halo_evolution_pipeline.py which uses
+    the high-performance C++ tessera density computation. Only use this
+    script if the C++ implementation is unavailable.
+
+    See: halo_evolution_pipeline.py
 """
 
 import argparse

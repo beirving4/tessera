@@ -45,6 +45,7 @@ The library also includes **ORIGAMI morphological classification** (Falck, Neyri
 - **Memory efficient**: In-place sorting supports N=1024³ simulations (~24GB positions)
 - **Time-series visualization**: Diemer-style cosmic evolution images and animations
 - **GADGET-4 I/O**: Read HDF5 snapshots (single or distributed) and FOF/Subfind catalogs
+- **Merger tree support**: High-performance C++ reader for GADGET-4 merger trees with SIMD-optimized search
 - **Multi-threaded**: Parallel computation with OpenMP
 - **Validated**: Tested against original gotetra with >0.999 correlation
 
@@ -319,11 +320,25 @@ The animation script supports callout annotations for labeling cosmic events—e
 
 ### `ts.io` - File I/O
 
+**Snapshot I/O:**
 - `read_gadget4_header()`: Read GADGET-4 HDF5 header
 - `read_gadget4_positions()`: Read particle coordinates
 - `read_gadget4_velocities()`: Read particle velocities
 - `read_fof_catalog()`: Read Friends-of-Friends group catalog
 - `read_subfind_catalog()`: Read Subfind subhalo catalog
+
+**Merger Tree I/O:**
+- `MergerTree`: High-performance reader for GADGET-4 merger tree HDF5 files
+  - Lazy loading with staged data access (search data loaded first for fast lookups)
+  - SIMD-optimized halo search (AVX2: 8x parallel comparison)
+  - ~36x faster first lookup compared to loading all data upfront
+- `HaloTracker`: Branch tracing through merger trees
+  - `trace_main_branch()`: Follow main progenitor/descendant chain
+  - `trace_from_tree_id()`: Trace from a specific tree's root halo
+  - `trace_all_progenitors()`: BFS traversal of all progenitor branches
+  - `unwrap_coordinates()`: Handle periodic boundary crossings for smooth tracking
+- `HaloInfo`: Halo data struct (position, velocity, mass, M200c, R200c, etc.)
+- `read_merger_tree_header()`: Read header only (fast metadata access)
 
 ### `ts.geom` - Geometry Primitives
 
@@ -405,6 +420,12 @@ from utils import load_snapshot, sort_positions_lagrangian, infer_grid_size
 - `save_density_hdf5()`: Save density field to HDF5 with metadata
 - `compute_mean_density()`: Compute mean 3D density
 - `compute_mean_surface_density()`: Compute mean surface density for slice
+
+**Halo evolution (re-exports from `ts.io`):**
+- `MergerTree`: C++ merger tree reader (high-performance, lazy loading)
+- `HaloTracker`: Branch tracing with prefetching
+- `HaloInfo`: Halo information struct
+- `DensityRenderer`: Convenience wrapper for halo-centric density rendering
 
 ## Algorithm
 
