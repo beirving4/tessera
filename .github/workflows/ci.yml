@@ -122,6 +122,12 @@ jobs:
           print(f'Jackknife histogram test passed: {jk.n_bins} bins, {jk.n_subboxes} subboxes')
           "
 
+      - name: Run pytest test suite
+        env:
+          KMP_DUPLICATE_LIB_OK: TRUE
+        run: |
+          python -m pytest tests/ -v --ignore=tests/test_io.py -k "not requires_tree_file"
+
   # CentOS 7 / manylinux2014 build (for HPC cluster compatibility)
   # Uses manylinux2014 which is CentOS 7 based with devtoolset pre-configured
   build-centos7:
