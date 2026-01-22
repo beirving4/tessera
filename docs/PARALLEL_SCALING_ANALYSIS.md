@@ -9,6 +9,23 @@ Analysis of OpenMP parallel performance for the ORIGAMI pipeline on different sy
 
 The ORIGAMI morphology computation is **memory-bandwidth limited**, not CPU-limited. Adding more threads provides minimal benefit for the morphology stage because all threads compete for the same memory bus. The main parallel benefits come from sorting and grid operations.
 
+## Test Systems
+
+### Linux Cluster Node
+
+| Spec | Value |
+|------|-------|
+| CPU | AMD EPYC 7543P 32-Core Processor |
+| Cores | 32 (1 thread per core) |
+| NUMA Nodes | 2 (cores 0-15, 16-31) |
+| L1d/L1i Cache | 32K / 32K |
+| L2 Cache | 512K per core |
+| L3 Cache | 32MB shared |
+| CPU MHz | 1500-2800 MHz |
+| SIMD | AVX2, SSE4.2 |
+
+The NUMA architecture (2 nodes) means memory access patterns are critical - threads accessing memory from the "wrong" NUMA node incur latency penalties.
+
 ## Cluster Benchmark Results
 
 ### Linux Cluster (4-5 OpenMP threads)
@@ -69,6 +86,12 @@ The ORIGAMI algorithm checks neighbors along 3 Cartesian axes and 6 diagonal dir
    - Early termination on first crossing detection
    - Cannot easily vectorize the conditional logic
 
+4. **NUMA effects on multi-socket systems:**
+   - The AMD EPYC has 2 NUMA nodes (cores 0-15, 16-31)
+   - Threads accessing memory allocated on the other NUMA node incur extra latency
+   - The position array (384 MB) may be split across NUMA nodes
+   - This further limits scaling beyond ~8-16 threads
+
 ## Platform Differences
 
 | Platform | OpenMP Runtime | Morphology Scaling | Notes |
@@ -125,6 +148,7 @@ For significant parallel speedup in morphology, these larger changes would be ne
 
 4. **Practical guidance:**
    - Use 4-8 threads for best overall performance
+   - 32 cores showed same results as 4-5 threads (memory-bound saturation)
    - More threads may actually slow down on some systems
    - The 4.64x pipeline speedup comes from eliminating Python overhead, not from parallel scaling
 
