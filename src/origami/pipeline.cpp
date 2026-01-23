@@ -398,6 +398,74 @@ void sort_to_lagrangian_inplace(
 }
 
 // ============================================================================
+// sort_particles_to_lagrangian - Convenience function with auto-detection
+// ============================================================================
+
+template<typename T>
+std::vector<T> sort_particles_to_lagrangian_impl(
+    const T* positions,
+    const int64_t* particle_ids,
+    int64_t n_particles,
+    int grid_size,
+    double box_size,
+    IdOrdering* detected_ordering,
+    int64_t* detected_offset)
+{
+    // Step 1: Detect ID ordering
+    IdOrdering ordering = detect_id_ordering(positions, particle_ids, n_particles,
+                                              grid_size, box_size);
+    if (detected_ordering) {
+        *detected_ordering = ordering;
+    }
+
+    // Step 2: Detect ID offset (minimum particle ID)
+    int64_t id_offset = particle_ids[0];
+    for (int64_t i = 1; i < n_particles; ++i) {
+        if (particle_ids[i] < id_offset) {
+            id_offset = particle_ids[i];
+        }
+    }
+    if (detected_offset) {
+        *detected_offset = id_offset;
+    }
+
+    // Step 3: Allocate output and sort
+    std::vector<T> sorted_output(n_particles * 3);
+    sort_to_lagrangian_impl(positions, particle_ids, n_particles, grid_size,
+                            ordering, id_offset, sorted_output.data());
+
+    return sorted_output;
+}
+
+std::vector<double> sort_particles_to_lagrangian(
+    const double* positions,
+    const int64_t* particle_ids,
+    int64_t n_particles,
+    int grid_size,
+    double box_size,
+    IdOrdering* detected_ordering,
+    int64_t* detected_offset)
+{
+    return sort_particles_to_lagrangian_impl(positions, particle_ids, n_particles,
+                                              grid_size, box_size,
+                                              detected_ordering, detected_offset);
+}
+
+std::vector<float> sort_particles_to_lagrangian(
+    const float* positions,
+    const int64_t* particle_ids,
+    int64_t n_particles,
+    int grid_size,
+    double box_size,
+    IdOrdering* detected_ordering,
+    int64_t* detected_offset)
+{
+    return sort_particles_to_lagrangian_impl(positions, particle_ids, n_particles,
+                                              grid_size, box_size,
+                                              detected_ordering, detected_offset);
+}
+
+// ============================================================================
 // run_pipeline - Main unified entry point
 // ============================================================================
 

@@ -1041,6 +1041,95 @@ void bind_origami(py::module& m) {
         >>> sorted_pos = ts.origami.sort_to_lagrangian(pos, ids, 256, ordering)
         )pbdoc");
 
+    // sort_particles_to_lagrangian (convenience function with auto-detection)
+    origami_m.def("sort_particles_to_lagrangian",
+        [](py::array_t<double, py::array::c_style | py::array::forcecast> positions,
+           py::array_t<int64_t, py::array::c_style | py::array::forcecast> particle_ids,
+           int grid_size,
+           double box_size) {
+            auto pos_buf = positions.request();
+            auto id_buf = particle_ids.request();
+
+            if (pos_buf.ndim != 2 || pos_buf.shape[1] != 3) {
+                throw std::runtime_error("positions must have shape (N, 3)");
+            }
+            if (id_buf.ndim != 1) {
+                throw std::runtime_error("particle_ids must be 1D array");
+            }
+            if (pos_buf.shape[0] != id_buf.shape[0]) {
+                throw std::runtime_error("positions and particle_ids must have same length");
+            }
+
+            int64_t n_particles = pos_buf.shape[0];
+            int64_t expected = static_cast<int64_t>(grid_size) * grid_size * grid_size;
+            if (n_particles != expected) {
+                throw std::runtime_error(
+                    "positions has " + std::to_string(n_particles) +
+                    " particles, expected " + std::to_string(expected) +
+                    " for grid_size=" + std::to_string(grid_size));
+            }
+
+            IdOrdering detected_ordering;
+            int64_t detected_offset;
+
+            auto sorted = sort_particles_to_lagrangian(
+                static_cast<const double*>(pos_buf.ptr),
+                static_cast<const int64_t*>(id_buf.ptr),
+                n_particles,
+                grid_size,
+                box_size,
+                &detected_ordering,
+                &detected_offset
+            );
+
+            // Create output array
+            std::vector<ssize_t> shape = {static_cast<ssize_t>(n_particles), 3};
+            auto result = py::array_t<double>(shape);
+            auto result_buf = result.request();
+            std::memcpy(result_buf.ptr, sorted.data(), sorted.size() * sizeof(double));
+
+            // Return tuple of (sorted_positions, ordering_name, id_offset)
+            return py::make_tuple(result, id_ordering_name(detected_ordering), detected_offset);
+        },
+        py::arg("positions"),
+        py::arg("particle_ids"),
+        py::arg("grid_size"),
+        py::arg("box_size"),
+        R"pbdoc(
+        Sort particles to Lagrangian order with automatic ID ordering detection.
+
+        This is a convenience function that combines detect_id_ordering() and
+        sort_to_lagrangian() into a single call. It automatically:
+        1. Detects the ID ordering convention (x-major or z-major)
+        2. Detects the ID offset (minimum particle ID)
+        3. Sorts positions to x-major Lagrangian order
+
+        Parameters
+        ----------
+        positions : ndarray, shape (N, 3)
+            Particle positions.
+        particle_ids : ndarray, shape (N,)
+            Particle IDs encoding Lagrangian positions.
+        grid_size : int
+            Lagrangian grid size (N for N^3).
+        box_size : float
+            Simulation box size.
+
+        Returns
+        -------
+        tuple
+            (sorted_positions, ordering_name, id_offset) where:
+            - sorted_positions: ndarray (N, 3) in x-major Lagrangian order
+            - ordering_name: str, detected ordering ("x-major" or "z-major")
+            - id_offset: int, detected ID offset (minimum particle ID)
+
+        Examples
+        --------
+        >>> sorted_pos, ordering, offset = ts.origami.sort_particles_to_lagrangian(
+        ...     positions, particle_ids, grid_size=256, box_size=256.0)
+        >>> print(f"Detected: {ordering}, offset={offset}")
+        )pbdoc");
+
     // run_pipeline
     origami_m.def("run_pipeline",
         [](py::array_t<double, py::array::c_style> positions,

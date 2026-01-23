@@ -317,6 +317,47 @@ void sort_to_lagrangian(
 );
 
 /**
+ * Sort particles to Lagrangian order with automatic ID ordering detection.
+ *
+ * This is a convenience function that combines detect_id_ordering() and
+ * sort_to_lagrangian() into a single call. It automatically:
+ * 1. Detects the ID ordering convention (x-major or z-major)
+ * 2. Detects the ID offset (minimum particle ID)
+ * 3. Sorts positions to x-major Lagrangian order
+ *
+ * @param positions Input particle positions (N, 3)
+ * @param particle_ids Particle IDs encoding Lagrangian positions
+ * @param n_particles Number of particles
+ * @param grid_size Lagrangian grid size (N for N^3)
+ * @param box_size Simulation box size
+ * @param detected_ordering Output: detected ID ordering (optional, can be nullptr)
+ * @param detected_offset Output: detected ID offset (optional, can be nullptr)
+ * @return Sorted positions in x-major Lagrangian order
+ */
+std::vector<double> sort_particles_to_lagrangian(
+    const double* positions,
+    const int64_t* particle_ids,
+    int64_t n_particles,
+    int grid_size,
+    double box_size,
+    IdOrdering* detected_ordering = nullptr,
+    int64_t* detected_offset = nullptr
+);
+
+/**
+ * Float version of sort_particles_to_lagrangian.
+ */
+std::vector<float> sort_particles_to_lagrangian(
+    const float* positions,
+    const int64_t* particle_ids,
+    int64_t n_particles,
+    int grid_size,
+    double box_size,
+    IdOrdering* detected_ordering = nullptr,
+    int64_t* detected_offset = nullptr
+);
+
+/**
  * Run the complete ORIGAMI analysis pipeline.
  *
  * This is the main entry point for ORIGAMI analysis. It handles:
