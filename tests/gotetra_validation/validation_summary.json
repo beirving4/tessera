@@ -1,5 +1,5 @@
 {
-  "validation_date": "2026-01-20T20:40:46.462505",
+  "validation_date": "2026-01-22T23:39:27.330919",
   "reference": "gotetra: github.com/phil-mansfield/gotetra",
   "method": "Tetrahedron-based phase-space tessellation for density field computation",
   "results": {
@@ -12,20 +12,20 @@
       "box_size": 256.0,
       "output_cells": 256,
       "benchmarks": {
-        "load_time_s": 81.61185729096178,
-        "sort_time_s": 0.19947879202663898,
-        "compute_time_s": 46.96585695806425,
-        "total_time_s": 128.77719304105267,
-        "peak_memory_load_mb": 3647.992805480957,
+        "load_time_s": 90.85328941605985,
+        "sort_time_s": 0.4143234579823911,
+        "compute_time_s": 53.60012683295645,
+        "total_time_s": 144.8677397069987,
+        "peak_memory_load_mb": 3647.9960947036743,
         "peak_memory_sort_mb": 384.00040340423584,
         "peak_memory_compute_mb": 0.5003786087036133
       },
-      "correlation": 0.999989722415802,
-      "mean_relative_difference": 0.0034827265408068665,
-      "max_relative_difference": 0.025451721198275972,
+      "correlation": 0.9999899289129259,
+      "mean_relative_difference": 0.0033981138745780293,
+      "max_relative_difference": 0.029452873778824832,
       "at_density_range": [
-        72.82333333333347,
-        7110.300000042364
+        73.42666666666672,
+        7119.3666667083235
       ],
       "gotetra_density_range": [
         0.28498053550720215,
@@ -42,20 +42,20 @@
       "box_size": 256.0,
       "output_cells": 256,
       "benchmarks": {
-        "load_time_s": 81.3083649170585,
-        "sort_time_s": 0.1981470410246402,
-        "compute_time_s": 46.90656454197597,
-        "total_time_s": 128.4130765000591,
+        "load_time_s": 133.85058220801875,
+        "sort_time_s": 0.31607741699554026,
+        "compute_time_s": 53.06423308304511,
+        "total_time_s": 187.2308927080594,
         "peak_memory_load_mb": 3647.9892959594727,
         "peak_memory_sort_mb": 384.0003547668457,
         "peak_memory_compute_mb": 0.5003786087036133
       },
-      "correlation": 0.9999983804067395,
-      "mean_relative_difference": 0.004062115287674074,
-      "max_relative_difference": 0.0292074074187395,
+      "correlation": 0.9999983775647452,
+      "mean_relative_difference": 0.004039452856617501,
+      "max_relative_difference": 0.02700450113901038,
       "at_density_range": [
-        49.05333333333337,
-        41664.71000644436
+        48.943333333333364,
+        41661.263339777535
       ],
       "gotetra_density_range": [
         0.19168612360954285,
@@ -72,20 +72,20 @@
       "box_size": 256.0,
       "output_cells": 129,
       "benchmarks": {
-        "load_time_s": 81.62157787499018,
-        "sort_time_s": 0.19707137497607619,
-        "compute_time_s": 2.7645367089426145,
-        "total_time_s": 84.58318595890887,
+        "load_time_s": 97.63008187501691,
+        "sort_time_s": 0.20881508407182992,
+        "compute_time_s": 3.6480963330250233,
+        "total_time_s": 101.48699329211377,
         "peak_memory_load_mb": 3647.9893188476562,
         "peak_memory_sort_mb": 384.0003547668457,
         "peak_memory_compute_mb": 0.12733936309814453
       },
-      "correlation": 0.9999017890552487,
-      "mean_relative_difference": 0.16811006956363894,
-      "max_relative_difference": 12.0022899172258,
+      "correlation": 0.999896055135281,
+      "mean_relative_difference": 0.17233194270474037,
+      "max_relative_difference": 14.002512595962848,
       "at_density_range": [
         0.0,
-        44231.03277098431
+        44580.38745848431
       ],
       "gotetra_density_range": [
         0.0,
@@ -108,20 +108,20 @@
       "box_size": 256.0,
       "output_cells": 129,
       "benchmarks": {
-        "load_time_s": 80.39827587502077,
-        "sort_time_s": 0.19230800005607307,
-        "compute_time_s": 2.524118041037582,
-        "total_time_s": 83.11470191611443,
+        "load_time_s": 99.04286683304235,
+        "sort_time_s": 0.184956792043522,
+        "compute_time_s": 3.8742939999792725,
+        "total_time_s": 103.10211762506515,
         "peak_memory_load_mb": 3647.9893646240234,
         "peak_memory_sort_mb": 384.0003547668457,
         "peak_memory_compute_mb": 0.12733936309814453
       },
-      "correlation": 0.9999997677774587,
-      "mean_relative_difference": 0.1483549486304723,
-      "max_relative_difference": 4.50009209941494,
+      "correlation": 0.9999995665828523,
+      "mean_relative_difference": 0.14760484759159195,
+      "max_relative_difference": 4.99967525229327,
       "at_density_range": [
         0.54586669921875,
-        2969752.2960583856
+        2970324.3643593527
       ],
       "gotetra_density_range": [
         0.0541502945125103,

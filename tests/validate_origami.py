@@ -95,13 +95,13 @@ def run_asymptotic_origami(positions, box_size, grid_size):
     """Run tessera ORIGAMI implementation."""
     import _tessera as ts
 
-    config = at.origami.OrigamiConfig()
+    config = ts.origami.OrigamiConfig()
     config.lagrangian_grid_size = grid_size
     config.box_size = float(box_size)
     config.n_threads = 1
     config.n_split = 1
 
-    result = at.origami.compute_morphology(positions.astype(np.float64), config)
+    result = ts.origami.compute_morphology(positions.astype(np.float64), config)
     return np.array(result.morphology)
 
 def generate_test_data(grid_size, box_size, displacement_type='uniform'):

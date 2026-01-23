@@ -1,5 +1,5 @@
 {
-  "created": "2026-01-20T20:39:21.482198",
+  "created": "2026-01-22T23:37:42.039943",
   "name": "snap034_halo",
   "description": "Group 0 Halo (a=1, z=0)",
   "snapshot": "snapshot_034",
@@ -8,20 +8,20 @@
   "box_size": 256.0,
   "output_cells": 129,
   "benchmarks": {
-    "load_time_s": 81.62157787499018,
-    "sort_time_s": 0.19707137497607619,
-    "compute_time_s": 2.7645367089426145,
-    "total_time_s": 84.58318595890887,
+    "load_time_s": 97.63008187501691,
+    "sort_time_s": 0.20881508407182992,
+    "compute_time_s": 3.6480963330250233,
+    "total_time_s": 101.48699329211377,
     "peak_memory_load_mb": 3647.9893188476562,
     "peak_memory_sort_mb": 384.0003547668457,
     "peak_memory_compute_mb": 0.12733936309814453
   },
-  "correlation": 0.9999017890552487,
-  "mean_relative_difference": 0.16811006956363894,
-  "max_relative_difference": 12.0022899172258,
+  "correlation": 0.999896055135281,
+  "mean_relative_difference": 0.17233194270474037,
+  "max_relative_difference": 14.002512595962848,
   "at_density_range": [
     0.0,
-    44231.03277098431
+    44580.38745848431
   ],
   "gotetra_density_range": [
     0.0,

@@ -35,6 +35,35 @@ static const int64_t DIRS[6][2][3] = {
     {{0, 0, 1}, {0, 1, 1}},
 };
 
+/**
+ * Compute tetrahedron corner indices on-the-fly (streaming version).
+ * This avoids allocating O(N^3) memory for pre-generated indices.
+ *
+ * @param ix, iy, iz Cell coordinates
+ * @param dir Tetrahedron direction (0-5)
+ * @param grid_size Number of particles per dimension
+ * @param corners Output array for 4 corner indices
+ */
+inline void compute_tetra_corners(int ix, int iy, int iz, int dir, int grid_size,
+                                   std::array<int64_t, 4>& corners) {
+    // Lambda for 3D to 1D index with periodic wrapping
+    auto idx = [grid_size](int64_t x, int64_t y, int64_t z) -> int64_t {
+        x = ((x % grid_size) + grid_size) % grid_size;
+        y = ((y % grid_size) + grid_size) % grid_size;
+        z = ((z % grid_size) + grid_size) % grid_size;
+        return x + y * grid_size + z * static_cast<int64_t>(grid_size) * grid_size;
+    };
+
+    // Corner 0: origin + DIRS[dir][0]
+    corners[0] = idx(ix + DIRS[dir][0][0], iy + DIRS[dir][0][1], iz + DIRS[dir][0][2]);
+    // Corner 1: origin + DIRS[dir][1]
+    corners[1] = idx(ix + DIRS[dir][1][0], iy + DIRS[dir][1][1], iz + DIRS[dir][1][2]);
+    // Corner 2: origin + (1,1,1)
+    corners[2] = idx(ix + 1, iy + 1, iz + 1);
+    // Corner 3: origin
+    corners[3] = idx(ix, iy, iz);
+}
+
 // =============================================================================
 // UnitTetraSamples implementation
 // =============================================================================
@@ -432,9 +461,10 @@ static TetraDensityResult3D compute_density_3d_impl(
         samples = local_samples.get();
     }
     
-    // Generate tetrahedron indices
-    auto tetra_indices = generate_tetra_indices(grid_size, config.periodic);
-    int64_t n_tetra = static_cast<int64_t>(tetra_indices.size());
+    // Compute tetrahedron count (streaming - no pre-allocation)
+    int n_cells_per_dim = config.periodic ? grid_size : grid_size - 1;
+    int64_t n_cells = static_cast<int64_t>(n_cells_per_dim) * n_cells_per_dim * n_cells_per_dim;
+    int64_t n_tetra = n_cells * 6;
     
     // Compute mass per sample point
     // Each Lagrangian cell contributes 6 tetrahedra
@@ -480,11 +510,20 @@ static TetraDensityResult3D compute_density_3d_impl(
         std::uniform_int_distribution<int> buf_dist(0, samples->n_buffers() - 1);
         
         double corners[4][3];
-        
+        std::array<int64_t, 4> idx;
+
         #pragma omp for schedule(dynamic, 256)
         for (int64_t ti = 0; ti < n_tetra; ++ti) {
-            const auto& idx = tetra_indices[ti];
-            
+            // Compute cell coordinates and direction from flat index (streaming)
+            int64_t cell_idx = ti / 6;
+            int dir = static_cast<int>(ti % 6);
+            int iz = static_cast<int>(cell_idx / (static_cast<int64_t>(n_cells_per_dim) * n_cells_per_dim));
+            int iy = static_cast<int>((cell_idx / n_cells_per_dim) % n_cells_per_dim);
+            int ix = static_cast<int>(cell_idx % n_cells_per_dim);
+
+            // Compute tetra corner indices on-the-fly
+            compute_tetra_corners(ix, iy, iz, dir, grid_size, idx);
+
             // Get and unwrap corner positions
             unwrap_corners(positions, idx, box_size, corners);
             
@@ -805,9 +844,10 @@ static TetraDensityResult2D compute_density_2d_direct_impl(
         samples = local_samples.get();
     }
 
-    // Generate tetrahedron indices
-    auto tetra_indices = generate_tetra_indices(grid_size, config.periodic);
-    int64_t n_tetra = static_cast<int64_t>(tetra_indices.size());
+    // Compute tetrahedron count (streaming - no pre-allocation)
+    int n_cells_per_dim = config.periodic ? grid_size : grid_size - 1;
+    int64_t n_cells = static_cast<int64_t>(n_cells_per_dim) * n_cells_per_dim * n_cells_per_dim;
+    int64_t n_tetra = n_cells * 6;
 
     // Mass per sample
     double mass_per_sample = particle_mass / static_cast<double>(n_samples) / 6.0;
@@ -847,10 +887,19 @@ static TetraDensityResult2D compute_density_2d_direct_impl(
         std::uniform_int_distribution<int> buf_dist(0, samples->n_buffers() - 1);
 
         double corners[4][3];
+        std::array<int64_t, 4> idx;
 
         #pragma omp for schedule(dynamic, 256)
         for (int64_t ti = 0; ti < n_tetra; ++ti) {
-            const auto& idx = tetra_indices[ti];
+            // Compute cell coordinates and direction from flat index (streaming)
+            int64_t cell_idx = ti / 6;
+            int dir = static_cast<int>(ti % 6);
+            int iz = static_cast<int>(cell_idx / (static_cast<int64_t>(n_cells_per_dim) * n_cells_per_dim));
+            int iy = static_cast<int>((cell_idx / n_cells_per_dim) % n_cells_per_dim);
+            int ix = static_cast<int>(cell_idx % n_cells_per_dim);
+
+            // Compute tetra corner indices on-the-fly
+            compute_tetra_corners(ix, iy, iz, dir, grid_size, idx);
 
             // Get and unwrap corner positions
             unwrap_corners(positions, idx, box_size, corners);
