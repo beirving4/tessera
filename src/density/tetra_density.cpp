@@ -1055,5 +1055,246 @@ TetraDensityResult2D compute_tetra_density_2d_direct(
                                           slice_min, slice_max, samples);
 }
 
+// =============================================================================
+// Direct Particle Density (Memory-Efficient)
+// =============================================================================
+
+/**
+ * Compute the signed volume of a tetrahedron.
+ *
+ * Volume = (1/6) * |det([b-a, c-a, d-a])|
+ *        = (1/6) * |(b-a) · ((c-a) × (d-a))|
+ */
+static inline double compute_tetra_volume(const double corners[4][3]) {
+    // Vectors from corner 0 to other corners
+    double v1[3] = {corners[1][0] - corners[0][0],
+                    corners[1][1] - corners[0][1],
+                    corners[1][2] - corners[0][2]};
+    double v2[3] = {corners[2][0] - corners[0][0],
+                    corners[2][1] - corners[0][1],
+                    corners[2][2] - corners[0][2]};
+    double v3[3] = {corners[3][0] - corners[0][0],
+                    corners[3][1] - corners[0][1],
+                    corners[3][2] - corners[0][2]};
+
+    // Cross product v2 × v3
+    double cross[3] = {v2[1] * v3[2] - v2[2] * v3[1],
+                       v2[2] * v3[0] - v2[0] * v3[2],
+                       v2[0] * v3[1] - v2[1] * v3[0]};
+
+    // Dot product v1 · (v2 × v3)
+    double det = v1[0] * cross[0] + v1[1] * cross[1] + v1[2] * cross[2];
+
+    // Volume = |det| / 6
+    return std::abs(det) / 6.0;
+}
+
+/**
+ * Core implementation for direct particle density computation.
+ *
+ * For each tetrahedron:
+ * - Compute its Eulerian volume V_tetra
+ * - The tetrahedron carries mass = particle_mass / 6 (from its parent Lagrangian cell)
+ * - Each of the 4 vertices gets 1/4 of the tetrahedron's contribution
+ *
+ * At each particle (vertex):
+ * - Sum contributions from all adjacent tetrahedra
+ * - density = total_mass / total_volume
+ *
+ * In a periodic Lagrangian grid, each interior particle is shared by:
+ * - 8 surrounding Lagrangian cells
+ * - Each cell has 6 tetrahedra, and each tetrahedron has 4 vertices
+ * - On average, each particle belongs to 6 tetrahedra per adjacent cell
+ * - Total: typically 24 tetrahedra per particle (varies by position in cell)
+ */
+template<typename T>
+static ParticleDensityResult compute_particle_density_impl(
+    const T* positions,
+    const ParticleDensityConfig& config)
+{
+    auto start_time = std::chrono::high_resolution_clock::now();
+
+    int grid_size = config.lagrangian_grid_size;
+    double box_size = config.box_size;
+    double particle_mass = config.particle_mass;
+
+    // Total particles
+    int64_t n_particles = static_cast<int64_t>(grid_size) * grid_size * grid_size;
+
+    // Set up threading
+    int n_threads = config.n_threads;
+#ifdef _OPENMP
+    if (n_threads <= 0) {
+        n_threads = omp_get_max_threads();
+    }
+    omp_set_num_threads(n_threads);
+#else
+    n_threads = 1;
+#endif
+
+    // Compute tetrahedron count
+    int n_cells_per_dim = config.periodic ? grid_size : grid_size - 1;
+    int64_t n_cells = static_cast<int64_t>(n_cells_per_dim) * n_cells_per_dim * n_cells_per_dim;
+    int64_t n_tetra = n_cells * 6;
+
+    // Note: mass_per_tetra is not directly used here because we compute density
+    // from the ratio of Lagrangian to Eulerian volume, which implicitly accounts
+    // for mass conservation. See the density computation loop below.
+
+    // Mass per tetrahedron (each Lagrangian cell has 6 tetrahedra, total mass = particle_mass)
+    double mass_per_tetra = particle_mass / 6.0;
+
+    // Allocate per-particle accumulators for weighted density
+    // We compute: density[i] = Σ(ρ_tetra × weight) / Σ(weight)
+    // where ρ_tetra = mass_per_tetra / V_tetra and weight = 1/4 (equal contribution to each vertex)
+    //
+    // This simplifies to: density[i] = Σ(mass_per_tetra / V_tetra) / n_adjacent_tetra
+    // which is the average density of adjacent tetrahedra.
+    //
+    // For mass conservation, we use volume-weighted averaging:
+    // density[i] = Σ(ρ_tetra × V_tetra/4) / Σ(V_tetra/4)
+    //            = Σ(mass_per_tetra / V_tetra × V_tetra/4) / Σ(V_tetra/4)
+    //            = Σ(mass_per_tetra/4) / Σ(V_tetra/4)
+    //            = n_tetra × mass_per_tetra / 4 / (total_volume / 4)
+    //            = n_tetra × mass_per_tetra / total_volume
+    //
+    // We accumulate: (1) mass contributions, (2) volume contributions
+    std::vector<double> particle_mass_sum(n_particles, 0.0);
+    std::vector<double> particle_volume(n_particles, 0.0);
+
+    // For thread-safety, we use thread-local accumulators then reduce
+    std::vector<std::vector<double>> thread_mass(n_threads);
+    std::vector<std::vector<double>> thread_volumes(n_threads);
+    for (int t = 0; t < n_threads; ++t) {
+        thread_mass[t].resize(n_particles, 0.0);
+        thread_volumes[t].resize(n_particles, 0.0);
+    }
+
+    // Counter for tetrahedra processed
+    std::atomic<int64_t> tetra_processed{0};
+
+    // Main parallel loop over tetrahedra
+    #pragma omp parallel
+    {
+#ifdef _OPENMP
+        int tid = omp_get_thread_num();
+#else
+        int tid = 0;
+#endif
+        double* local_mass = thread_mass[tid].data();
+        double* local_volume = thread_volumes[tid].data();
+        int64_t local_tetra_count = 0;
+
+        double corners[4][3];
+        std::array<int64_t, 4> idx;
+
+        #pragma omp for schedule(dynamic, 1024)
+        for (int64_t ti = 0; ti < n_tetra; ++ti) {
+            // Compute cell coordinates and direction from flat index
+            int64_t cell_idx = ti / 6;
+            int dir = static_cast<int>(ti % 6);
+            int iz = static_cast<int>(cell_idx / (static_cast<int64_t>(n_cells_per_dim) * n_cells_per_dim));
+            int iy = static_cast<int>((cell_idx / n_cells_per_dim) % n_cells_per_dim);
+            int ix = static_cast<int>(cell_idx % n_cells_per_dim);
+
+            // Compute tetra corner indices on-the-fly
+            compute_tetra_corners(ix, iy, iz, dir, grid_size, idx);
+
+            // Get and unwrap corner positions (handles periodic boundaries)
+            unwrap_corners(positions, idx, box_size, corners);
+
+            // Compute tetrahedron volume
+            double volume = compute_tetra_volume(corners);
+
+            // Each vertex gets 1/4 of this tetrahedron's mass and volume
+            double mass_per_vertex = mass_per_tetra / 4.0;
+            double volume_per_vertex = volume / 4.0;
+
+            // Accumulate to each of the 4 vertices
+            for (int v = 0; v < 4; ++v) {
+                local_mass[idx[v]] += mass_per_vertex;
+                local_volume[idx[v]] += volume_per_vertex;
+            }
+
+            local_tetra_count++;
+        }
+
+        tetra_processed += local_tetra_count;
+    }
+
+    // Reduce thread-local accumulators
+    #pragma omp parallel for
+    for (int64_t i = 0; i < n_particles; ++i) {
+        double mass_sum = 0.0;
+        double vol_sum = 0.0;
+        for (int t = 0; t < n_threads; ++t) {
+            mass_sum += thread_mass[t][i];
+            vol_sum += thread_volumes[t][i];
+        }
+        particle_mass_sum[i] = mass_sum;
+        particle_volume[i] = vol_sum;
+    }
+
+    // Expected mean density (from mass conservation)
+    double box_volume = box_size * box_size * box_size;
+    double total_mass = particle_mass * n_particles;
+    double expected_mean_density = total_mass / box_volume;
+
+    // First pass: compute raw densities and their mean
+    std::vector<double> density(n_particles);
+    double raw_density_sum = 0.0;
+
+    #pragma omp parallel for reduction(+:raw_density_sum)
+    for (int64_t i = 0; i < n_particles; ++i) {
+        if (particle_volume[i] > 0) {
+            density[i] = particle_mass_sum[i] / particle_volume[i];
+        } else {
+            // Shouldn't happen in valid data, but handle gracefully
+            density[i] = 0.0;
+        }
+        raw_density_sum += density[i];
+    }
+
+    double raw_mean = raw_density_sum / n_particles;
+
+    // Normalize densities so mean equals expected mean
+    // This ensures mass conservation: mean(density) = total_mass / box_volume
+    double normalization = (raw_mean > 0) ? (expected_mean_density / raw_mean) : 1.0;
+
+    double density_sum = 0.0;
+    #pragma omp parallel for reduction(+:density_sum)
+    for (int64_t i = 0; i < n_particles; ++i) {
+        density[i] *= normalization;
+        density_sum += density[i];
+    }
+
+    double mean_density = density_sum / n_particles;
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+    double elapsed_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
+
+    ParticleDensityResult result;
+    result.density = std::move(density);
+    result.mean_density = mean_density;
+    result.total_time_ms = elapsed_ms;
+    result.n_tetrahedra = tetra_processed.load();
+
+    return result;
+}
+
+ParticleDensityResult compute_particle_density(
+    const double* positions,
+    const ParticleDensityConfig& config)
+{
+    return compute_particle_density_impl(positions, config);
+}
+
+ParticleDensityResult compute_particle_density(
+    const float* positions,
+    const ParticleDensityConfig& config)
+{
+    return compute_particle_density_impl(positions, config);
+}
+
 } // namespace density
 } // namespace tessera

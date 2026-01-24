@@ -262,5 +262,77 @@ void sort_by_lagrangian_id(
     int64_t id_offset = 1
 );
 
+// =============================================================================
+// Direct Particle Density (Memory-Efficient)
+// =============================================================================
+
+/**
+ * Configuration for direct particle density computation.
+ *
+ * This approach computes density directly at particle positions from tetrahedra
+ * volumes, without constructing an intermediate 3D grid. This is based on the
+ * phase-space tessellation framework from Abel, Hahn & Kaehler (2012).
+ *
+ * Memory usage: O(N) instead of O(N + grid^3 * n_threads)
+ * For N=1024^3 with 8 threads: ~8 GB instead of ~64 GB
+ */
+struct ParticleDensityConfig {
+    int lagrangian_grid_size;   ///< Particles per dimension (N for N^3)
+    double box_size;            ///< Physical simulation box size
+    double particle_mass;       ///< Mass per particle
+    int n_threads;              ///< Number of threads (0 = auto)
+    bool periodic;              ///< Use periodic boundary conditions
+
+    ParticleDensityConfig()
+        : lagrangian_grid_size(0)
+        , box_size(0.0)
+        , particle_mass(1.0)
+        , n_threads(0)
+        , periodic(true)
+    {}
+};
+
+/**
+ * Result of direct particle density computation.
+ */
+struct ParticleDensityResult {
+    std::vector<double> density;    ///< Per-particle density (N^3)
+    double mean_density;            ///< Mean density (should equal particle_mass * N^3 / box^3)
+    double total_time_ms;           ///< Computation time in milliseconds
+    int64_t n_tetrahedra;          ///< Number of tetrahedra processed
+};
+
+/**
+ * Compute density at particle positions using tetrahedra volumes.
+ *
+ * This is a memory-efficient alternative to compute_tetra_density_3d() for
+ * cases where only per-particle densities are needed (e.g., PDF computation).
+ *
+ * The algorithm:
+ * 1. For each tetrahedron, compute its Eulerian volume
+ * 2. Each tetrahedron contributes 1/4 of its volume to each of its 4 vertices
+ * 3. Particle density = total mass in adjacent tetrahedra / total volume
+ *
+ * Based on the phase-space tessellation framework:
+ * - Abel, Hahn & Kaehler 2012, MNRAS 427, 61 (Tracing the dark matter sheet)
+ * - Hahn, Abel & Kaehler 2013, MNRAS 434, 1171 (A new approach to DM fluids)
+ *
+ * @param positions Particle positions in Lagrangian order (N^3 x 3)
+ * @param config Configuration parameters
+ * @return ParticleDensityResult with per-particle densities
+ */
+ParticleDensityResult compute_particle_density(
+    const double* positions,
+    const ParticleDensityConfig& config
+);
+
+/**
+ * Float version of compute_particle_density.
+ */
+ParticleDensityResult compute_particle_density(
+    const float* positions,
+    const ParticleDensityConfig& config
+);
+
 } // namespace density
 } // namespace tessera

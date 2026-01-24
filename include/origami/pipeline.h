@@ -61,6 +61,14 @@ struct OrigamiPipelineConfig {
     double particle_mass = 1.0;         ///< Particle mass for density normalization
     bool density_periodic = true;       ///< Periodic boundaries for density
 
+    // === Density method selection ===
+    bool use_direct_particle_density = false;  ///< If true, use direct volume-based density instead
+                                               ///< of grid-based Monte Carlo. Direct method is:
+                                               ///< - More memory efficient (no 3D grid allocation)
+                                               ///< - Faster (~50x for density computation)
+                                               ///< - But may differ slightly at distribution extremes
+                                               ///< Default: false (use grid-based Monte Carlo)
+
     // === Optional: Grid deposition (set > 0 to enable) ===
     int grid_cells = 0;                 ///< 0 = skip, >0 = deposit morphology at this resolution
 

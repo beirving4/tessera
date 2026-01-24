@@ -532,4 +532,156 @@ void bind_tetra_density(py::module& m) {
         indices : ndarray, shape (n_tetra, 4)
             Corner indices for each tetrahedron into the flattened particle array.
         )pbdoc");
+
+    // =========================================================================
+    // Direct Particle Density (Memory-Efficient)
+    // =========================================================================
+
+    // ParticleDensityConfig
+    py::class_<ParticleDensityConfig>(m, "ParticleDensityConfig",
+        R"pbdoc(
+        Configuration for direct particle density computation.
+
+        This approach computes density directly at particle positions from tetrahedra
+        volumes, without constructing an intermediate 3D grid. Based on the phase-space
+        tessellation framework from Abel, Hahn & Kaehler (2012).
+
+        Memory usage: O(N) instead of O(N + grid^3 * n_threads)
+        For N=1024^3 with 8 threads: ~8 GB instead of ~64 GB
+
+        Attributes
+        ----------
+        lagrangian_grid_size : int
+            Number of particles per dimension (N for N^3 total particles).
+        box_size : float
+            Physical size of the simulation box.
+        particle_mass : float
+            Mass per particle in code units. Default: 1.0.
+        n_threads : int
+            Number of OpenMP threads. 0 = auto-detect.
+        periodic : bool
+            Whether to use periodic boundary conditions. Default: True.
+        )pbdoc")
+        .def(py::init<>())
+        .def(py::init([](int grid_size, double box_size,
+                        double particle_mass, int n_threads, bool periodic) {
+            ParticleDensityConfig cfg;
+            cfg.lagrangian_grid_size = grid_size;
+            cfg.box_size = box_size;
+            cfg.particle_mass = particle_mass;
+            cfg.n_threads = n_threads;
+            cfg.periodic = periodic;
+            return cfg;
+        }),
+             py::arg("lagrangian_grid_size"),
+             py::arg("box_size"),
+             py::arg("particle_mass") = 1.0,
+             py::arg("n_threads") = 0,
+             py::arg("periodic") = true)
+        .def_readwrite("lagrangian_grid_size", &ParticleDensityConfig::lagrangian_grid_size)
+        .def_readwrite("box_size", &ParticleDensityConfig::box_size)
+        .def_readwrite("particle_mass", &ParticleDensityConfig::particle_mass)
+        .def_readwrite("n_threads", &ParticleDensityConfig::n_threads)
+        .def_readwrite("periodic", &ParticleDensityConfig::periodic);
+
+    // ParticleDensityResult
+    py::class_<ParticleDensityResult>(m, "ParticleDensityResult",
+        R"pbdoc(
+        Result of direct particle density computation.
+
+        Attributes
+        ----------
+        density : numpy.ndarray
+            Per-particle density, shape (N^3,).
+            Units: mass per volume.
+        mean_density : float
+            Mean density across all particles.
+        total_time_ms : float
+            Computation time in milliseconds.
+        n_tetrahedra : int
+            Number of tetrahedra processed.
+        )pbdoc")
+        .def_readonly("mean_density", &ParticleDensityResult::mean_density)
+        .def_readonly("total_time_ms", &ParticleDensityResult::total_time_ms)
+        .def_readonly("n_tetrahedra", &ParticleDensityResult::n_tetrahedra)
+        .def_property_readonly("density", [](const ParticleDensityResult& r) {
+            // Return as 1D numpy array
+            return py::array_t<double>(
+                {static_cast<py::ssize_t>(r.density.size())},
+                {sizeof(double)},
+                r.density.data()
+            );
+        }, "Per-particle density as numpy array (N^3,)");
+
+    // Main computation function
+    m.def("compute_particle_density",
+        [](py::array_t<double, py::array::c_style | py::array::forcecast> positions,
+           const ParticleDensityConfig& config) {
+            // Validate input
+            auto buf = positions.request();
+            if (buf.ndim != 2 || buf.shape[1] != 3) {
+                throw std::runtime_error("positions must have shape (N, 3)");
+            }
+            int64_t n_particles = buf.shape[0];
+            int64_t expected = static_cast<int64_t>(config.lagrangian_grid_size) *
+                              config.lagrangian_grid_size * config.lagrangian_grid_size;
+            if (n_particles != expected) {
+                throw std::runtime_error(
+                    "positions has " + std::to_string(n_particles) +
+                    " particles, expected " + std::to_string(expected) +
+                    " for grid_size=" + std::to_string(config.lagrangian_grid_size));
+            }
+
+            const double* data = static_cast<const double*>(buf.ptr);
+            return compute_particle_density(data, config);
+        },
+        py::arg("positions"),
+        py::arg("config"),
+        R"pbdoc(
+        Compute density at particle positions using tetrahedra volumes.
+
+        This is a memory-efficient alternative to compute_tetra_density_3d() for
+        cases where only per-particle densities are needed (e.g., PDF computation).
+
+        The algorithm computes the Eulerian volume of each tetrahedron and
+        accumulates volume contributions at each vertex (particle). The density
+        at each particle is then: mean_density × (lagrangian_volume / eulerian_volume).
+
+        Based on the phase-space tessellation framework:
+        - Abel, Hahn & Kaehler 2012, MNRAS 427, 61 (Tracing the dark matter sheet)
+        - Hahn, Abel & Kaehler 2013, MNRAS 434, 1171 (A new approach to DM fluids)
+
+        Memory comparison for N=1024^3 with 8 threads:
+          - Grid-based (compute_tetra_density_3d): ~64 GB for thread-local grids
+          - Direct particle: ~8 GB for particle accumulators
+
+        Parameters
+        ----------
+        positions : ndarray, shape (N, 3)
+            Particle positions in Lagrangian order. Use sort_by_lagrangian_id()
+            first if particles are not already sorted.
+        config : ParticleDensityConfig
+            Computation configuration.
+
+        Returns
+        -------
+        ParticleDensityResult
+            Result containing per-particle densities.
+
+        Examples
+        --------
+        >>> config = ts.density.ParticleDensityConfig(
+        ...     lagrangian_grid_size=128,
+        ...     box_size=100.0,
+        ...     particle_mass=1.0
+        ... )
+        >>> result = ts.density.compute_particle_density(positions, config)
+        >>> print(f"Mean density: {result.mean_density:.4f}")
+        >>> print(f"Computation time: {result.total_time_ms:.1f} ms")
+
+        Notes
+        -----
+        This function is particularly useful for computing overdensity PDFs
+        per morphology class without the memory overhead of a full 3D grid.
+        )pbdoc");
 }

@@ -603,7 +603,31 @@ OrigamiPipelineResult run_pipeline_impl(
     result.morphology_time_ms = get_time_ms() - t0;
 
     // === Optional: Density Field ===
-    if (config.density_output_cells > 0) {
+    if (config.use_direct_particle_density) {
+        // Use direct particle density method (memory-efficient, no 3D grid)
+        // This computes density directly at particle positions from tetrahedra volumes
+        t0 = get_time_ms();
+
+        density::ParticleDensityConfig direct_config;
+        direct_config.lagrangian_grid_size = config.lagrangian_grid_size;
+        direct_config.box_size = config.box_size;
+        direct_config.particle_mass = config.particle_mass;
+        direct_config.n_threads = config.n_threads;
+        direct_config.periodic = config.density_periodic;
+
+        auto direct_result = density::compute_particle_density(sorted_ptr, direct_config);
+
+        result.particle_density = std::move(direct_result.density);
+        result.mean_density = direct_result.mean_density;
+        // Note: density_3d is left empty when using direct method
+        result.density_cells = 0;
+        result.density_cell_width = 0.0;
+
+        result.density_time_ms = get_time_ms() - t0;
+        result.sampling_time_ms = 0.0;  // No separate sampling step needed
+
+    } else if (config.density_output_cells > 0) {
+        // Use grid-based Monte Carlo density (default method)
         t0 = get_time_ms();
 
         density::TetraDensityConfig density_config;

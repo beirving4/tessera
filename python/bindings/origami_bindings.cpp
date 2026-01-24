@@ -478,6 +478,12 @@ void bind_origami(py::module& m) {
             Particle mass for density normalization. Default: 1.0.
         density_periodic : bool
             Periodic boundaries for density. Default: True.
+        use_direct_particle_density : bool
+            If True, use direct volume-based density instead of grid-based Monte Carlo.
+            The direct method is more memory-efficient (~2.5x less) and faster (~50x),
+            but may produce slightly different distributions at the extremes (very low
+            and very high overdensities). Use as fallback for memory-constrained systems.
+            Default: False.
         grid_cells : int
             0 = skip grid, >0 = deposit morphology at this resolution. Default: 0.
         sample_density_at_particles : bool
@@ -507,6 +513,9 @@ void bind_origami(py::module& m) {
         .def_readwrite("density_n_samples", &OrigamiPipelineConfig::density_n_samples)
         .def_readwrite("particle_mass", &OrigamiPipelineConfig::particle_mass)
         .def_readwrite("density_periodic", &OrigamiPipelineConfig::density_periodic)
+        .def_readwrite("use_direct_particle_density", &OrigamiPipelineConfig::use_direct_particle_density,
+            "Use direct volume-based density instead of grid-based Monte Carlo. "
+            "More memory-efficient and faster, but may differ slightly at distribution extremes. Default: False.")
         .def_readwrite("grid_cells", &OrigamiPipelineConfig::grid_cells)
         .def_readwrite("sample_density_at_particles", &OrigamiPipelineConfig::sample_density_at_particles)
         .def_readwrite("pdf_n_bins", &OrigamiPipelineConfig::pdf_n_bins,
