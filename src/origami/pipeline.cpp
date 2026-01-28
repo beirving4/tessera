@@ -584,6 +584,7 @@ OrigamiPipelineResult run_pipeline_impl(
     morph_config.n_threads = config.n_threads;
     morph_config.n_split = config.n_split;
     morph_config.linear_regime_threshold = config.linear_regime_threshold;
+    morph_config.cartesian_only = config.cartesian_only;
 
     OrigamiResult morph_result = compute_morphology(sorted_ptr, morph_config);
 
@@ -886,6 +887,64 @@ OrigamiPipelineResult run_pipeline_impl(
             result.hist_wall = std::move(hist_w);
             result.hist_filament = std::move(hist_f);
             result.hist_halo = std::move(hist_h);
+        }
+
+        // === Per-class overdensity statistics ===
+        // Compute mean, stddev, median, and percentiles for each class
+        {
+            // Gather per-class overdensity vectors
+            std::vector<double> od_all_vec(overdensity.begin(), overdensity.end());
+            std::vector<double> od_cls[4];  // void, wall, filament, halo
+            od_cls[0].reserve(result.n_void);
+            od_cls[1].reserve(result.n_wall);
+            od_cls[2].reserve(result.n_filament);
+            od_cls[3].reserve(result.n_halo);
+
+            for (int64_t i = 0; i < n_particles; ++i) {
+                od_cls[result.morphology[i]].push_back(overdensity[i]);
+            }
+
+            // Helper to compute stats for a vector
+            auto compute_stats = [](std::vector<double>& v, int idx,
+                                    OrigamiPipelineResult& res) {
+                if (v.empty()) return;
+                int64_t n = static_cast<int64_t>(v.size());
+
+                // Mean
+                double sum = 0.0;
+                for (int64_t i = 0; i < n; ++i) sum += v[i];
+                double mean = sum / n;
+                res.od_mean[idx] = mean;
+
+                // Stddev
+                double sum_sq = 0.0;
+                for (int64_t i = 0; i < n; ++i) {
+                    double d = v[i] - mean;
+                    sum_sq += d * d;
+                }
+                res.od_stddev[idx] = std::sqrt(sum_sq / n);
+
+                // Sort for quantiles
+                std::sort(v.begin(), v.end());
+                auto percentile = [&v, n](double p) -> double {
+                    double idx_f = p * (n - 1);
+                    int64_t lo = static_cast<int64_t>(idx_f);
+                    int64_t hi = std::min(lo + 1, n - 1);
+                    double frac = idx_f - lo;
+                    return v[lo] * (1.0 - frac) + v[hi] * frac;
+                };
+
+                res.od_median[idx] = percentile(0.50);
+                res.od_p10[idx] = percentile(0.10);
+                res.od_p90[idx] = percentile(0.90);
+                res.od_p99[idx] = percentile(0.99);
+            };
+
+            // Index 0 = all, 1 = void, 2 = wall, 3 = filament, 4 = halo
+            compute_stats(od_all_vec, 0, result);
+            for (int c = 0; c < 4; ++c) {
+                compute_stats(od_cls[c], c + 1, result);
+            }
         }
 
         result.pdf_time_ms = get_time_ms() - t0;

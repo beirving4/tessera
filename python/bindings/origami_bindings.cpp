@@ -81,7 +81,10 @@ void bind_origami(py::module& m) {
         .def_readwrite("n_threads", &OrigamiConfig::n_threads)
         .def_readwrite("n_split", &OrigamiConfig::n_split)
         .def_readwrite("linear_regime_threshold", &OrigamiConfig::linear_regime_threshold,
-            "Void fraction threshold for linear regime detection (default: 0.99)");
+            "Void fraction threshold for linear regime detection (default: 0.99)")
+        .def_readwrite("cartesian_only", &OrigamiConfig::cartesian_only,
+            "If True, only use Cartesian axes (x,y,z) for shell-crossing detection, "
+            "skipping diagonal axis checks. Default: False (use all 4 axis sets per Falck+ 2012)");
 
     // OrigamiResult
     py::class_<OrigamiResult>(origami_m, "OrigamiResult",
@@ -530,6 +533,10 @@ void bind_origami(py::module& m) {
             "Enable jackknife resampling for uncertainty estimation")
         .def_readwrite("pdf_jackknife_subboxes", &OrigamiPipelineConfig::pdf_jackknife_subboxes,
             "Sub-boxes per dimension for jackknife (2->8, 3->27)")
+        .def_readwrite("cartesian_only", &OrigamiPipelineConfig::cartesian_only,
+            "If True, only use Cartesian axes (x,y,z) for shell-crossing detection, "
+            "skipping diagonal axis checks. Useful for diagnosing the effect of diagonal axes "
+            "on morphology classification. Default: False (use all 4 axis sets per Falck+ 2012)")
         .def_readwrite("n_threads", &OrigamiPipelineConfig::n_threads)
         .def_readwrite("seed", &OrigamiPipelineConfig::seed)
         .def_readwrite("validate_ids", &OrigamiPipelineConfig::validate_ids);
@@ -606,6 +613,25 @@ void bind_origami(py::module& m) {
         .def_readonly("overdensity_median", &OrigamiPipelineResult::overdensity_median)
         .def_readonly("pdf_jackknife_enabled", &OrigamiPipelineResult::pdf_jackknife_enabled)
         .def_readonly("pdf_jackknife_n_subboxes", &OrigamiPipelineResult::pdf_jackknife_n_subboxes)
+        // Per-class overdensity statistics (arrays of 5: [all, void, wall, filament, halo])
+        .def_property_readonly("od_mean", [](const OrigamiPipelineResult& r) {
+            return py::array_t<double>({5}, {sizeof(double)}, r.od_mean.data());
+        }, "Mean overdensity per class [all, void, wall, filament, halo]")
+        .def_property_readonly("od_stddev", [](const OrigamiPipelineResult& r) {
+            return py::array_t<double>({5}, {sizeof(double)}, r.od_stddev.data());
+        }, "Standard deviation of overdensity per class [all, void, wall, filament, halo]")
+        .def_property_readonly("od_median", [](const OrigamiPipelineResult& r) {
+            return py::array_t<double>({5}, {sizeof(double)}, r.od_median.data());
+        }, "Median overdensity per class [all, void, wall, filament, halo]")
+        .def_property_readonly("od_p10", [](const OrigamiPipelineResult& r) {
+            return py::array_t<double>({5}, {sizeof(double)}, r.od_p10.data());
+        }, "10th percentile overdensity per class [all, void, wall, filament, halo]")
+        .def_property_readonly("od_p90", [](const OrigamiPipelineResult& r) {
+            return py::array_t<double>({5}, {sizeof(double)}, r.od_p90.data());
+        }, "90th percentile overdensity per class [all, void, wall, filament, halo]")
+        .def_property_readonly("od_p99", [](const OrigamiPipelineResult& r) {
+            return py::array_t<double>({5}, {sizeof(double)}, r.od_p99.data());
+        }, "99th percentile overdensity per class [all, void, wall, filament, halo]")
         .def_property_readonly("morphology", [](const OrigamiPipelineResult& r) {
             return py::array_t<uint8_t>(
                 {static_cast<py::ssize_t>(r.morphology.size())},

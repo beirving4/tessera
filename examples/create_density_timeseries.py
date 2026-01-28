@@ -49,6 +49,11 @@ def load_density_slice(filepath: Path) -> dict:
             data['n_samples'] = f['SliceInfo'].attrs['n_samples']
         if 'n_tetrahedra' in f['SliceInfo'].attrs:
             data['n_tetrahedra'] = f['SliceInfo'].attrs['n_tetrahedra']
+        # Check for z=0 reference density (for physical_to_comoving mode)
+        if 'reference_mean_surface_density' in f['SliceInfo'].attrs:
+            data['reference_mean_surface_density'] = f['SliceInfo'].attrs['reference_mean_surface_density']
+        if 'density_units' in f['SliceInfo'].attrs:
+            data['density_units'] = f['SliceInfo'].attrs['density_units']
     return data
 
 
@@ -83,6 +88,13 @@ def create_timeseries_hdf5(
     scale_factors = []
     redshifts = []
     mean_densities = []
+    reference_densities = []
+    use_z0_reference = 'reference_mean_surface_density' in first_data
+
+    if use_z0_reference:
+        print(f"  Using z=0 reference density for overdensity (expansion dilution mode)")
+    else:
+        print(f"  Using local mean density for overdensity")
 
     with h5py.File(output_file, 'w') as f:
         # Create datasets with resizable first dimension
@@ -136,10 +148,18 @@ def create_timeseries_hdf5(
             data = load_density_slice(filepath)
             density_dset[idx] = data['density']
 
-            # Compute overdensity (1 + delta)
+            # Compute overdensity
+            # Use z=0 reference density if available (shows expansion dilution)
+            # Otherwise use local mean density (shows 1+delta)
+            if use_z0_reference and 'reference_mean_surface_density' in data:
+                ref_density = data['reference_mean_surface_density']
+                reference_densities.append(ref_density)
+            else:
+                ref_density = data['mean_surface_density']
+
             mean_density = data['mean_surface_density']
-            if mean_density > 0:
-                overdensity_dset[idx] = (data['density'] / mean_density).astype(np.float32)
+            if ref_density > 0:
+                overdensity_dset[idx] = (data['density'] / ref_density).astype(np.float32)
             else:
                 overdensity_dset[idx] = np.ones_like(data['density'], dtype=np.float32)
 
@@ -154,6 +174,8 @@ def create_timeseries_hdf5(
         f.create_dataset('scale_factor', data=np.array(scale_factors))
         f.create_dataset('redshift', data=np.array(redshifts))
         f.create_dataset('mean_surface_density', data=np.array(mean_densities))
+        if reference_densities:
+            f.create_dataset('reference_mean_surface_density', data=np.array(reference_densities))
 
         # Store header info from first file
         hdr = f.create_group('Header')
@@ -167,6 +189,9 @@ def create_timeseries_hdf5(
         hdr.attrs['slice_thickness'] = first_data['slice_thickness']
         hdr.attrs['projection_axis'] = first_data['projection_axis']
         hdr.attrs['method'] = first_data['method']
+        hdr.attrs['use_z0_reference'] = use_z0_reference
+        if 'density_units' in first_data:
+            hdr.attrs['density_units'] = first_data['density_units']
         if 'n_samples' in first_data:
             hdr.attrs['n_samples'] = first_data['n_samples']
 
@@ -329,10 +354,12 @@ def plot_time_evolution(
         overdensity = f['overdensity'][:]
         scale_factors = f['scale_factor'][:]
         box_size = f['Header'].attrs['box_size']
+        use_z0_reference = f['Header'].attrs.get('use_z0_reference', False)
 
     n_actual = len(scale_factors)
     print(f"  Found {n_actual} snapshots in file")
     print(f"  Scale factor range: {scale_factors.min():.4f} to {scale_factors.max():.4f}")
+    print(f"  Using z=0 reference: {use_z0_reference}")
 
     # Build panoramic image
     print(f"  Building panoramic image ({n_box_replications} box replications)...")
@@ -395,7 +422,10 @@ def plot_time_evolution(
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="2%", pad=0.1)
     cbar = plt.colorbar(im, cax=cax)
-    cbar.set_label(r'$\log_{10}(\rho / \bar{\rho})$', fontsize=12, color='white')
+    if use_z0_reference:
+        cbar.set_label(r'$\log_{10}(\rho / \bar{\rho}_{z=0})$', fontsize=12, color='white')
+    else:
+        cbar.set_label(r'$\log_{10}(\rho / \bar{\rho})$', fontsize=12, color='white')
     cbar.ax.yaxis.set_tick_params(color='white')
     plt.setp(plt.getp(cbar.ax.axes, 'yticklabels'), color='white')
 

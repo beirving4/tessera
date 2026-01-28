@@ -54,6 +54,10 @@ struct OrigamiPipelineConfig {
     // === ORIGAMI computation ===
     int n_split = 2;                    ///< Domain decomposition for parallelization
     double linear_regime_threshold = 0.99;  ///< Void fraction threshold for linear regime
+    bool cartesian_only = false;        ///< If true, only use Cartesian axes (x,y,z) for
+                                        ///< shell-crossing detection, skipping diagonal checks.
+                                        ///< Useful for diagnosing the effect of diagonal axes.
+                                        ///< Default: false (use all 4 axis sets per Falck+ 2012)
 
     // === Optional: Density computation (set > 0 to enable) ===
     int density_output_cells = 0;       ///< 0 = skip, >0 = compute density at this resolution
@@ -182,6 +186,15 @@ struct OrigamiPipelineResult {
     double overdensity_median = 0.0;        ///< Median overdensity
     bool pdf_jackknife_enabled = false;     ///< Whether jackknife was computed
     int pdf_jackknife_n_subboxes = 0;       ///< Number of jackknife sub-boxes
+
+    // === Per-class overdensity statistics (if pdf_n_bins > 0) ===
+    // Each array has 5 elements: [all, void, wall, filament, halo]
+    std::array<double, 5> od_mean = {};     ///< Mean overdensity per class
+    std::array<double, 5> od_stddev = {};   ///< Standard deviation per class
+    std::array<double, 5> od_median = {};   ///< Median (50th percentile) per class
+    std::array<double, 5> od_p10 = {};      ///< 10th percentile per class
+    std::array<double, 5> od_p90 = {};      ///< 90th percentile per class
+    std::array<double, 5> od_p99 = {};      ///< 99th percentile per class
 
     // === Diagnostics ===
     bool sorting_performed = false;

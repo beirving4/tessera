@@ -113,9 +113,10 @@ OrigamiResult compute_morphology_impl(
 
     // Main loop: parallelized over spatial subdomains
     // Dynamic scheduling helps with load imbalance when early-termination varies
+    const bool skip_diagonals = config.cartesian_only;
     #pragma omp parallel for default(none) schedule(dynamic, 1) \
         shared(positions, flags) \
-        firstprivate(np1d, ng4, box_t, negb2, b2, nsplit)
+        firstprivate(np1d, ng4, box_t, negb2, b2, nsplit, skip_diagonals)
     for (int s = 0; s < nsplit * nsplit * nsplit; ++s) {
         // Compute subdomain bounds
         int zstart = s / (nsplit * nsplit);
@@ -219,7 +220,10 @@ OrigamiResult compute_morphology_impl(
 
                     // ========================================
                     // Diagonal checks (for robustness)
+                    // Skip if cartesian_only mode is enabled
                     // ========================================
+
+                    if (!skip_diagonals) {
 
                     // Diagonals in YZ plane (x constant)
                     // Direction: (y+h, z+h)
@@ -313,6 +317,8 @@ OrigamiResult compute_morphology_impl(
                             break;
                         }
                     }
+
+                    } // end if (!config.cartesian_only)
                 }
             }
         }
@@ -330,9 +336,11 @@ OrigamiResult compute_morphology_impl(
     result.n_halo = 0;
 
     // Helper lambda to count bits (crossings) from flags
-    auto count_crossings = [](uint16_t f) -> uint8_t {
+    const bool cartesian_only = config.cartesian_only;
+    auto count_crossings = [cartesian_only](uint16_t f) -> uint8_t {
         // Count Cartesian crossings: bits 0, 1, 2
         uint8_t mn = ((f & BIT_X) != 0) + ((f & BIT_Y) != 0) + ((f & BIT_Z) != 0);
+        if (cartesian_only) return mn;
         // m0n: x-cross + m0 diagonals (bits 0, 3, 4)
         uint8_t m0n = ((f & BIT_X) != 0) + ((f & BIT_M0_D1) != 0) + ((f & BIT_M0_D2) != 0);
         // m1n: y-cross + m1 diagonals (bits 1, 5, 6)

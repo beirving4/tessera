@@ -53,12 +53,17 @@ struct OrigamiConfig {
                                      ///< If f_void >= this value, field is considered linear
                                      ///< Default: 0.99 (99% void)
 
+    bool cartesian_only;                ///< If true, only use Cartesian axes (x,y,z) for
+                                        ///< shell-crossing detection. Skips diagonal axis checks.
+                                        ///< Default: false (use all 4 axis sets per Falck+ 2012)
+
     OrigamiConfig()
         : lagrangian_grid_size(0)
         , box_size(0.0)
         , n_threads(0)
         , n_split(2)
         , linear_regime_threshold(0.99)
+        , cartesian_only(false)
     {}
 };
 
