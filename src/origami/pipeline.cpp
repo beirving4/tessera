@@ -935,9 +935,13 @@ OrigamiPipelineResult run_pipeline_impl(
                 };
 
                 res.od_median[idx] = percentile(0.50);
-                res.od_p10[idx] = percentile(0.10);
-                res.od_p90[idx] = percentile(0.90);
-                res.od_p99[idx] = percentile(0.99);
+                res.od_p5[idx]    = percentile(0.05);
+                res.od_p10[idx]   = percentile(0.10);
+                res.od_p25[idx]   = percentile(0.25);
+                res.od_p75[idx]   = percentile(0.75);
+                res.od_p90[idx]   = percentile(0.90);
+                res.od_p95[idx]   = percentile(0.95);
+                res.od_p99[idx]   = percentile(0.99);
             };
 
             // Index 0 = all, 1 = void, 2 = wall, 3 = filament, 4 = halo

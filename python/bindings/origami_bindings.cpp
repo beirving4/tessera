@@ -623,12 +623,24 @@ void bind_origami(py::module& m) {
         .def_property_readonly("od_median", [](const OrigamiPipelineResult& r) {
             return py::array_t<double>({5}, {sizeof(double)}, r.od_median.data());
         }, "Median overdensity per class [all, void, wall, filament, halo]")
+        .def_property_readonly("od_p5", [](const OrigamiPipelineResult& r) {
+            return py::array_t<double>({5}, {sizeof(double)}, r.od_p5.data());
+        }, "5th percentile overdensity per class [all, void, wall, filament, halo]")
         .def_property_readonly("od_p10", [](const OrigamiPipelineResult& r) {
             return py::array_t<double>({5}, {sizeof(double)}, r.od_p10.data());
         }, "10th percentile overdensity per class [all, void, wall, filament, halo]")
+        .def_property_readonly("od_p25", [](const OrigamiPipelineResult& r) {
+            return py::array_t<double>({5}, {sizeof(double)}, r.od_p25.data());
+        }, "25th percentile overdensity per class [all, void, wall, filament, halo]")
+        .def_property_readonly("od_p75", [](const OrigamiPipelineResult& r) {
+            return py::array_t<double>({5}, {sizeof(double)}, r.od_p75.data());
+        }, "75th percentile overdensity per class [all, void, wall, filament, halo]")
         .def_property_readonly("od_p90", [](const OrigamiPipelineResult& r) {
             return py::array_t<double>({5}, {sizeof(double)}, r.od_p90.data());
         }, "90th percentile overdensity per class [all, void, wall, filament, halo]")
+        .def_property_readonly("od_p95", [](const OrigamiPipelineResult& r) {
+            return py::array_t<double>({5}, {sizeof(double)}, r.od_p95.data());
+        }, "95th percentile overdensity per class [all, void, wall, filament, halo]")
         .def_property_readonly("od_p99", [](const OrigamiPipelineResult& r) {
             return py::array_t<double>({5}, {sizeof(double)}, r.od_p99.data());
         }, "99th percentile overdensity per class [all, void, wall, filament, halo]")

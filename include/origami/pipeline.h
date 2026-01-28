@@ -192,8 +192,12 @@ struct OrigamiPipelineResult {
     std::array<double, 5> od_mean = {};     ///< Mean overdensity per class
     std::array<double, 5> od_stddev = {};   ///< Standard deviation per class
     std::array<double, 5> od_median = {};   ///< Median (50th percentile) per class
+    std::array<double, 5> od_p5 = {};       ///< 5th percentile per class
     std::array<double, 5> od_p10 = {};      ///< 10th percentile per class
+    std::array<double, 5> od_p25 = {};      ///< 25th percentile per class
+    std::array<double, 5> od_p75 = {};      ///< 75th percentile per class
     std::array<double, 5> od_p90 = {};      ///< 90th percentile per class
+    std::array<double, 5> od_p95 = {};      ///< 95th percentile per class
     std::array<double, 5> od_p99 = {};      ///< 99th percentile per class
 
     // === Diagnostics ===
