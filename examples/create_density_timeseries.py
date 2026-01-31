@@ -332,6 +332,179 @@ def apply_colormap_normalization(
     return np.clip(normalized, 0, 1)
 
 
+def _safe_log10(arr: np.ndarray) -> np.ndarray:
+    """Apply log10 safely, handling zeros/negatives."""
+    arr = np.atleast_1d(arr)
+    min_positive = arr[arr > 0].min() if np.any(arr > 0) else 1e-10
+    return np.log10(np.maximum(arr, min_positive))
+
+
+def build_panoramic_image_physical(
+    data_stack: np.ndarray,
+    scale_factors: np.ndarray,
+    input_type: str = "overdensity",
+    output_type: str = "overdensity",
+    mean_surface_densities: np.ndarray = None,
+    a_min: float = 0.02,
+    a_max: float = 100.0,
+    n_box_replications: int = 4,
+) -> np.ndarray:
+    """
+    Build a panoramic time-series image with flexible input/output units.
+
+    Mean surface density is interpolated in time alongside the data, so
+    conversions between rho and 1+delta use the correct time-dependent rho_bar(a).
+
+    Parameters
+    ----------
+    data_stack : np.ndarray
+        Shape (n_snapshots, L_pix, L_pix) - either rho or 1+delta depending on input_type
+    scale_factors : np.ndarray
+        Shape (n_snapshots,) - scale factors for each snapshot
+    input_type : str
+        What the input data represents:
+        - "density": rho (surface density)
+        - "overdensity": 1+delta
+    output_type : str
+        Desired output format:
+        - "density": rho
+        - "log_density": log10(rho)
+        - "overdensity": 1+delta
+        - "log_overdensity": log10(1+delta)
+    mean_surface_densities : np.ndarray, optional
+        Shape (n_snapshots,) - mean surface density at each snapshot.
+        rho_bar(a) = rho_bar(a=1) / a^3 * slice_thickness
+        Required for conversions between rho and 1+delta.
+    a_min, a_max : float
+        Scale factor range for output image
+    n_box_replications : int
+        Number of box tilings in x (time) direction
+
+    Returns
+    -------
+    output : np.ndarray
+        Panoramic image array, shape (L_pix, n_box_replications * L_pix)
+
+    Examples
+    --------
+    >>> # Load time series data
+    >>> with h5py.File('timeseries.h5', 'r') as f:
+    ...     density = f['density'][:]
+    ...     overdensity = f['overdensity'][:]
+    ...     scale_factors = f['scale_factor'][:]
+    ...     mean_densities = f['mean_surface_density'][:]
+
+    >>> # From overdensity to log overdensity (no mean needed)
+    >>> img = build_panoramic_image_physical(
+    ...     overdensity, scale_factors,
+    ...     input_type="overdensity",
+    ...     output_type="log_overdensity",
+    ... )
+
+    >>> # From density to log overdensity (mean density interpolated in time)
+    >>> img = build_panoramic_image_physical(
+    ...     density, scale_factors,
+    ...     input_type="density",
+    ...     output_type="log_overdensity",
+    ...     mean_surface_densities=mean_densities,
+    ... )
+    """
+    # Validate input/output types
+    valid_types = ["density", "log_density", "overdensity", "log_overdensity"]
+    if input_type not in ["density", "overdensity"]:
+        raise ValueError(f"input_type must be 'density' or 'overdensity', got '{input_type}'")
+    if output_type not in valid_types:
+        raise ValueError(f"output_type must be one of {valid_types}, got '{output_type}'")
+
+    # Check if conversion requires mean density
+    needs_mean = (
+        (input_type == "density" and output_type in ["overdensity", "log_overdensity"]) or
+        (input_type == "overdensity" and output_type in ["density", "log_density"])
+    )
+
+    if needs_mean and mean_surface_densities is None:
+        raise ValueError(
+            f"mean_surface_densities required to convert from {input_type} to {output_type}"
+        )
+
+    # Get dimensions
+    n_snapshots, L_pix, _ = data_stack.shape
+    width = n_box_replications * L_pix
+    height = L_pix
+    output = np.zeros((height, width), dtype=np.float64)
+
+    # Sort by scale factor
+    sort_idx = np.argsort(scale_factors)
+    a_values = scale_factors[sort_idx]
+    data_sorted = data_stack[sort_idx]
+    log_a_values = np.log(a_values)
+
+    if mean_surface_densities is not None:
+        mean_sorted = mean_surface_densities[sort_idx]
+
+    for x_out in range(width):
+        # 1. Map x pixel to scale factor (logarithmic)
+        a = a_min * (a_max / a_min) ** (x_out / (width - 1))
+        log_a = np.log(a)
+
+        # 2. Position within periodic box
+        x_box = x_out % L_pix
+
+        # 3. Find bracketing snapshots
+        idx_after = np.searchsorted(log_a_values, log_a)
+        idx_after = np.clip(idx_after, 1, len(a_values) - 1)
+        idx_before = idx_after - 1
+
+        # 4. Interpolation weight
+        denom = log_a_values[idx_after] - log_a_values[idx_before]
+        if abs(denom) < 1e-10:
+            t = 0.0
+        else:
+            t = (log_a - log_a_values[idx_before]) / denom
+        t = np.clip(t, 0.0, 1.0)
+
+        # 5. Interpolate data column (log-space for density values)
+        col_before = data_sorted[idx_before, :, x_box]
+        col_after = data_sorted[idx_after, :, x_box]
+
+        eps = 1e-10
+        log_col_before = np.log(col_before + eps)
+        log_col_after = np.log(col_after + eps)
+        log_col_interp = (1 - t) * log_col_before + t * log_col_after
+        col_interp = np.exp(log_col_interp) - eps
+
+        # 6. Interpolate mean density if needed (log-space since rho_bar ~ a^-3)
+        if needs_mean:
+            log_mean_before = np.log(mean_sorted[idx_before])
+            log_mean_after = np.log(mean_sorted[idx_after])
+            mean_interp = np.exp((1 - t) * log_mean_before + t * log_mean_after)
+
+        # 7. Convert to output units
+        if input_type == "overdensity":
+            if output_type == "overdensity":
+                result = col_interp
+            elif output_type == "log_overdensity":
+                result = _safe_log10(col_interp)
+            elif output_type == "density":
+                result = col_interp * mean_interp
+            elif output_type == "log_density":
+                result = _safe_log10(col_interp * mean_interp)
+
+        elif input_type == "density":
+            if output_type == "density":
+                result = col_interp
+            elif output_type == "log_density":
+                result = _safe_log10(col_interp)
+            elif output_type == "overdensity":
+                result = col_interp / mean_interp
+            elif output_type == "log_overdensity":
+                result = _safe_log10(col_interp / mean_interp)
+
+        output[:, x_out] = result
+
+    return output
+
+
 def plot_time_evolution(
     timeseries_file: Path,
     output_file: Path,
