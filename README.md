@@ -43,7 +43,7 @@ The library also includes **ORIGAMI morphological classification** (Falck, Neyri
 - **Unified pipeline**: Single-call API for morphology + density + grid deposition + PDF computation
 - **Statistical analysis**: Histograms and PDFs with jackknife resampling for uncertainty estimation
 - **Memory efficient**: In-place sorting supports N=1024³ simulations (~24GB positions)
-- **Time-series visualization**: Diemer-style cosmic evolution images and animations
+- **Time-series visualization**: panoramic cosmic evolution images and animations
 - **GADGET-4 I/O**: Read HDF5 snapshots (single or distributed) and FOF/Subfind catalogs
 - **Merger tree support**: High-performance C++ reader for GADGET-4 merger trees with SIMD-optimized search
 - **Multi-threaded**: Parallel computation with OpenMP
@@ -253,7 +253,7 @@ The `examples/` directory contains complete scripts demonstrating various use ca
 | `origami_slice_render.py` | 2D thin-slice visualization of ORIGAMI morphology |
 | `origami_slice_animation.py` | Animated ORIGAMI morphology evolution |
 | `time_series_origami.py` | ORIGAMI time-series with density-blended coloring |
-| `time_series_pipeline.py` | Complete Diemer-style time-series visualization |
+| `time_series_pipeline.py` | Complete panoramic time-series visualization |
 | `generate_projections.py` | Generate 2D density projections from snapshots |
 | `build_time_series.py` | Build static time-series image (x=time, y=space) |
 | `animate_evolution.py` | Create evolution animation with callout annotations |

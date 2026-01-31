@@ -2,7 +2,7 @@
 Configuration and utilities for time-series visualization pipeline.
 
 This module provides the TimeSeriesConfig dataclass and utility functions
-for managing the Diemer-style cosmic web visualization pipeline.
+for managing the panoramic cosmic web visualization pipeline.
 """
 
 from dataclasses import dataclass, field

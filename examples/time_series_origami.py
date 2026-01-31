@@ -2,7 +2,7 @@
 """
 ORIGAMI Cosmic Web Time-Series Visualization
 
-Creates a Diemer-style time-series image showing the evolution of cosmic web
+Creates a panoramic time-series image showing the evolution of cosmic web
 morphology (voids, walls, filaments, halos) from early times through the far future.
 
 Each morphology type is rendered in a different color:
@@ -365,7 +365,7 @@ def build_origami_time_series(
     gamma=0.5,
 ):
     """
-    Build a Diemer-style time-series image from ORIGAMI projections.
+    Build a panoramic time-series image from ORIGAMI projections.
 
     Blends density-based coloring (for voids/linear regime) with ORIGAMI
     morphology coloring (for non-void structures).

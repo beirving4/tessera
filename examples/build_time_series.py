@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Build a Diemer-style time-series image from density projections.
+Build a panoramic time-series image from density projections.
 
 This is Step 2 of the time-series visualization pipeline.
 
@@ -29,7 +29,7 @@ def build_time_series_image(
     use_physical_density: bool = False
 ) -> np.ndarray:
     """
-    Assemble a Diemer-style time series image.
+    Assemble a panoramic time series image.
 
     Parameters
     ----------
@@ -133,7 +133,7 @@ def apply_colormap(
 
 
 def create_cosmic_blue_colormap():
-    """Create a colormap similar to Diemer's visualizations."""
+    """Create a blue-to-white colormap for cosmic web visualizations."""
     # Dark blue to bright cyan/white
     colors = [
         (0.0, '#000510'),   # Nearly black

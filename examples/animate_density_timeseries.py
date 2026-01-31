@@ -38,7 +38,7 @@ def check_ffmpeg():
 
 
 def create_cosmic_blue_colormap():
-    """Create a colormap similar to Diemer's cosmic web visualizations."""
+    """Create a blue-to-white colormap for cosmic web visualizations."""
     colors = [
         (0.0, '#000510'),   # Nearly black
         (0.2, '#001a33'),   # Dark blue

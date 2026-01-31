@@ -5,7 +5,7 @@ Create time series HDF5 files and visualizations from density slice maps.
 This script:
 1. Reads individual density slice HDF5 files (one per snapshot)
 2. Combines them into a single time series HDF5 file
-3. Creates a Diemer-style panoramic time evolution visualization
+3. Creates a panoramic panoramic time evolution visualization
 
 Usage:
     python create_density_timeseries.py /path/to/density_maps --output timeseries.h5
@@ -207,7 +207,7 @@ def create_timeseries_hdf5(
 
 
 def create_cosmic_blue_colormap():
-    """Create a colormap similar to Diemer's cosmic web visualizations."""
+    """Create a blue-to-white colormap for cosmic web visualizations."""
     colors = [
         (0.0, '#000510'),   # Nearly black
         (0.2, '#001a33'),   # Dark blue
@@ -241,7 +241,7 @@ def build_panoramic_image(
     n_box_replications: int = 4,
 ) -> np.ndarray:
     """
-    Build a Diemer-style panoramic time-series image.
+    Build a panoramic panoramic time-series image.
 
     Parameters
     ----------
@@ -342,7 +342,7 @@ def plot_time_evolution(
     figsize: tuple = None,
 ):
     """
-    Create a Diemer-style panoramic plot showing continuous time evolution.
+    Create a panoramic panoramic plot showing continuous time evolution.
     """
     print(f"Creating panoramic time evolution plot: {output_file}")
 
@@ -506,7 +506,7 @@ def plot_single_snapshot_comparison(
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Create time series HDF5 and Diemer-style visualization from density slices',
+        description='Create time series HDF5 and panoramic visualization from density slices',
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 

@@ -161,7 +161,7 @@ python examples/origami_slice_render.py snapshot_034.hdf5 --plot morphology.png
 
 #### `time_series_pipeline.py`
 
-Complete pipeline for Diemer-style cosmic evolution visualization:
+Complete pipeline for panoramic cosmic evolution visualization:
 - Generates 2D projections from all snapshots
 - Builds static time-series image (x=time, y=space)
 - Creates evolution animation with callout annotations
