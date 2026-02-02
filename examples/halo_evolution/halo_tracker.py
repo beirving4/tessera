@@ -8,7 +8,11 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 import numpy as np
 
-from .merger_tree import MergerTree
+# Handle imports for both package and standalone usage
+try:
+    from .merger_tree import MergerTree
+except ImportError:
+    from merger_tree import MergerTree
 
 
 @dataclass

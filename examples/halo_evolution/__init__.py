@@ -74,10 +74,16 @@ except ImportError:
         VisualizationConfig = None
         auto_select_epochs = None
 
+# Branch catalog for efficient array job processing
+from .branch_catalog import BranchCatalog, Branch, unwrap_branch_coordinates
+
 __all__ = [
     'MergerTree',
     'HaloTracker',
     'HaloInfo',
+    'BranchCatalog',
+    'Branch',
+    'unwrap_branch_coordinates',
 ]
 
 if DensityRenderer is not None:
