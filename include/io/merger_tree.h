@@ -4,6 +4,7 @@
 #include <vector>
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -500,6 +501,83 @@ private:
     // Get tree start offset for absolute index conversion
     int64_t get_tree_start(int64_t absolute_idx);
 };
+
+// =============================================================================
+// Parallel Branch Extraction
+// =============================================================================
+
+/**
+ * Branch catalog data in Structure-of-Arrays format.
+ *
+ * Contains pre-extracted main progenitor branches for all trees,
+ * stored in flattened arrays for efficient HDF5 writing and random access.
+ * Trees are sorted by root M200c (descending) for convenient mass-ordered access.
+ */
+struct BranchCatalogData {
+    // =========================================================================
+    // Branch Index (small, always loaded by BranchCatalog reader)
+    // =========================================================================
+    std::vector<int32_t> tree_id;       ///< Tree identifier for each branch
+    std::vector<int64_t> start_offset;  ///< Start index in flattened data arrays
+    std::vector<int32_t> length;        ///< Number of halos in each branch
+    std::vector<int32_t> root_snap;     ///< Root halo snapshot number
+    std::vector<int32_t> root_subhalo;  ///< Root halo subhalo index
+    std::vector<float> root_m200c;      ///< Root halo M200c for filtering
+    std::vector<float> root_r200c;      ///< Root halo R200c
+    std::vector<float> a_min;           ///< Earliest scale factor in branch
+    std::vector<float> a_max;           ///< Latest scale factor in branch
+
+    // =========================================================================
+    // Branch Data (flattened, compressed in HDF5)
+    // =========================================================================
+    std::vector<int32_t> snap_num;      ///< Snapshot numbers
+    std::vector<int32_t> subhalo_nr;    ///< Subhalo indices
+    std::vector<float> scale_factor;    ///< Scale factors
+    std::vector<float> pos_x, pos_y, pos_z;  ///< Positions [Mpc/h]
+    std::vector<float> vel_x, vel_y, vel_z;  ///< Velocities [km/s]
+    std::vector<float> m200c;           ///< M200 critical [10^10 Msun/h]
+    std::vector<float> r200c;           ///< R200 critical [Mpc/h]
+    std::vector<float> mass;            ///< Subhalo mass [10^10 Msun/h]
+
+    /**
+     * Number of branches (trees).
+     */
+    size_t n_branches() const { return tree_id.size(); }
+
+    /**
+     * Total number of halos across all branches.
+     */
+    size_t n_halos() const { return snap_num.size(); }
+
+    /**
+     * Check if empty.
+     */
+    bool empty() const { return tree_id.empty(); }
+};
+
+/**
+ * Extract main progenitor branches for all trees in parallel.
+ *
+ * Uses OpenMP to parallelize branch tracing across trees. Tree data is loaded
+ * once (shared memory) and each thread traces a subset of trees independently.
+ *
+ * @param tree MergerTree instance (data will be loaded if not already)
+ * @param mass_min Minimum root M200c filter (nullopt = no filter)
+ * @param a_min Minimum scale factor to trace to (nullopt = trace all)
+ * @param n_threads Number of threads (0 = use OMP_NUM_THREADS or all cores)
+ * @param progress_callback Optional callback for progress updates (trees_done, total_trees)
+ * @return BranchCatalogData with all extracted branches
+ *
+ * @note Trees are sorted by root M200c (descending) in the output.
+ * @note Thread-safe: uses thread-local storage for intermediate results.
+ */
+BranchCatalogData extract_all_branches_parallel(
+    MergerTree& tree,
+    std::optional<float> mass_min = std::nullopt,
+    std::optional<float> a_min = std::nullopt,
+    int n_threads = 0,
+    std::function<void(size_t, size_t)> progress_callback = nullptr
+);
 
 // =============================================================================
 // Free functions for convenient single-file access

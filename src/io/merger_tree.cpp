@@ -2,8 +2,15 @@
 #include <highfive/highfive.hpp>
 #include <stdexcept>
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <queue>
+#include <numeric>
+
+// OpenMP support
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 // SIMD support detection
 #if defined(__AVX2__)
@@ -851,6 +858,355 @@ void HaloTracker::unwrap_coordinates_static(
 MergerTreeHeader read_merger_tree_header(const std::string& filename) {
     MergerTree tree(filename);
     return tree.header();
+}
+
+// =============================================================================
+// Parallel Branch Extraction
+// =============================================================================
+
+namespace {
+
+/**
+ * Thread-local branch data for parallel extraction.
+ */
+struct ThreadLocalBranch {
+    std::vector<int32_t> snap_num;
+    std::vector<int32_t> subhalo_nr;
+    std::vector<float> scale_factor;
+    std::vector<float> pos_x, pos_y, pos_z;
+    std::vector<float> vel_x, vel_y, vel_z;
+    std::vector<float> m200c;
+    std::vector<float> r200c;
+    std::vector<float> mass;
+
+    void reserve(size_t n) {
+        snap_num.reserve(n);
+        subhalo_nr.reserve(n);
+        scale_factor.reserve(n);
+        pos_x.reserve(n);
+        pos_y.reserve(n);
+        pos_z.reserve(n);
+        vel_x.reserve(n);
+        vel_y.reserve(n);
+        vel_z.reserve(n);
+        m200c.reserve(n);
+        r200c.reserve(n);
+        mass.reserve(n);
+    }
+
+    void clear() {
+        snap_num.clear();
+        subhalo_nr.clear();
+        scale_factor.clear();
+        pos_x.clear();
+        pos_y.clear();
+        pos_z.clear();
+        vel_x.clear();
+        vel_y.clear();
+        vel_z.clear();
+        m200c.clear();
+        r200c.clear();
+        mass.clear();
+    }
+
+    size_t size() const { return snap_num.size(); }
+};
+
+/**
+ * Trace main branch backward from root halo (internal, no locking needed).
+ * Returns branch data sorted by scale factor (early to late).
+ */
+void trace_branch_internal(
+    const TreeHalosSOA& halos,
+    const MergerTreeHeader& header,
+    int64_t root_idx,
+    int64_t tree_start,
+    std::optional<float> a_min,
+    ThreadLocalBranch& out
+) {
+    out.clear();
+
+    // Collect indices backward from root
+    std::vector<int64_t> branch_indices;
+    branch_indices.reserve(128);  // Most branches < 128 halos
+
+    int64_t current = root_idx;
+    const int32_t* main_prog = halos.main_progenitor.data();
+    const int32_t* snap_data = halos.snap_num.data();
+
+    branch_indices.push_back(current);
+
+    while (true) {
+        int32_t prog_rel = main_prog[current];
+        int64_t prog_idx = MergerTree::get_absolute_index(prog_rel, tree_start);
+
+        if (prog_idx == -1) break;
+
+        // Check scale factor limit
+        if (a_min.has_value()) {
+            float prog_a = header.get_scale_factor(snap_data[prog_idx]);
+            if (prog_a < *a_min) break;
+        }
+
+        branch_indices.push_back(prog_idx);
+        current = prog_idx;
+    }
+
+    // Sort by scale factor (early to late) - branch is typically in reverse order
+    std::sort(branch_indices.begin(), branch_indices.end(),
+              [&snap_data, &header](int64_t a, int64_t b) {
+                  return header.get_scale_factor(snap_data[a]) <
+                         header.get_scale_factor(snap_data[b]);
+              });
+
+    // Copy data to output
+    out.reserve(branch_indices.size());
+    for (int64_t idx : branch_indices) {
+        out.snap_num.push_back(halos.snap_num[idx]);
+        out.subhalo_nr.push_back(halos.subhalo_nr[idx]);
+        out.scale_factor.push_back(header.get_scale_factor(halos.snap_num[idx]));
+        out.pos_x.push_back(halos.pos_x[idx]);
+        out.pos_y.push_back(halos.pos_y[idx]);
+        out.pos_z.push_back(halos.pos_z[idx]);
+        out.vel_x.push_back(halos.vel_x[idx]);
+        out.vel_y.push_back(halos.vel_y[idx]);
+        out.vel_z.push_back(halos.vel_z[idx]);
+        out.m200c.push_back(halos.m200c.empty() ? 0.0f : halos.m200c[idx]);
+        out.r200c.push_back(halos.r200c.empty() ? 0.0f : halos.r200c[idx]);
+        out.mass.push_back(halos.mass[idx]);
+    }
+}
+
+} // anonymous namespace
+
+BranchCatalogData extract_all_branches_parallel(
+    MergerTree& tree,
+    std::optional<float> mass_min,
+    std::optional<float> a_min,
+    int n_threads,
+    std::function<void(size_t, size_t)> progress_callback
+) {
+    // Load all tree data (shared, read-only after this)
+    const auto& halos = tree.tree_halos();  // Triggers full data load
+    const auto& header = tree.header();
+
+    // Get tree table for root halo indices
+    size_t total_trees = static_cast<size_t>(tree.n_trees());
+
+    // Build list of tree IDs with root halo M200c for sorting/filtering
+    struct TreeInfo {
+        int32_t tree_id;
+        int64_t root_idx;
+        float root_m200c;
+        float root_r200c;
+        int32_t root_snap;
+        int32_t root_subhalo;
+    };
+
+    std::vector<TreeInfo> tree_infos(total_trees);
+
+    // Parallel fill tree info
+    #pragma omp parallel for if(total_trees > 1000)
+    for (size_t i = 0; i < total_trees; i++) {
+        int64_t root_idx = tree.get_root_halo_index(static_cast<int64_t>(i));
+        tree_infos[i].tree_id = static_cast<int32_t>(i);
+        tree_infos[i].root_idx = root_idx;
+        tree_infos[i].root_m200c = halos.m200c.empty() ? 0.0f : halos.m200c[root_idx];
+        tree_infos[i].root_r200c = halos.r200c.empty() ? 0.0f : halos.r200c[root_idx];
+        tree_infos[i].root_snap = halos.snap_num[root_idx];
+        tree_infos[i].root_subhalo = halos.subhalo_nr[root_idx];
+    }
+
+    // Sort by M200c descending
+    std::sort(tree_infos.begin(), tree_infos.end(),
+              [](const TreeInfo& a, const TreeInfo& b) {
+                  return a.root_m200c > b.root_m200c;
+              });
+
+    // Apply mass filter
+    std::vector<TreeInfo> filtered_trees;
+    if (mass_min.has_value()) {
+        filtered_trees.reserve(total_trees);
+        for (const auto& info : tree_infos) {
+            if (info.root_m200c >= *mass_min) {
+                filtered_trees.push_back(info);
+            }
+        }
+    } else {
+        filtered_trees = std::move(tree_infos);
+    }
+
+    size_t n_trees = filtered_trees.size();
+    if (n_trees == 0) {
+        return BranchCatalogData{};
+    }
+
+    // Set number of threads
+#ifdef _OPENMP
+    int actual_threads = n_threads > 0 ? n_threads : omp_get_max_threads();
+    omp_set_num_threads(actual_threads);
+#else
+    int actual_threads = 1;
+    (void)n_threads;  // Unused without OpenMP
+#endif
+
+    // Thread-local storage for branch extraction
+    std::vector<std::vector<ThreadLocalBranch>> thread_branches(actual_threads);
+    for (auto& tb : thread_branches) {
+        tb.resize(n_trees);
+    }
+
+    // Pre-compute tree start offsets (shared read-only)
+    std::vector<int64_t> tree_starts(n_trees);
+    for (size_t i = 0; i < n_trees; i++) {
+        int32_t tid = filtered_trees[i].tree_id;
+        tree_starts[i] = tree.get_tree_entry(tid).start_offset;
+    }
+
+    // Progress tracking (callback is called outside parallel region)
+    std::atomic<size_t> trees_done{0};
+
+    // Parallel branch extraction
+    #pragma omp parallel
+    {
+#ifdef _OPENMP
+        int thread_id = omp_get_thread_num();
+#else
+        int thread_id = 0;
+#endif
+        ThreadLocalBranch local_branch;
+        local_branch.reserve(128);
+
+        #pragma omp for schedule(dynamic, 64)
+        for (size_t i = 0; i < n_trees; i++) {
+            const auto& info = filtered_trees[i];
+
+            // Trace branch backward from root
+            trace_branch_internal(
+                halos, header,
+                info.root_idx, tree_starts[i],
+                a_min,
+                local_branch
+            );
+
+            // Store in thread-local slot
+            thread_branches[thread_id][i] = std::move(local_branch);
+            local_branch.clear();
+
+            // Increment counter (callback is handled outside parallel region)
+            ++trees_done;
+        }
+    }
+
+    // Call progress callback after parallel section completes (GIL-safe)
+    if (progress_callback) {
+        progress_callback(n_trees, n_trees);
+    }
+
+    // Merge results: compute total halos and offsets
+    std::vector<int32_t> branch_lengths(n_trees);
+    size_t total_halos = 0;
+
+    for (size_t i = 0; i < n_trees; i++) {
+        // Find which thread processed this tree
+        size_t len = 0;
+        for (int t = 0; t < actual_threads; t++) {
+            if (!thread_branches[t][i].snap_num.empty()) {
+                len = thread_branches[t][i].size();
+                break;
+            }
+        }
+        branch_lengths[i] = static_cast<int32_t>(len);
+        total_halos += len;
+    }
+
+    // Build output
+    BranchCatalogData result;
+
+    // Index arrays
+    result.tree_id.resize(n_trees);
+    result.start_offset.resize(n_trees);
+    result.length.resize(n_trees);
+    result.root_snap.resize(n_trees);
+    result.root_subhalo.resize(n_trees);
+    result.root_m200c.resize(n_trees);
+    result.root_r200c.resize(n_trees);
+    result.a_min.resize(n_trees);
+    result.a_max.resize(n_trees);
+
+    // Data arrays
+    result.snap_num.resize(total_halos);
+    result.subhalo_nr.resize(total_halos);
+    result.scale_factor.resize(total_halos);
+    result.pos_x.resize(total_halos);
+    result.pos_y.resize(total_halos);
+    result.pos_z.resize(total_halos);
+    result.vel_x.resize(total_halos);
+    result.vel_y.resize(total_halos);
+    result.vel_z.resize(total_halos);
+    result.m200c.resize(total_halos);
+    result.r200c.resize(total_halos);
+    result.mass.resize(total_halos);
+
+    // Fill index and copy data
+    int64_t current_offset = 0;
+    for (size_t i = 0; i < n_trees; i++) {
+        const auto& info = filtered_trees[i];
+        int32_t len = branch_lengths[i];
+
+        result.tree_id[i] = info.tree_id;
+        result.start_offset[i] = current_offset;
+        result.length[i] = len;
+        result.root_snap[i] = info.root_snap;
+        result.root_subhalo[i] = info.root_subhalo;
+        result.root_m200c[i] = info.root_m200c;
+        result.root_r200c[i] = info.root_r200c;
+
+        if (len == 0) {
+            result.a_min[i] = 0.0f;
+            result.a_max[i] = 0.0f;
+        } else {
+            // Find the thread that has this branch's data
+            for (int t = 0; t < actual_threads; t++) {
+                const auto& branch = thread_branches[t][i];
+                if (!branch.snap_num.empty()) {
+                    result.a_min[i] = branch.scale_factor.front();
+                    result.a_max[i] = branch.scale_factor.back();
+
+                    // Copy data
+                    std::copy(branch.snap_num.begin(), branch.snap_num.end(),
+                              result.snap_num.begin() + current_offset);
+                    std::copy(branch.subhalo_nr.begin(), branch.subhalo_nr.end(),
+                              result.subhalo_nr.begin() + current_offset);
+                    std::copy(branch.scale_factor.begin(), branch.scale_factor.end(),
+                              result.scale_factor.begin() + current_offset);
+                    std::copy(branch.pos_x.begin(), branch.pos_x.end(),
+                              result.pos_x.begin() + current_offset);
+                    std::copy(branch.pos_y.begin(), branch.pos_y.end(),
+                              result.pos_y.begin() + current_offset);
+                    std::copy(branch.pos_z.begin(), branch.pos_z.end(),
+                              result.pos_z.begin() + current_offset);
+                    std::copy(branch.vel_x.begin(), branch.vel_x.end(),
+                              result.vel_x.begin() + current_offset);
+                    std::copy(branch.vel_y.begin(), branch.vel_y.end(),
+                              result.vel_y.begin() + current_offset);
+                    std::copy(branch.vel_z.begin(), branch.vel_z.end(),
+                              result.vel_z.begin() + current_offset);
+                    std::copy(branch.m200c.begin(), branch.m200c.end(),
+                              result.m200c.begin() + current_offset);
+                    std::copy(branch.r200c.begin(), branch.r200c.end(),
+                              result.r200c.begin() + current_offset);
+                    std::copy(branch.mass.begin(), branch.mass.end(),
+                              result.mass.begin() + current_offset);
+                    break;
+                }
+            }
+        }
+
+        current_offset += len;
+    }
+
+    return result;
 }
 
 } // namespace io

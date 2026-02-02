@@ -36,11 +36,24 @@ Output HDF5 structure:
 Usage:
     python extract_branch_catalog.py /path/to/trees.hdf5 -o branch_catalog.h5
     python extract_branch_catalog.py /path/to/trees.hdf5 --mass-min 10.0  # M200c > 10^11 Msun/h
+
+Performance:
+    When tessera C++ extension is available, uses OpenMP parallel extraction
+    which is ~100-200x faster than pure Python.
 """
 
 import argparse
 from pathlib import Path
 from typing import Optional
+
+# Try to import tessera C++ extension FIRST to avoid HDF5 library conflicts
+# (tessera uses HighFive, which must be loaded before h5py in some environments)
+try:
+    import tessera as ts
+    HAS_TESSERA = hasattr(ts.io, 'extract_all_branches_parallel')
+except ImportError:
+    HAS_TESSERA = False
+
 import numpy as np
 import h5py
 from tqdm import tqdm
@@ -54,20 +67,131 @@ except ImportError:
     from halo_tracker import HaloTracker
 
 
+def extract_branch_catalog_cpp(
+    tree_file: Path,
+    output_file: Path,
+    mass_min: Optional[float] = None,
+    a_min: Optional[float] = None,
+    n_threads: int = 0,
+    show_progress: bool = True,
+) -> dict:
+    """
+    Extract branches using C++ OpenMP parallel implementation.
+
+    This is ~100-200x faster than pure Python for large tree files.
+    """
+    import time
+
+    print(f"Loading merger tree from {tree_file}...")
+    tree = ts.io.MergerTree(str(tree_file))
+    print(f"  Found {tree.n_trees():,} trees, {tree.n_halos():,} total halos")
+
+    if show_progress:
+        print("Extracting branches (C++ parallel)...", end=" ", flush=True)
+    start_time = time.time()
+
+    # Extract in parallel (no progress callback - runs too fast to need it)
+    data = ts.io.extract_all_branches_parallel(
+        tree,
+        mass_min=mass_min,
+        a_min=a_min,
+        n_threads=n_threads,
+    )
+
+    elapsed = time.time() - start_time
+    if show_progress:
+        print(f"done in {elapsed:.2f}s")
+
+    n_trees = data.n_branches()
+    n_total_halos = data.n_halos()
+    print(f"\nCollected {n_total_halos:,} halos from {n_trees:,} branches")
+
+    if n_trees == 0:
+        print("No trees match the filter criteria.")
+        return {'n_trees': 0, 'n_halos': 0}
+
+    # Build position/velocity arrays for HDF5 (combine x,y,z)
+    position = np.column_stack([data.pos_x, data.pos_y, data.pos_z]).astype(np.float32)
+    velocity = np.column_stack([data.vel_x, data.vel_y, data.vel_z]).astype(np.float32)
+
+    # Write output file
+    print(f"Writing to {output_file}...")
+    with h5py.File(output_file, 'w') as f:
+        # Header
+        header = f.create_group('Header')
+        header.attrs['n_trees'] = n_trees
+        header.attrs['n_total_halos'] = n_total_halos
+        header.attrs['source_file'] = str(tree_file)
+        header.attrs['box_size'] = tree.box_size()
+        header.attrs['hubble'] = tree.header().hubble
+        header.attrs['omega_matter'] = tree.header().omega_matter
+        header.attrs['omega_lambda'] = tree.header().omega_lambda
+        header.attrs['n_snapshots'] = tree.n_snapshots()
+        header.attrs['last_snap'] = tree.header().last_snap
+        header.attrs['extraction_method'] = 'cpp_parallel'
+        if mass_min is not None:
+            header.attrs['mass_min_filter'] = mass_min
+        if a_min is not None:
+            header.attrs['a_min_filter'] = a_min
+
+        # Store snapshot time mapping
+        f.create_dataset('TreeTimes/Time', data=np.array(tree.header().snap_times))
+        f.create_dataset('TreeTimes/Redshift', data=np.array(tree.header().snap_redshifts))
+
+        # Branch index
+        idx = f.create_group('BranchIndex')
+        idx.create_dataset('tree_id', data=np.array(data.tree_id, dtype=np.int32))
+        idx.create_dataset('start_offset', data=np.array(data.start_offset, dtype=np.int64))
+        idx.create_dataset('length', data=np.array(data.length, dtype=np.int32))
+        idx.create_dataset('root_snap', data=np.array(data.root_snap, dtype=np.int32))
+        idx.create_dataset('root_subhalo', data=np.array(data.root_subhalo, dtype=np.int32))
+        idx.create_dataset('root_m200c', data=np.array(data.root_m200c, dtype=np.float32))
+        idx.create_dataset('root_r200c', data=np.array(data.root_r200c, dtype=np.float32))
+        idx.create_dataset('a_min', data=np.array(data.a_min, dtype=np.float32))
+        idx.create_dataset('a_max', data=np.array(data.a_max, dtype=np.float32))
+
+        # Branch data (compressed)
+        bd = f.create_group('BranchData')
+        bd.create_dataset('snap_num', data=np.array(data.snap_num, dtype=np.int32), compression='gzip')
+        bd.create_dataset('subhalo_nr', data=np.array(data.subhalo_nr, dtype=np.int32), compression='gzip')
+        bd.create_dataset('scale_factor', data=np.array(data.scale_factor, dtype=np.float32), compression='gzip')
+        bd.create_dataset('position', data=position, compression='gzip')
+        bd.create_dataset('velocity', data=velocity, compression='gzip')
+        bd.create_dataset('m200c', data=np.array(data.m200c, dtype=np.float32), compression='gzip')
+        bd.create_dataset('r200c', data=np.array(data.r200c, dtype=np.float32), compression='gzip')
+        bd.create_dataset('mass', data=np.array(data.mass, dtype=np.float32), compression='gzip')
+
+    # Report file size
+    file_size_mb = output_file.stat().st_size / (1024 * 1024)
+    print(f"  File size: {file_size_mb:.1f} MB")
+    print(f"  Bytes per halo: {output_file.stat().st_size / max(1, n_total_halos):.1f}")
+
+    return {
+        'n_trees': n_trees,
+        'n_halos': n_total_halos,
+        'file_size_mb': file_size_mb,
+        'source_file': str(tree_file),
+    }
+
+
 def extract_branch_catalog(
     tree_file: Path,
     output_file: Path,
     mass_min: Optional[float] = None,
     a_min: Optional[float] = None,
+    n_threads: int = 0,
     show_progress: bool = True,
 ) -> dict:
     """
     Extract main progenitor branches for all trees.
 
+    When tessera C++ extension is available, uses OpenMP parallel extraction
+    which is ~100-200x faster than pure Python.
+
     Parameters
     ----------
     tree_file : Path
-        Path to GADGET-4 trees.hdf5 file
+        Path to GADGET-4 trees.hdf5 file (or directory for distributed files)
     output_file : Path
         Output HDF5 file path
     mass_min : float, optional
@@ -75,6 +199,8 @@ def extract_branch_catalog(
         E.g., mass_min=10.0 corresponds to M200c > 10^11 Msun/h
     a_min : float, optional
         Minimum scale factor to trace branches to (default: trace all)
+    n_threads : int, optional
+        Number of threads for C++ extraction (0 = auto, ignored for Python)
     show_progress : bool
         Show progress bar
 
@@ -83,6 +209,19 @@ def extract_branch_catalog(
     stats : dict
         Extraction statistics (n_trees, n_halos, etc.)
     """
+    # Use C++ parallel extraction if available (much faster)
+    if HAS_TESSERA:
+        return extract_branch_catalog_cpp(
+            tree_file, output_file,
+            mass_min=mass_min, a_min=a_min,
+            n_threads=n_threads, show_progress=show_progress
+        )
+
+    # Python fallback (slower, but works without C++ extension)
+    print("Note: Using Python extraction (tessera C++ not available).")
+    print("      Install tessera for ~100-200x faster extraction.")
+    print()
+
     # Load merger tree
     print(f"Loading merger tree from {tree_file}...")
     tree = MergerTree(tree_file)
@@ -292,6 +431,10 @@ def main():
         '--no-progress', action='store_true',
         help="Disable progress bar"
     )
+    parser.add_argument(
+        '-j', '--threads', type=int, default=0,
+        help="Number of threads for C++ extraction (0 = auto)"
+    )
 
     args = parser.parse_args()
 
@@ -307,6 +450,7 @@ def main():
         output_file=output_file,
         mass_min=args.mass_min,
         a_min=args.a_min,
+        n_threads=args.threads,
         show_progress=not args.no_progress,
     )
 

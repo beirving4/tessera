@@ -557,6 +557,152 @@ void bind_io(py::module& m) {
     m.def("read_merger_tree_header", &read_merger_tree_header, py::arg("filename"),
           "Read merger tree header only (small, fast)");
 
+    // =========================================================================
+    // Parallel Branch Extraction
+    // =========================================================================
+
+    // BranchCatalogData
+    py::class_<BranchCatalogData>(m, "BranchCatalogData",
+        R"pbdoc(
+        Branch catalog data in Structure-of-Arrays format.
+
+        Contains pre-extracted main progenitor branches for all trees,
+        stored in flattened arrays for efficient HDF5 writing and random access.
+        Trees are sorted by root M200c (descending) for convenient mass-ordered access.
+
+        Attributes
+        ----------
+        tree_id : list[int]
+            Tree identifier for each branch
+        start_offset : list[int]
+            Start index in flattened data arrays
+        length : list[int]
+            Number of halos in each branch
+        root_snap : list[int]
+            Root halo snapshot number
+        root_subhalo : list[int]
+            Root halo subhalo index
+        root_m200c : list[float]
+            Root halo M200c [10^10 Msun/h]
+        root_r200c : list[float]
+            Root halo R200c [Mpc/h]
+        a_min : list[float]
+            Earliest scale factor in branch
+        a_max : list[float]
+            Latest scale factor in branch
+        snap_num : list[int]
+            Snapshot numbers (flattened)
+        subhalo_nr : list[int]
+            Subhalo indices (flattened)
+        scale_factor : list[float]
+            Scale factors (flattened)
+        pos_x, pos_y, pos_z : list[float]
+            Positions [Mpc/h] (flattened)
+        vel_x, vel_y, vel_z : list[float]
+            Velocities [km/s] (flattened)
+        m200c : list[float]
+            M200 critical [10^10 Msun/h] (flattened)
+        r200c : list[float]
+            R200 critical [Mpc/h] (flattened)
+        mass : list[float]
+            Subhalo mass [10^10 Msun/h] (flattened)
+        )pbdoc")
+        .def(py::init<>())
+        // Index arrays
+        .def_readwrite("tree_id", &BranchCatalogData::tree_id)
+        .def_readwrite("start_offset", &BranchCatalogData::start_offset)
+        .def_readwrite("length", &BranchCatalogData::length)
+        .def_readwrite("root_snap", &BranchCatalogData::root_snap)
+        .def_readwrite("root_subhalo", &BranchCatalogData::root_subhalo)
+        .def_readwrite("root_m200c", &BranchCatalogData::root_m200c)
+        .def_readwrite("root_r200c", &BranchCatalogData::root_r200c)
+        .def_readwrite("a_min", &BranchCatalogData::a_min)
+        .def_readwrite("a_max", &BranchCatalogData::a_max)
+        // Data arrays
+        .def_readwrite("snap_num", &BranchCatalogData::snap_num)
+        .def_readwrite("subhalo_nr", &BranchCatalogData::subhalo_nr)
+        .def_readwrite("scale_factor", &BranchCatalogData::scale_factor)
+        .def_readwrite("pos_x", &BranchCatalogData::pos_x)
+        .def_readwrite("pos_y", &BranchCatalogData::pos_y)
+        .def_readwrite("pos_z", &BranchCatalogData::pos_z)
+        .def_readwrite("vel_x", &BranchCatalogData::vel_x)
+        .def_readwrite("vel_y", &BranchCatalogData::vel_y)
+        .def_readwrite("vel_z", &BranchCatalogData::vel_z)
+        .def_readwrite("m200c", &BranchCatalogData::m200c)
+        .def_readwrite("r200c", &BranchCatalogData::r200c)
+        .def_readwrite("mass", &BranchCatalogData::mass)
+        // Methods
+        .def("n_branches", &BranchCatalogData::n_branches, "Number of branches")
+        .def("n_halos", &BranchCatalogData::n_halos, "Total number of halos")
+        .def("empty", &BranchCatalogData::empty, "Check if empty")
+        .def("__repr__", [](const BranchCatalogData& d) {
+            return "BranchCatalogData(n_branches=" + std::to_string(d.n_branches()) +
+                   ", n_halos=" + std::to_string(d.n_halos()) + ")";
+        });
+
+    // extract_all_branches_parallel
+    m.def("extract_all_branches_parallel",
+          [](MergerTree& tree,
+             std::optional<float> mass_min,
+             std::optional<float> a_min,
+             int n_threads,
+             py::object progress_callback) -> BranchCatalogData {
+              // Convert Python callback to C++ function if provided
+              std::function<void(size_t, size_t)> cpp_callback = nullptr;
+              if (!progress_callback.is_none()) {
+                  cpp_callback = [&progress_callback](size_t done, size_t total) {
+                      py::gil_scoped_acquire acquire;
+                      progress_callback(done, total);
+                  };
+              }
+
+              // Release GIL during parallel extraction
+              py::gil_scoped_release release;
+              return extract_all_branches_parallel(tree, mass_min, a_min, n_threads, cpp_callback);
+          },
+          py::arg("tree"),
+          py::arg("mass_min") = std::nullopt,
+          py::arg("a_min") = std::nullopt,
+          py::arg("n_threads") = 0,
+          py::arg("progress_callback") = py::none(),
+          R"pbdoc(
+          Extract main progenitor branches for all trees in parallel.
+
+          Uses OpenMP to parallelize branch tracing across trees. Tree data is loaded
+          once (shared memory) and each thread traces a subset of trees independently.
+
+          Parameters
+          ----------
+          tree : MergerTree
+              MergerTree instance (data will be loaded if not already)
+          mass_min : float, optional
+              Minimum root M200c filter [10^10 Msun/h] (default: no filter)
+          a_min : float, optional
+              Minimum scale factor to trace to (default: trace all)
+          n_threads : int, optional
+              Number of threads (0 = use OMP_NUM_THREADS or all cores)
+          progress_callback : callable, optional
+              Callback function(trees_done, total_trees) for progress updates
+
+          Returns
+          -------
+          BranchCatalogData
+              Extracted branches with index and data arrays.
+              Trees are sorted by root M200c (descending).
+
+          Examples
+          --------
+          >>> tree = ts.io.MergerTree("trees.hdf5")
+          >>> data = ts.io.extract_all_branches_parallel(tree, n_threads=4)
+          >>> print(f"Extracted {data.n_branches()} branches, {data.n_halos()} halos")
+
+          Notes
+          -----
+          - Thread-safe: uses thread-local storage for intermediate results
+          - Memory efficient: tree data is shared read-only across threads
+          - Releases GIL during extraction for Python concurrency
+          )pbdoc");
+
     // Flag to indicate HDF5 support is available
     m.attr("HAS_HDF5") = true;
 #else
