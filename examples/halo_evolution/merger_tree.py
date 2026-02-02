@@ -2,12 +2,45 @@
 GADGET-4 Merger Tree Reader
 
 Efficient, lazy-loading reader for GADGET-4 merger tree HDF5 files.
+Supports both single-file and distributed (split) tree formats.
 """
 
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
+import re
 import h5py
 import numpy as np
+
+
+def discover_tree_files(directory: Path) -> List[Path]:
+    """
+    Discover split tree files in a directory.
+
+    Parameters
+    ----------
+    directory : Path
+        Directory containing trees.*.hdf5 files
+
+    Returns
+    -------
+    files : List[Path]
+        List of tree files sorted by file index
+    """
+    pattern = re.compile(r'^trees\.(\d+)\.hdf5$')
+    indexed_files = []
+
+    for path in directory.iterdir():
+        if not path.is_file():
+            continue
+        match = pattern.match(path.name)
+        if match:
+            idx = int(match.group(1))
+            indexed_files.append((idx, path))
+
+    # Sort by file index
+    indexed_files.sort(key=lambda x: x[0])
+
+    return [path for _, path in indexed_files]
 
 
 class MergerTree:
@@ -15,11 +48,14 @@ class MergerTree:
     Reader for GADGET-4 merger tree files.
 
     Supports lazy loading - only reads arrays when accessed.
+    Handles both single-file (trees.hdf5) and distributed (trees.*.hdf5) formats.
 
     Parameters
     ----------
-    tree_file : str or Path
-        Path to trees.hdf5 file
+    tree_path : str or Path
+        Path to either:
+        - A single trees.hdf5 file
+        - A directory containing trees.*.hdf5 files
 
     Attributes
     ----------
@@ -44,8 +80,13 @@ class MergerTree:
 
     Examples
     --------
+    >>> # Single file
     >>> tree = MergerTree('trees.hdf5')
     >>> print(f"Found {tree.n_trees} trees")
+    >>>
+    >>> # Distributed files
+    >>> tree = MergerTree('/path/to/treedata/')
+    >>> print(f"Found {tree.n_trees} trees from {tree.n_files} files")
     >>>
     >>> # Get tree table info
     >>> tree_lengths = tree.tree_table['Length']
@@ -56,10 +97,27 @@ class MergerTree:
     >>> main_prog = tree.tree_halos['TreeMainProgenitor']
     """
 
-    def __init__(self, tree_file: Union[str, Path]):
-        self.tree_file = Path(tree_file)
-        if not self.tree_file.exists():
-            raise FileNotFoundError(f"Tree file not found: {self.tree_file}")
+    def __init__(self, tree_path: Union[str, Path]):
+        tree_path = Path(tree_path)
+
+        # Determine if single file or directory
+        if tree_path.is_file():
+            # Single file mode
+            self._files = [tree_path]
+            self._distributed = False
+        elif tree_path.is_dir():
+            # Distributed mode - find all tree files
+            self._files = discover_tree_files(tree_path)
+            if not self._files:
+                raise FileNotFoundError(
+                    f"No tree files (trees.*.hdf5) found in directory: {tree_path}"
+                )
+            self._distributed = True
+        else:
+            raise FileNotFoundError(f"Tree path not found: {tree_path}")
+
+        # Store the primary path for display
+        self.tree_file = self._files[0] if self._distributed else tree_path
 
         # Cache for lazy-loaded arrays
         self._tree_table_cache: Optional[Dict[str, np.ndarray]] = None
@@ -69,8 +127,9 @@ class MergerTree:
         self._load_header()
 
     def _load_header(self) -> None:
-        """Load header information from the tree file."""
-        with h5py.File(self.tree_file, 'r') as f:
+        """Load header information from the tree file(s)."""
+        # Always read header from first file
+        with h5py.File(self._files[0], 'r') as f:
             # Header info
             header = f['Header']
             self.n_trees = int(header.attrs['Ntrees_Total'])
@@ -96,12 +155,43 @@ class MergerTree:
         Lazy-load TreeTable datasets.
 
         Returns dict with keys: 'Length', 'StartOffset', 'TreeID'
+
+        For distributed files, StartOffset values are adjusted to be
+        global indices into the concatenated TreeHalos arrays.
         """
-        if self._tree_table_cache is None:
+        if self._tree_table_cache is not None:
+            return self._tree_table_cache
+
+        if not self._distributed:
+            # Single file - simple load
             self._tree_table_cache = {}
-            with h5py.File(self.tree_file, 'r') as f:
+            with h5py.File(self._files[0], 'r') as f:
                 for key in f['TreeTable'].keys():
                     self._tree_table_cache[key] = f['TreeTable'][key][:]
+        else:
+            # Distributed format: TreeTable entries are only in files where
+            # Ntrees_ThisFile > 0. StartOffset values are already global indices
+            # into the concatenated TreeHalos array.
+            all_lengths = []
+            all_start_offsets = []
+            all_tree_ids = []
+
+            for file_path in self._files:
+                with h5py.File(file_path, 'r') as f:
+                    n_trees_this_file = int(f['Header'].attrs['Ntrees_ThisFile'])
+                    if n_trees_this_file == 0:
+                        continue  # No TreeTable in this file
+
+                    all_lengths.append(f['TreeTable']['Length'][:])
+                    all_start_offsets.append(f['TreeTable']['StartOffset'][:])
+                    all_tree_ids.append(f['TreeTable']['TreeID'][:])
+
+            self._tree_table_cache = {
+                'Length': np.concatenate(all_lengths),
+                'StartOffset': np.concatenate(all_start_offsets),
+                'TreeID': np.concatenate(all_tree_ids),
+            }
+
         return self._tree_table_cache
 
     @property
@@ -111,21 +201,48 @@ class MergerTree:
 
         Returns dict with all halo properties and linking arrays.
         Note: Only loads essential fields to save memory.
+
+        For distributed files, arrays are concatenated from all files.
         """
-        if self._tree_halos_cache is None:
+        if self._tree_halos_cache is not None:
+            return self._tree_halos_cache
+
+        # Essential fields to load
+        essential_fields = [
+            'SnapNum', 'SubhaloNr', 'GroupNr', 'TreeID', 'TreeIndex',
+            'SubhaloPos', 'SubhaloVel', 'SubhaloMass',
+            'Group_M_Crit200', 'Group_R_Crit200',
+            'TreeMainProgenitor', 'TreeDescendant',
+            'TreeFirstProgenitor', 'TreeNextProgenitor',
+        ]
+
+        if not self._distributed:
+            # Single file - simple load
             self._tree_halos_cache = {}
-            # Only load essential fields to save memory
-            essential_fields = [
-                'SnapNum', 'SubhaloNr', 'GroupNr', 'TreeID', 'TreeIndex',
-                'SubhaloPos', 'SubhaloVel', 'SubhaloMass',
-                'Group_M_Crit200', 'Group_R_Crit200',
-                'TreeMainProgenitor', 'TreeDescendant',
-                'TreeFirstProgenitor', 'TreeNextProgenitor',
-            ]
-            with h5py.File(self.tree_file, 'r') as f:
+            with h5py.File(self._files[0], 'r') as f:
                 for key in essential_fields:
                     if key in f['TreeHalos']:
                         self._tree_halos_cache[key] = f['TreeHalos'][key][:]
+        else:
+            # Distributed - concatenate from all files
+            # First pass: determine which fields exist
+            with h5py.File(self._files[0], 'r') as f:
+                available_fields = [k for k in essential_fields if k in f['TreeHalos']]
+
+            # Collect data from all files
+            file_data = {field: [] for field in available_fields}
+
+            for file_path in self._files:
+                with h5py.File(file_path, 'r') as f:
+                    for field in available_fields:
+                        file_data[field].append(f['TreeHalos'][field][:])
+
+            # Concatenate
+            self._tree_halos_cache = {
+                field: np.concatenate(arrays)
+                for field, arrays in file_data.items()
+            }
+
         return self._tree_halos_cache
 
     def clear_cache(self) -> None:
@@ -242,6 +359,13 @@ class MergerTree:
         return int(idx)
 
     def __repr__(self) -> str:
+        if self._distributed:
+            return (
+                f"MergerTree('{self.tree_file.parent.name}/', "
+                f"n_trees={self.n_trees}, n_halos={self.n_halos}, "
+                f"n_files={self.n_files}, "
+                f"a=[{self.snap_times.min():.3f}, {self.snap_times.max():.3f}])"
+            )
         return (
             f"MergerTree('{self.tree_file.name}', "
             f"n_trees={self.n_trees}, n_halos={self.n_halos}, "

@@ -105,6 +105,10 @@ class HaloTracker:
 
         snap_num = int(halos['SnapNum'][tree_index])
 
+        # Handle optional fields (may not exist in all tree formats)
+        m200c = float(halos['Group_M_Crit200'][tree_index]) if 'Group_M_Crit200' in halos else 0.0
+        r200c = float(halos['Group_R_Crit200'][tree_index]) if 'Group_R_Crit200' in halos else 0.0
+
         return HaloInfo(
             tree_index=tree_index,
             snap_num=snap_num,
@@ -115,8 +119,8 @@ class HaloTracker:
             position=halos['SubhaloPos'][tree_index].copy(),
             velocity=halos['SubhaloVel'][tree_index].copy(),
             mass=float(halos['SubhaloMass'][tree_index]),
-            m200c=float(halos['Group_M_Crit200'][tree_index]),
-            r200c=float(halos['Group_R_Crit200'][tree_index]),
+            m200c=m200c,
+            r200c=r200c,
         )
 
     def trace_main_branch(
