@@ -457,6 +457,10 @@ private:
  * Traces progenitor and descendant branches through merger trees.
  * Uses prefetching for efficient pointer-chasing through tree links.
  *
+ * Branches are returned in "root-first" order (late to early time, descending
+ * scale factor). This is natural for tree-walking algorithms that start from
+ * the z=0 descendant and trace backward through progenitors.
+ *
  * Example usage:
  * @code
  *   MergerTree tree("trees.hdf5");
@@ -465,6 +469,7 @@ private:
  *   // Trace from z=0 most massive halo
  *   auto branch = tracker.trace_main_branch(74, 0, true, false, 0.1f);
  *
+ *   // branch[0] is the z=0 root halo, branch[N-1] is the earliest progenitor
  *   for (const auto& halo : branch) {
  *       std::cout << "a=" << halo.scale_factor
  *                 << ": M200=" << halo.m200c << "\n";
@@ -490,7 +495,7 @@ public:
      * @param forward Trace descendants (later times)
      * @param a_min Minimum scale factor (nullopt = no limit)
      * @param a_max Maximum scale factor (nullopt = no limit)
-     * @return Vector of HaloInfo sorted by scale factor (early to late)
+     * @return Vector of HaloInfo sorted by scale factor (late to early, root-first)
      */
     std::vector<HaloInfo> trace_main_branch(
         int32_t snap_num,
@@ -570,6 +575,10 @@ private:
  * Contains pre-extracted main progenitor branches for all trees,
  * stored in flattened arrays for efficient HDF5 writing and random access.
  * Trees are sorted by root M200c (descending) for convenient mass-ordered access.
+ *
+ * Branch data is stored in "root-first" order (late to early time, descending
+ * scale factor). The first halo in each branch is the z=0 root, and subsequent
+ * halos trace back through the main progenitor line.
  */
 struct BranchCatalogData {
     // =========================================================================

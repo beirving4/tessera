@@ -701,9 +701,9 @@ HaloInfo MergerTree::make_halo_info(int64_t tree_index) {
     info.position = {h.pos_x[idx], h.pos_y[idx], h.pos_z[idx]};
     info.velocity = {h.vel_x[idx], h.vel_y[idx], h.vel_z[idx]};
 
-    info.mass = h.mass[idx];
-    info.m200c = h.m200c[idx];
-    info.r200c = h.r200c[idx];
+    info.mass = h.mass.empty() ? 0.0f : h.mass[idx];
+    info.m200c = h.m200c.empty() ? 0.0f : h.m200c[idx];
+    info.r200c = h.r200c.empty() ? 0.0f : h.r200c[idx];
 
     return info;
 }
@@ -945,10 +945,11 @@ std::vector<HaloInfo> HaloTracker::trace_main_branch(
         branch.push_back(tree_.make_halo_info(idx));
     }
 
-    // Sort by scale factor (early to late)
+    // Sort by scale factor (late to early, root-first order)
+    // This is natural for tree-walking algorithms that start from z=0
     std::sort(branch.begin(), branch.end(),
               [](const HaloInfo& a, const HaloInfo& b) {
-                  return a.scale_factor < b.scale_factor;
+                  return a.scale_factor > b.scale_factor;
               });
 
     return branch;
@@ -1181,10 +1182,11 @@ void trace_branch_internal(
         current = prog_idx;
     }
 
-    // Sort by scale factor (early to late) - branch is typically in reverse order
+    // Sort by scale factor (late to early, root-first order)
+    // This is natural for tree-walking algorithms that start from z=0
     std::sort(branch_indices.begin(), branch_indices.end(),
               [&snap_data, &header](int64_t a, int64_t b) {
-                  return header.get_scale_factor(snap_data[a]) <
+                  return header.get_scale_factor(snap_data[a]) >
                          header.get_scale_factor(snap_data[b]);
               });
 
@@ -1359,10 +1361,10 @@ BranchCatalogData extract_branches_chunked(
                     current = prog_idx;
                 }
 
-                // Sort by scale factor
+                // Sort by scale factor (late to early, root-first order)
                 std::sort(branch_indices.begin(), branch_indices.end(),
                           [&snap_data, &header](int64_t a, int64_t b) {
-                              return header.get_scale_factor(snap_data[a]) <
+                              return header.get_scale_factor(snap_data[a]) >
                                      header.get_scale_factor(snap_data[b]);
                           });
 
@@ -1460,8 +1462,9 @@ BranchCatalogData extract_branches_chunked(
             result.a_min[i] = 0.0f;
             result.a_max[i] = 0.0f;
         } else {
-            result.a_min[i] = branch.scale_factor.front();
-            result.a_max[i] = branch.scale_factor.back();
+            // Root-first order: front is latest (a_max), back is earliest (a_min)
+            result.a_max[i] = branch.scale_factor.front();
+            result.a_min[i] = branch.scale_factor.back();
 
             // Copy data
             std::copy(branch.snap_num.begin(), branch.snap_num.end(),
@@ -1740,8 +1743,9 @@ BranchCatalogData extract_all_branches_parallel(
             for (int t = 0; t < actual_threads; t++) {
                 const auto& branch = thread_branches[t][i];
                 if (!branch.snap_num.empty()) {
-                    result.a_min[i] = branch.scale_factor.front();
-                    result.a_max[i] = branch.scale_factor.back();
+                    // Root-first order: front is latest (a_max), back is earliest (a_min)
+                    result.a_max[i] = branch.scale_factor.front();
+                    result.a_min[i] = branch.scale_factor.back();
 
                     // Copy data
                     std::copy(branch.snap_num.begin(), branch.snap_num.end(),
