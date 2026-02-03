@@ -325,23 +325,15 @@ void MergerTree::load_tree_table() {
     if (table_loaded_) return;
 
     // TreeTable is split across files - only files with tree roots have TreeTable
-    // StartOffset values are local to each file, need to convert to global offsets
+    // GADGET-4 stores StartOffset as GLOBAL indices (already relative to all halos),
+    // so we do NOT need to add file offsets.
     std::vector<int64_t> all_lengths, all_offsets, all_tree_ids;
     all_lengths.reserve(header_.n_trees);
     all_offsets.reserve(header_.n_trees);
     all_tree_ids.reserve(header_.n_trees);
 
-    int64_t halo_offset = 0;  // Cumulative halo count from previous files
-
     for (const auto& filepath : files_) {
         HighFive::File file(filepath, HighFive::File::ReadOnly);
-
-        // Count halos in this file first (needed for offset calculation)
-        int64_t halos_in_file = 0;
-        if (file.exist("TreeHalos") && has_dataset(file.getGroup("TreeHalos"), "SnapNum")) {
-            auto dims = file.getGroup("TreeHalos").getDataSet("SnapNum").getDimensions();
-            halos_in_file = dims[0];
-        }
 
         // Only some files have TreeTable (those containing tree roots)
         if (file.exist("TreeTable")) {
@@ -359,16 +351,14 @@ void MergerTree::load_tree_table() {
                 table_group.getDataSet("TreeID").read(tree_ids);
             }
 
-            // Adjust offsets to global and append
+            // Append directly (StartOffset is already global in GADGET-4)
             for (size_t i = 0; i < lengths.size(); i++) {
                 all_lengths.push_back(lengths[i]);
-                all_offsets.push_back(offsets[i] + halo_offset);
+                all_offsets.push_back(offsets[i]);
                 all_tree_ids.push_back(i < tree_ids.size() ? tree_ids[i] :
                                        static_cast<int64_t>(all_lengths.size() - 1));
             }
         }
-
-        halo_offset += halos_in_file;
     }
 
     // Build tree table entries
@@ -382,6 +372,11 @@ void MergerTree::load_tree_table() {
     }
 
     table_loaded_ = true;
+}
+
+const std::vector<TreeTableEntry>& MergerTree::tree_table_entries() {
+    load_tree_table();
+    return tree_table_;
 }
 
 void MergerTree::load_search_data() {
@@ -853,9 +848,27 @@ size_t MergerTree::memory_usage() const {
 HaloTracker::HaloTracker(MergerTree& tree) : tree_(tree) {}
 
 int64_t HaloTracker::get_tree_start(int64_t absolute_idx) {
-    const auto& halos = tree_.tree_halos();
-    int32_t tree_id = halos.tree_id[absolute_idx];
-    return tree_.get_tree_entry(tree_id).start_offset;
+    // Use binary search on StartOffset to find which tree this halo belongs to
+    // This is more robust than using TreeID which may not match array indices
+    tree_.load_tree_table();
+    const auto& table = tree_.tree_table_entries();
+
+    // Binary search: find the largest start_offset <= absolute_idx
+    int64_t left = 0;
+    int64_t right = static_cast<int64_t>(table.size()) - 1;
+    int64_t result = 0;
+
+    while (left <= right) {
+        int64_t mid = left + (right - left) / 2;
+        if (table[mid].start_offset <= absolute_idx) {
+            result = mid;
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+
+    return table[result].start_offset;
 }
 
 std::vector<HaloInfo> HaloTracker::trace_main_branch(

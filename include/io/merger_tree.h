@@ -354,6 +354,16 @@ public:
      */
     bool table_loaded() const { return table_loaded_; }
 
+    /**
+     * Get raw TreeTable data (triggers lazy load).
+     */
+    const std::vector<TreeTableEntry>& tree_table_entries();
+
+    /**
+     * Load tree table (if not already loaded).
+     */
+    void load_tree_table();
+
     // =========================================================================
     // Memory management
     // =========================================================================
@@ -439,7 +449,6 @@ private:
 
     // Internal methods
     void load_header();
-    void load_tree_table();
     void load_search_data();      ///< Stage 1: Load only search-critical data
     void load_full_halo_data();   ///< Stage 2: Load remaining halo data
     void load_tree_halos();       ///< Legacy: Load all at once (calls both stages)
