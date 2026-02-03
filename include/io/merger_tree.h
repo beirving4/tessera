@@ -364,9 +364,62 @@ public:
     void clear_cache();
 
     /**
+     * Clear only TreeHalos data (keeps TreeTable for chunked processing).
+     */
+    void clear_halos_cache();
+
+    /**
      * Get approximate memory usage in bytes.
      */
     size_t memory_usage() const;
+
+    // =========================================================================
+    // Partial/Range loading (for memory-constrained chunked processing)
+    // =========================================================================
+
+    /**
+     * Load a range of TreeHalos data for memory-efficient chunked processing.
+     *
+     * Only loads halos in [start_idx, end_idx) range. Clears any previously
+     * loaded data first. Use clear_halos_cache() between chunks.
+     *
+     * @param start_idx Start index (inclusive) in TreeHalos
+     * @param end_idx End index (exclusive) in TreeHalos
+     */
+    void load_tree_halos_range(int64_t start_idx, int64_t end_idx);
+
+    /**
+     * Check if partial/range data is loaded.
+     */
+    bool range_loaded() const { return range_loaded_; }
+
+    /**
+     * Get the currently loaded range [start, end).
+     * Returns {0, 0} if no range is loaded.
+     */
+    std::pair<int64_t, int64_t> loaded_range() const {
+        return {loaded_range_start_, loaded_range_end_};
+    }
+
+    /**
+     * Get raw access to tree_halos_ without triggering lazy load.
+     * Use this after calling load_tree_halos_range() to access range data.
+     */
+    const TreeHalosSOA& tree_halos_loaded() const {
+        return tree_halos_;
+    }
+
+    /**
+     * Convert absolute index to range-relative index.
+     * Returns -1 if index is outside loaded range.
+     */
+    int64_t to_range_index(int64_t absolute_idx) const {
+        if (!range_loaded_ || absolute_idx < loaded_range_start_ ||
+            absolute_idx >= loaded_range_end_) {
+            return -1;
+        }
+        return absolute_idx - loaded_range_start_;
+    }
 
 private:
     std::string filename_;
@@ -378,6 +431,11 @@ private:
     bool table_loaded_ = false;
     bool search_loaded_ = false;  ///< Stage 1: snap_num, subhalo_nr loaded
     bool halos_loaded_ = false;   ///< Stage 2: All halo data loaded
+
+    // Range loading state
+    bool range_loaded_ = false;
+    int64_t loaded_range_start_ = 0;
+    int64_t loaded_range_end_ = 0;
 
     // Internal methods
     void load_header();
@@ -565,17 +623,24 @@ struct BranchCatalogData {
  * @param mass_min Minimum root M200c filter (nullopt = no filter)
  * @param a_min Minimum scale factor to trace to (nullopt = trace all)
  * @param n_threads Number of threads (0 = use OMP_NUM_THREADS or all cores)
+ * @param chunk_size Number of trees to process per chunk (0 = all at once).
+ *                   Use non-zero for memory-constrained systems. Each chunk
+ *                   loads only the necessary TreeHalos data, reducing peak
+ *                   memory usage at the cost of repeated I/O.
  * @param progress_callback Optional callback for progress updates (trees_done, total_trees)
  * @return BranchCatalogData with all extracted branches
  *
  * @note Trees are sorted by root M200c (descending) in the output.
  * @note Thread-safe: uses thread-local storage for intermediate results.
+ * @note For chunk_size > 0, memory usage is approximately:
+ *       chunk_size * avg_branch_length * 100 bytes
  */
 BranchCatalogData extract_all_branches_parallel(
     MergerTree& tree,
     std::optional<float> mass_min = std::nullopt,
     std::optional<float> a_min = std::nullopt,
     int n_threads = 0,
+    size_t chunk_size = 0,
     std::function<void(size_t, size_t)> progress_callback = nullptr
 );
 

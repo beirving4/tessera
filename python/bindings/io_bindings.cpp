@@ -646,6 +646,7 @@ void bind_io(py::module& m) {
              std::optional<float> mass_min,
              std::optional<float> a_min,
              int n_threads,
+             size_t chunk_size,
              py::object progress_callback) -> BranchCatalogData {
               // Convert Python callback to C++ function if provided
               std::function<void(size_t, size_t)> cpp_callback = nullptr;
@@ -658,18 +659,21 @@ void bind_io(py::module& m) {
 
               // Release GIL during parallel extraction
               py::gil_scoped_release release;
-              return extract_all_branches_parallel(tree, mass_min, a_min, n_threads, cpp_callback);
+              return extract_all_branches_parallel(tree, mass_min, a_min, n_threads,
+                                                   chunk_size, cpp_callback);
           },
           py::arg("tree"),
           py::arg("mass_min") = std::nullopt,
           py::arg("a_min") = std::nullopt,
           py::arg("n_threads") = 0,
+          py::arg("chunk_size") = 0,
           py::arg("progress_callback") = py::none(),
           R"pbdoc(
           Extract main progenitor branches for all trees in parallel.
 
-          Uses OpenMP to parallelize branch tracing across trees. Tree data is loaded
-          once (shared memory) and each thread traces a subset of trees independently.
+          Uses OpenMP to parallelize branch tracing across trees. By default, tree data
+          is loaded once (shared memory) and each thread traces a subset of trees
+          independently.
 
           Parameters
           ----------
@@ -681,6 +685,11 @@ void bind_io(py::module& m) {
               Minimum scale factor to trace to (default: trace all)
           n_threads : int, optional
               Number of threads (0 = use OMP_NUM_THREADS or all cores)
+          chunk_size : int, optional
+              Maximum number of halos to load at once for low-memory mode.
+              0 = load all data at once (default, fastest).
+              > 0 = streaming mode, trades speed for lower memory usage.
+              Recommended: 10_000_000 to 50_000_000 for large files.
           progress_callback : callable, optional
               Callback function(trees_done, total_trees) for progress updates
 
@@ -693,14 +702,17 @@ void bind_io(py::module& m) {
           Examples
           --------
           >>> tree = ts.io.MergerTree("trees.hdf5")
+          >>> # Fast mode (all data loaded at once)
           >>> data = ts.io.extract_all_branches_parallel(tree, n_threads=4)
-          >>> print(f"Extracted {data.n_branches()} branches, {data.n_halos()} halos")
+          >>> # Low-memory mode (streaming)
+          >>> data = ts.io.extract_all_branches_parallel(tree, chunk_size=20_000_000)
 
           Notes
           -----
           - Thread-safe: uses thread-local storage for intermediate results
           - Memory efficient: tree data is shared read-only across threads
           - Releases GIL during extraction for Python concurrency
+          - Low-memory mode (chunk_size > 0) is slower but uses less RAM
           )pbdoc");
 
     // Flag to indicate HDF5 support is available

@@ -6,6 +6,8 @@
 #include <cmath>
 #include <queue>
 #include <numeric>
+#include <iostream>
+#include <cstdio>
 
 // OpenMP support
 #ifdef _OPENMP
@@ -578,6 +580,91 @@ void MergerTree::clear_cache() {
     table_loaded_ = false;
     search_loaded_ = false;
     halos_loaded_ = false;
+    range_loaded_ = false;
+    loaded_range_start_ = 0;
+    loaded_range_end_ = 0;
+}
+
+void MergerTree::clear_halos_cache() {
+    tree_halos_.clear();
+    search_loaded_ = false;
+    halos_loaded_ = false;
+    range_loaded_ = false;
+    loaded_range_start_ = 0;
+    loaded_range_end_ = 0;
+}
+
+void MergerTree::load_tree_halos_range(int64_t start_idx, int64_t end_idx) {
+
+    // Clear any existing data
+    clear_halos_cache();
+
+    if (start_idx >= end_idx || start_idx < 0) {
+        return;
+    }
+
+    HighFive::File file(filename_, HighFive::File::ReadOnly);
+
+    if (!file.exist("TreeHalos")) {
+        throw std::runtime_error("File does not contain TreeHalos group: " + filename_);
+    }
+
+    auto halos_group = file.getGroup("TreeHalos");
+    size_t count = static_cast<size_t>(end_idx - start_idx);
+
+    // Helper lambda to read a slice of a 1D dataset
+    auto read_slice_1d = [&](const std::string& name, auto& vec) {
+        using T = typename std::decay_t<decltype(vec)>::value_type;
+        if (has_dataset(halos_group, name)) {
+            auto ds = halos_group.getDataSet(name);
+            vec.resize(count);
+            ds.select({static_cast<size_t>(start_idx)}, {count}).read(vec.data());
+        }
+    };
+
+    // Helper lambda to read a slice of a 2D dataset into separate x,y,z vectors
+    auto read_slice_2d = [&](const std::string& name,
+                             std::vector<float>& x,
+                             std::vector<float>& y,
+                             std::vector<float>& z) {
+        if (has_dataset(halos_group, name)) {
+            auto ds = halos_group.getDataSet(name);
+            std::vector<std::array<float, 3>> raw(count);
+            ds.select({static_cast<size_t>(start_idx), 0}, {count, 3}).read(raw.data());
+
+            x.resize(count);
+            y.resize(count);
+            z.resize(count);
+            for (size_t i = 0; i < count; i++) {
+                x[i] = raw[i][0];
+                y[i] = raw[i][1];
+                z[i] = raw[i][2];
+            }
+        }
+    };
+
+    // Read all fields
+    read_slice_1d("SnapNum", tree_halos_.snap_num);
+    read_slice_1d("SubhaloNr", tree_halos_.subhalo_nr);
+    read_slice_1d("GroupNr", tree_halos_.group_nr);
+    read_slice_1d("TreeID", tree_halos_.tree_id);
+    read_slice_1d("SubhaloMass", tree_halos_.mass);
+    read_slice_1d("Group_M_Crit200", tree_halos_.m200c);
+    read_slice_1d("Group_R_Crit200", tree_halos_.r200c);
+    read_slice_1d("TreeMainProgenitor", tree_halos_.main_progenitor);
+    read_slice_1d("TreeDescendant", tree_halos_.descendant);
+    read_slice_1d("TreeFirstProgenitor", tree_halos_.first_progenitor);
+    read_slice_1d("TreeNextProgenitor", tree_halos_.next_progenitor);
+
+    read_slice_2d("SubhaloPos", tree_halos_.pos_x, tree_halos_.pos_y, tree_halos_.pos_z);
+    read_slice_2d("SubhaloVel", tree_halos_.vel_x, tree_halos_.vel_y, tree_halos_.vel_z);
+
+    // Mark as range-loaded
+    range_loaded_ = true;
+    loaded_range_start_ = start_idx;
+    loaded_range_end_ = end_idx;
+    halos_loaded_ = false;  // Not fully loaded
+    search_loaded_ = false;
 }
 
 size_t MergerTree::memory_usage() const {
@@ -979,52 +1066,384 @@ void trace_branch_internal(
 
 } // anonymous namespace
 
+// Internal struct for tree metadata
+struct TreeInfoInternal {
+    int32_t tree_id;
+    int64_t root_idx;
+    int64_t start_offset;  // Start in TreeHalos
+    int64_t length;        // Number of halos in tree
+    float root_m200c;
+    float root_r200c;
+    int32_t root_snap;
+    int32_t root_subhalo;
+    size_t output_idx;     // Index in output (for re-sorting after chunked processing)
+};
+
+/**
+ * Internal function for chunked (low-memory) branch extraction.
+ *
+ * This function processes trees in chunks based on their HDF5 index ranges,
+ * loading only the required halo data for each chunk. This uses significantly
+ * less memory than loading all halos at once, at the cost of some performance
+ * due to repeated I/O and less efficient parallelization.
+ *
+ * Algorithm:
+ * 1. Sort trees by their end index (start_offset + length) to group overlapping ranges
+ * 2. Build chunks where each chunk's halo range stays within chunk_size
+ * 3. For each chunk: load range, extract branches in parallel, store results
+ * 4. Merge all results
+ */
+BranchCatalogData extract_branches_chunked(
+    MergerTree& tree,
+    std::vector<TreeInfoInternal>& filtered_trees,
+    std::optional<float> a_min,
+    int n_threads,
+    size_t chunk_size,
+    std::function<void(size_t, size_t)> progress_callback
+) {
+    const auto& header = tree.header();
+    size_t n_trees = filtered_trees.size();
+
+    // Set number of threads
+#ifdef _OPENMP
+    int actual_threads = n_threads > 0 ? n_threads : omp_get_max_threads();
+    omp_set_num_threads(actual_threads);
+#else
+    int actual_threads = 1;
+    (void)n_threads;
+#endif
+
+    // Sort trees by end index to process in order (better for chunking)
+    // Keep track of original output order
+    for (size_t i = 0; i < n_trees; i++) {
+        filtered_trees[i].output_idx = i;  // Preserve M200c-sorted order
+    }
+
+    // Create a working copy sorted by halo index range for efficient chunking
+    std::vector<TreeInfoInternal> trees_by_range = filtered_trees;
+    std::sort(trees_by_range.begin(), trees_by_range.end(),
+              [](const TreeInfoInternal& a, const TreeInfoInternal& b) {
+                  return a.start_offset < b.start_offset;
+              });
+
+    // Results storage - indexed by output_idx
+    std::vector<ThreadLocalBranch> all_branches(n_trees);
+    size_t trees_processed = 0;
+
+    // Process trees in chunks based on halo index range
+    size_t tree_idx = 0;
+    while (tree_idx < n_trees) {
+
+        // Find the range of trees for this chunk
+        int64_t chunk_start = trees_by_range[tree_idx].start_offset;
+        int64_t chunk_end = trees_by_range[tree_idx].start_offset +
+                           trees_by_range[tree_idx].length;
+
+        std::vector<size_t> chunk_trees;
+        chunk_trees.push_back(tree_idx);
+
+        // Add more trees to this chunk while they fit
+        while (tree_idx + chunk_trees.size() < n_trees) {
+            size_t next_idx = tree_idx + chunk_trees.size();
+            const auto& next_tree = trees_by_range[next_idx];
+            int64_t next_end = next_tree.start_offset + next_tree.length;
+
+            // Check if adding this tree would exceed chunk_size
+            int64_t new_range = std::max(chunk_end, next_end) - chunk_start;
+            if (static_cast<size_t>(new_range) > chunk_size) {
+                break;
+            }
+
+            chunk_trees.push_back(next_idx);
+            chunk_end = std::max(chunk_end, next_end);
+        }
+
+        // Load the halo data for this chunk's range
+        tree.load_tree_halos_range(chunk_start, chunk_end);
+        // Use tree_halos_loaded() to avoid triggering full reload
+        const auto& halos = tree.tree_halos_loaded();
+
+        // Parallel extraction for trees in this chunk
+        size_t chunk_n_trees = chunk_trees.size();
+
+        #pragma omp parallel
+        {
+            ThreadLocalBranch local_branch;
+            local_branch.reserve(128);
+
+            #pragma omp for schedule(dynamic, 16)
+            for (size_t i = 0; i < chunk_n_trees; i++) {
+                const auto& info = trees_by_range[chunk_trees[i]];
+
+                // For range-loaded data, indices need to be adjusted
+                int64_t range_offset = tree.loaded_range().first;
+
+                // Trace branch - need to adjust indices for the loaded range
+                int64_t root_idx_in_range = info.root_idx - range_offset;
+
+                local_branch.clear();
+
+                // Manual branch tracing with range-adjusted indices
+                const auto& main_prog = halos.main_progenitor;
+                const auto& snap_data = halos.snap_num;
+
+                std::vector<int64_t> branch_indices;
+                branch_indices.reserve(128);
+
+                int64_t current = root_idx_in_range;
+                branch_indices.push_back(current);
+
+                while (true) {
+                    int32_t prog_rel = main_prog[current];
+                    // Convert relative->absolute, then adjust for range
+                    int64_t prog_abs = (prog_rel == -1) ? -1 :
+                        (info.start_offset + prog_rel);
+                    int64_t prog_idx = (prog_abs == -1) ? -1 :
+                        (prog_abs - range_offset);
+
+                    if (prog_idx < 0 ||
+                        prog_abs < tree.loaded_range().first ||
+                        prog_abs >= tree.loaded_range().second) {
+                        break;
+                    }
+
+                    // Check scale factor limit
+                    if (a_min.has_value()) {
+                        float prog_a = header.get_scale_factor(snap_data[prog_idx]);
+                        if (prog_a < *a_min) break;
+                    }
+
+                    branch_indices.push_back(prog_idx);
+                    current = prog_idx;
+                }
+
+                // Sort by scale factor
+                std::sort(branch_indices.begin(), branch_indices.end(),
+                          [&snap_data, &header](int64_t a, int64_t b) {
+                              return header.get_scale_factor(snap_data[a]) <
+                                     header.get_scale_factor(snap_data[b]);
+                          });
+
+                // Copy data to local branch
+                for (int64_t idx : branch_indices) {
+                    local_branch.snap_num.push_back(halos.snap_num[idx]);
+                    local_branch.subhalo_nr.push_back(halos.subhalo_nr[idx]);
+                    local_branch.scale_factor.push_back(
+                        header.get_scale_factor(halos.snap_num[idx]));
+                    local_branch.pos_x.push_back(halos.pos_x[idx]);
+                    local_branch.pos_y.push_back(halos.pos_y[idx]);
+                    local_branch.pos_z.push_back(halos.pos_z[idx]);
+                    local_branch.vel_x.push_back(halos.vel_x[idx]);
+                    local_branch.vel_y.push_back(halos.vel_y[idx]);
+                    local_branch.vel_z.push_back(halos.vel_z[idx]);
+                    local_branch.m200c.push_back(
+                        halos.m200c.empty() ? 0.0f : halos.m200c[idx]);
+                    local_branch.r200c.push_back(
+                        halos.r200c.empty() ? 0.0f : halos.r200c[idx]);
+                    local_branch.mass.push_back(halos.mass[idx]);
+                }
+
+                // Store in output position (maintaining M200c sort order)
+                #pragma omp critical
+                {
+                    all_branches[info.output_idx] = std::move(local_branch);
+                }
+                local_branch.clear();
+            }
+        }
+
+        // Update progress
+        trees_processed += chunk_trees.size();
+        if (progress_callback) {
+            progress_callback(trees_processed, n_trees);
+        }
+
+        tree_idx += chunk_trees.size();
+    }
+
+    // Clear the halos cache after all chunks are processed
+    tree.clear_halos_cache();
+
+    // Build final result
+    BranchCatalogData result;
+    std::vector<int32_t> branch_lengths(n_trees);
+    size_t total_halos = 0;
+
+    for (size_t i = 0; i < n_trees; i++) {
+        branch_lengths[i] = static_cast<int32_t>(all_branches[i].size());
+        total_halos += all_branches[i].size();
+    }
+
+    // Index arrays
+    result.tree_id.resize(n_trees);
+    result.start_offset.resize(n_trees);
+    result.length.resize(n_trees);
+    result.root_snap.resize(n_trees);
+    result.root_subhalo.resize(n_trees);
+    result.root_m200c.resize(n_trees);
+    result.root_r200c.resize(n_trees);
+    result.a_min.resize(n_trees);
+    result.a_max.resize(n_trees);
+
+    // Data arrays
+    result.snap_num.resize(total_halos);
+    result.subhalo_nr.resize(total_halos);
+    result.scale_factor.resize(total_halos);
+    result.pos_x.resize(total_halos);
+    result.pos_y.resize(total_halos);
+    result.pos_z.resize(total_halos);
+    result.vel_x.resize(total_halos);
+    result.vel_y.resize(total_halos);
+    result.vel_z.resize(total_halos);
+    result.m200c.resize(total_halos);
+    result.r200c.resize(total_halos);
+    result.mass.resize(total_halos);
+
+    // Fill results using original M200c-sorted order
+    int64_t current_offset = 0;
+    for (size_t i = 0; i < n_trees; i++) {
+        const auto& info = filtered_trees[i];  // Already in M200c order
+        const auto& branch = all_branches[i];
+        int32_t len = branch_lengths[i];
+
+        result.tree_id[i] = info.tree_id;
+        result.start_offset[i] = current_offset;
+        result.length[i] = len;
+        result.root_snap[i] = info.root_snap;
+        result.root_subhalo[i] = info.root_subhalo;
+        result.root_m200c[i] = info.root_m200c;
+        result.root_r200c[i] = info.root_r200c;
+
+        if (len == 0) {
+            result.a_min[i] = 0.0f;
+            result.a_max[i] = 0.0f;
+        } else {
+            result.a_min[i] = branch.scale_factor.front();
+            result.a_max[i] = branch.scale_factor.back();
+
+            // Copy data
+            std::copy(branch.snap_num.begin(), branch.snap_num.end(),
+                      result.snap_num.begin() + current_offset);
+            std::copy(branch.subhalo_nr.begin(), branch.subhalo_nr.end(),
+                      result.subhalo_nr.begin() + current_offset);
+            std::copy(branch.scale_factor.begin(), branch.scale_factor.end(),
+                      result.scale_factor.begin() + current_offset);
+            std::copy(branch.pos_x.begin(), branch.pos_x.end(),
+                      result.pos_x.begin() + current_offset);
+            std::copy(branch.pos_y.begin(), branch.pos_y.end(),
+                      result.pos_y.begin() + current_offset);
+            std::copy(branch.pos_z.begin(), branch.pos_z.end(),
+                      result.pos_z.begin() + current_offset);
+            std::copy(branch.vel_x.begin(), branch.vel_x.end(),
+                      result.vel_x.begin() + current_offset);
+            std::copy(branch.vel_y.begin(), branch.vel_y.end(),
+                      result.vel_y.begin() + current_offset);
+            std::copy(branch.vel_z.begin(), branch.vel_z.end(),
+                      result.vel_z.begin() + current_offset);
+            std::copy(branch.m200c.begin(), branch.m200c.end(),
+                      result.m200c.begin() + current_offset);
+            std::copy(branch.r200c.begin(), branch.r200c.end(),
+                      result.r200c.begin() + current_offset);
+            std::copy(branch.mass.begin(), branch.mass.end(),
+                      result.mass.begin() + current_offset);
+        }
+
+        current_offset += len;
+    }
+
+    return result;
+}
+
 BranchCatalogData extract_all_branches_parallel(
     MergerTree& tree,
     std::optional<float> mass_min,
     std::optional<float> a_min,
     int n_threads,
+    size_t chunk_size,
     std::function<void(size_t, size_t)> progress_callback
 ) {
-    // Load all tree data (shared, read-only after this)
-    const auto& halos = tree.tree_halos();  // Triggers full data load
-    const auto& header = tree.header();
+    // Debug to file
 
-    // Get tree table for root halo indices
+    const auto& header = tree.header();
     size_t total_trees = static_cast<size_t>(tree.n_trees());
 
-    // Build list of tree IDs with root halo M200c for sorting/filtering
-    struct TreeInfo {
-        int32_t tree_id;
-        int64_t root_idx;
-        float root_m200c;
-        float root_r200c;
-        int32_t root_snap;
-        int32_t root_subhalo;
-    };
+    // Build list of tree metadata from TreeTable (small, always loaded)
+    std::vector<TreeInfoInternal> tree_infos(total_trees);
 
-    std::vector<TreeInfo> tree_infos(total_trees);
+    // For chunked mode, we only need TreeTable info initially
+    // For non-chunked mode, we load all data upfront
+    if (chunk_size == 0) {
+        // Load all tree data (shared, read-only after this)
+        const auto& halos = tree.tree_halos();  // Triggers full data load
 
-    // Parallel fill tree info
-    #pragma omp parallel for if(total_trees > 1000)
-    for (size_t i = 0; i < total_trees; i++) {
-        int64_t root_idx = tree.get_root_halo_index(static_cast<int64_t>(i));
-        tree_infos[i].tree_id = static_cast<int32_t>(i);
-        tree_infos[i].root_idx = root_idx;
-        tree_infos[i].root_m200c = halos.m200c.empty() ? 0.0f : halos.m200c[root_idx];
-        tree_infos[i].root_r200c = halos.r200c.empty() ? 0.0f : halos.r200c[root_idx];
-        tree_infos[i].root_snap = halos.snap_num[root_idx];
-        tree_infos[i].root_subhalo = halos.subhalo_nr[root_idx];
+        // Fill tree info from loaded data
+        #pragma omp parallel for if(total_trees > 1000)
+        for (size_t i = 0; i < total_trees; i++) {
+            const auto& entry = tree.get_tree_entry(static_cast<int64_t>(i));
+            int64_t root_idx = entry.start_offset;
+            tree_infos[i].tree_id = static_cast<int32_t>(i);
+            tree_infos[i].root_idx = root_idx;
+            tree_infos[i].start_offset = entry.start_offset;
+            tree_infos[i].length = entry.length;
+            tree_infos[i].root_m200c = halos.m200c.empty() ? 0.0f : halos.m200c[root_idx];
+            tree_infos[i].root_r200c = halos.r200c.empty() ? 0.0f : halos.r200c[root_idx];
+            tree_infos[i].root_snap = halos.snap_num[root_idx];
+            tree_infos[i].root_subhalo = halos.subhalo_nr[root_idx];
+            tree_infos[i].output_idx = i;
+        }
+    } else {
+        // Chunked mode: only load TreeTable, get root info from file later
+        // First pass: get tree table info and read root halo data in chunks
+        for (size_t i = 0; i < total_trees; i++) {
+            const auto& entry = tree.get_tree_entry(static_cast<int64_t>(i));
+            tree_infos[i].tree_id = static_cast<int32_t>(i);
+            tree_infos[i].root_idx = entry.start_offset;
+            tree_infos[i].start_offset = entry.start_offset;
+            tree_infos[i].length = entry.length;
+            tree_infos[i].output_idx = i;
+            // M200c, snap, subhalo will be filled when we load root halo data
+        }
+
+        // Load root halo data to get M200c for sorting/filtering
+        // Read in chunks of root indices to avoid loading everything
+        const size_t root_chunk_size = 100000;
+        for (size_t start = 0; start < total_trees; start += root_chunk_size) {
+            size_t end = std::min(start + root_chunk_size, total_trees);
+
+            // Find the range of root indices for this chunk
+            int64_t min_idx = tree_infos[start].root_idx;
+            int64_t max_idx = tree_infos[start].root_idx;
+            for (size_t i = start; i < end; i++) {
+                min_idx = std::min(min_idx, tree_infos[i].root_idx);
+                max_idx = std::max(max_idx, tree_infos[i].root_idx);
+            }
+
+            // Load the range containing all root halos for this chunk
+            tree.load_tree_halos_range(min_idx, max_idx + 1);
+            const auto& halos = tree.tree_halos_loaded();
+
+            // Fill root halo info
+            for (size_t i = start; i < end; i++) {
+                int64_t rel_idx = tree.to_range_index(tree_infos[i].root_idx);
+                if (rel_idx >= 0) {
+                    tree_infos[i].root_m200c = halos.m200c.empty() ? 0.0f : halos.m200c[rel_idx];
+                    tree_infos[i].root_r200c = halos.r200c.empty() ? 0.0f : halos.r200c[rel_idx];
+                    tree_infos[i].root_snap = halos.snap_num[rel_idx];
+                    tree_infos[i].root_subhalo = halos.subhalo_nr[rel_idx];
+                }
+            }
+        }
+        tree.clear_halos_cache();
     }
 
     // Sort by M200c descending
     std::sort(tree_infos.begin(), tree_infos.end(),
-              [](const TreeInfo& a, const TreeInfo& b) {
+              [](const TreeInfoInternal& a, const TreeInfoInternal& b) {
                   return a.root_m200c > b.root_m200c;
               });
 
     // Apply mass filter
-    std::vector<TreeInfo> filtered_trees;
+    std::vector<TreeInfoInternal> filtered_trees;
     if (mass_min.has_value()) {
         filtered_trees.reserve(total_trees);
         for (const auto& info : tree_infos) {
@@ -1040,6 +1459,15 @@ BranchCatalogData extract_all_branches_parallel(
     if (n_trees == 0) {
         return BranchCatalogData{};
     }
+
+    // For chunked mode, use streaming extraction
+    if (chunk_size > 0) {
+        return extract_branches_chunked(tree, filtered_trees, a_min, n_threads,
+                                        chunk_size, progress_callback);
+    }
+
+    // Non-chunked mode: all data is loaded, extract in parallel
+    const auto& halos = tree.tree_halos();  // Already loaded above
 
     // Set number of threads
 #ifdef _OPENMP

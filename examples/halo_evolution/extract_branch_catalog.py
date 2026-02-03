@@ -73,12 +73,18 @@ def extract_branch_catalog_cpp(
     mass_min: Optional[float] = None,
     a_min: Optional[float] = None,
     n_threads: int = 0,
+    chunk_size: int = 0,
     show_progress: bool = True,
 ) -> dict:
     """
     Extract branches using C++ OpenMP parallel implementation.
 
     This is ~100-200x faster than pure Python for large tree files.
+
+    Parameters
+    ----------
+    chunk_size : int
+        Maximum halos to load at once (0 = load all, >0 = low-memory streaming mode)
     """
     import time
 
@@ -86,8 +92,9 @@ def extract_branch_catalog_cpp(
     tree = ts.io.MergerTree(str(tree_file))
     print(f"  Found {tree.n_trees():,} trees, {tree.n_halos():,} total halos")
 
+    mode_str = "streaming" if chunk_size > 0 else "parallel"
     if show_progress:
-        print("Extracting branches (C++ parallel)...", end=" ", flush=True)
+        print(f"Extracting branches (C++ {mode_str})...", end=" ", flush=True)
     start_time = time.time()
 
     # Extract in parallel (no progress callback - runs too fast to need it)
@@ -96,6 +103,7 @@ def extract_branch_catalog_cpp(
         mass_min=mass_min,
         a_min=a_min,
         n_threads=n_threads,
+        chunk_size=chunk_size,
     )
 
     elapsed = time.time() - start_time
@@ -180,6 +188,7 @@ def extract_branch_catalog(
     mass_min: Optional[float] = None,
     a_min: Optional[float] = None,
     n_threads: int = 0,
+    chunk_size: int = 0,
     show_progress: bool = True,
 ) -> dict:
     """
@@ -201,6 +210,10 @@ def extract_branch_catalog(
         Minimum scale factor to trace branches to (default: trace all)
     n_threads : int, optional
         Number of threads for C++ extraction (0 = auto, ignored for Python)
+    chunk_size : int, optional
+        Maximum halos to load at once for low-memory mode.
+        0 = load all (default, fastest), >0 = streaming mode.
+        Recommended: 10_000_000 to 50_000_000 for large files (60-100 GB).
     show_progress : bool
         Show progress bar
 
@@ -214,7 +227,8 @@ def extract_branch_catalog(
         return extract_branch_catalog_cpp(
             tree_file, output_file,
             mass_min=mass_min, a_min=a_min,
-            n_threads=n_threads, show_progress=show_progress
+            n_threads=n_threads, chunk_size=chunk_size,
+            show_progress=show_progress
         )
 
     # Python fallback (slower, but works without C++ extension)
@@ -395,14 +409,12 @@ def extract_branch_catalog(
     print(f"  File size: {file_size_mb:.1f} MB")
     print(f"  Bytes per halo: {output_file.stat().st_size / max(1, n_total_halos):.1f}")
 
-    stats = {
+    return {
         'n_trees': n_trees_to_extract,
         'n_halos': n_total_halos,
         'file_size_mb': file_size_mb,
         'source_file': str(tree_file),
     }
-
-    return stats
 
 
 def main():
@@ -435,8 +447,22 @@ def main():
         '-j', '--threads', type=int, default=0,
         help="Number of threads for C++ extraction (0 = auto)"
     )
+    parser.add_argument(
+        '--chunk-size', type=int, default=0,
+        help="Low-memory mode: max halos to load at once (0 = load all, fastest). "
+             "Use 10000000-50000000 for 60-100 GB tree files."
+    )
+    parser.add_argument(
+        '--low-memory', action='store_true',
+        help="Enable low-memory streaming mode (equivalent to --chunk-size 20000000)"
+    )
 
     args = parser.parse_args()
+
+    # Handle --low-memory flag
+    chunk_size = args.chunk_size
+    if args.low_memory and chunk_size == 0:
+        chunk_size = 20_000_000  # Default chunk size for low-memory mode
 
     if not args.tree_file.exists():
         raise FileNotFoundError(f"Tree file not found: {args.tree_file}")
@@ -451,6 +477,7 @@ def main():
         mass_min=args.mass_min,
         a_min=args.a_min,
         n_threads=args.threads,
+        chunk_size=chunk_size,
         show_progress=not args.no_progress,
     )
 
