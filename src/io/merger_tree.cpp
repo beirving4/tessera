@@ -8,6 +8,8 @@
 #include <numeric>
 #include <iostream>
 #include <cstdio>
+#include <filesystem>
+#include <regex>
 
 // OpenMP support
 #ifdef _OPENMP
@@ -87,6 +89,75 @@ void read_2d_dataset_split(
         y[i] = raw[i][1];
         z[i] = raw[i][2];
     }
+}
+
+/**
+ * Discover all merger tree files in a directory.
+ * Handles split files (trees.0.hdf5, trees.1.hdf5, ...) and single files (trees.hdf5).
+ *
+ * @param path Path to directory or first file (trees.0.hdf5)
+ * @return Vector of file paths sorted by file index
+ */
+std::vector<std::string> discover_tree_files(const std::string& path) {
+    namespace fs = std::filesystem;
+
+    fs::path input_path(path);
+    fs::path directory;
+
+    // Determine if input is a file or directory
+    if (fs::is_directory(input_path)) {
+        directory = input_path;
+    } else if (fs::is_regular_file(input_path)) {
+        directory = input_path.parent_path();
+    } else {
+        throw std::runtime_error("Path does not exist: " + path);
+    }
+
+    // Look for tree files in the directory
+    std::vector<std::pair<int, std::string>> indexed_files;
+
+    // Pattern for split files: trees.N.hdf5
+    std::regex split_pattern(R"(trees\.(\d+)\.hdf5$)");
+
+    for (const auto& entry : fs::directory_iterator(directory)) {
+        if (!entry.is_regular_file()) continue;
+
+        std::string fname = entry.path().filename().string();
+        std::smatch match;
+
+        if (std::regex_search(fname, match, split_pattern)) {
+            int idx = std::stoi(match[1].str());
+            indexed_files.emplace_back(idx, entry.path().string());
+        } else if (fname == "trees.hdf5") {
+            // Single file case
+            return {entry.path().string()};
+        }
+    }
+
+    if (indexed_files.empty()) {
+        throw std::runtime_error("No tree files found in directory: " + directory.string());
+    }
+
+    // Sort by file index
+    std::sort(indexed_files.begin(), indexed_files.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+
+    // Extract paths
+    std::vector<std::string> result;
+    result.reserve(indexed_files.size());
+    for (const auto& [idx, filepath] : indexed_files) {
+        result.push_back(filepath);
+    }
+
+    return result;
+}
+
+/**
+ * Append vector src to dst.
+ */
+template<typename T>
+void append_vector(std::vector<T>& dst, const std::vector<T>& src) {
+    dst.insert(dst.end(), src.begin(), src.end());
 }
 
 } // anonymous namespace
@@ -187,7 +258,10 @@ void TreeHalosSOA::clear_full_data() {
 // =============================================================================
 
 MergerTree::MergerTree(const std::string& filename)
-    : filename_(filename) {
+    : files_(discover_tree_files(filename)) {
+    if (files_.empty()) {
+        throw std::runtime_error("No tree files found for: " + filename);
+    }
     load_header();
 }
 
@@ -197,10 +271,11 @@ MergerTree::MergerTree(MergerTree&&) noexcept = default;
 MergerTree& MergerTree::operator=(MergerTree&&) noexcept = default;
 
 void MergerTree::load_header() {
-    HighFive::File file(filename_, HighFive::File::ReadOnly);
+    // Read header from first file (contains totals across all files)
+    HighFive::File file(files_[0], HighFive::File::ReadOnly);
 
     if (!file.exist("Header")) {
-        throw std::runtime_error("File does not contain Header group: " + filename_);
+        throw std::runtime_error("File does not contain Header group: " + files_[0]);
     }
 
     auto header_group = file.getGroup("Header");
@@ -249,40 +324,61 @@ void MergerTree::load_header() {
 void MergerTree::load_tree_table() {
     if (table_loaded_) return;
 
-    HighFive::File file(filename_, HighFive::File::ReadOnly);
+    // TreeTable is split across files - only files with tree roots have TreeTable
+    // StartOffset values are local to each file, need to convert to global offsets
+    std::vector<int64_t> all_lengths, all_offsets, all_tree_ids;
+    all_lengths.reserve(header_.n_trees);
+    all_offsets.reserve(header_.n_trees);
+    all_tree_ids.reserve(header_.n_trees);
 
-    if (!file.exist("TreeTable")) {
-        throw std::runtime_error("File does not contain TreeTable group: " + filename_);
-    }
+    int64_t halo_offset = 0;  // Cumulative halo count from previous files
 
-    auto table_group = file.getGroup("TreeTable");
+    for (const auto& filepath : files_) {
+        HighFive::File file(filepath, HighFive::File::ReadOnly);
 
-    // Read tree table arrays
-    std::vector<int64_t> lengths, offsets, tree_ids;
+        // Count halos in this file first (needed for offset calculation)
+        int64_t halos_in_file = 0;
+        if (file.exist("TreeHalos") && has_dataset(file.getGroup("TreeHalos"), "SnapNum")) {
+            auto dims = file.getGroup("TreeHalos").getDataSet("SnapNum").getDimensions();
+            halos_in_file = dims[0];
+        }
 
-    if (has_dataset(table_group, "Length")) {
-        auto ds = table_group.getDataSet("Length");
-        ds.read(lengths);
-    }
+        // Only some files have TreeTable (those containing tree roots)
+        if (file.exist("TreeTable")) {
+            auto table_group = file.getGroup("TreeTable");
 
-    if (has_dataset(table_group, "StartOffset")) {
-        auto ds = table_group.getDataSet("StartOffset");
-        ds.read(offsets);
-    }
+            std::vector<int64_t> lengths, offsets, tree_ids;
 
-    if (has_dataset(table_group, "TreeID")) {
-        auto ds = table_group.getDataSet("TreeID");
-        ds.read(tree_ids);
+            if (has_dataset(table_group, "Length")) {
+                table_group.getDataSet("Length").read(lengths);
+            }
+            if (has_dataset(table_group, "StartOffset")) {
+                table_group.getDataSet("StartOffset").read(offsets);
+            }
+            if (has_dataset(table_group, "TreeID")) {
+                table_group.getDataSet("TreeID").read(tree_ids);
+            }
+
+            // Adjust offsets to global and append
+            for (size_t i = 0; i < lengths.size(); i++) {
+                all_lengths.push_back(lengths[i]);
+                all_offsets.push_back(offsets[i] + halo_offset);
+                all_tree_ids.push_back(i < tree_ids.size() ? tree_ids[i] :
+                                       static_cast<int64_t>(all_lengths.size() - 1));
+            }
+        }
+
+        halo_offset += halos_in_file;
     }
 
     // Build tree table entries
-    size_t n_trees = lengths.size();
+    size_t n_trees = all_lengths.size();
     tree_table_.resize(n_trees);
 
     for (size_t i = 0; i < n_trees; i++) {
-        tree_table_[i].length = i < lengths.size() ? lengths[i] : 0;
-        tree_table_[i].start_offset = i < offsets.size() ? offsets[i] : 0;
-        tree_table_[i].tree_id = i < tree_ids.size() ? tree_ids[i] : static_cast<int64_t>(i);
+        tree_table_[i].length = all_lengths[i];
+        tree_table_[i].start_offset = all_offsets[i];
+        tree_table_[i].tree_id = all_tree_ids[i];
     }
 
     table_loaded_ = true;
@@ -293,20 +389,30 @@ void MergerTree::load_search_data() {
     // This is ~8 bytes/halo vs ~90 bytes/halo for full data
     if (search_loaded_) return;
 
-    HighFive::File file(filename_, HighFive::File::ReadOnly);
+    // Reserve space for all halos
+    tree_halos_.snap_num.reserve(header_.n_halos);
+    tree_halos_.subhalo_nr.reserve(header_.n_halos);
 
-    if (!file.exist("TreeHalos")) {
-        throw std::runtime_error("File does not contain TreeHalos group: " + filename_);
-    }
+    // Read and concatenate from all files
+    for (const auto& filepath : files_) {
+        HighFive::File file(filepath, HighFive::File::ReadOnly);
 
-    auto halos_group = file.getGroup("TreeHalos");
+        if (!file.exist("TreeHalos")) {
+            throw std::runtime_error("File does not contain TreeHalos group: " + filepath);
+        }
 
-    // Read only the two arrays needed for SIMD search
-    if (has_dataset(halos_group, "SnapNum")) {
-        tree_halos_.snap_num = read_1d_dataset<int32_t>(halos_group.getDataSet("SnapNum"));
-    }
-    if (has_dataset(halos_group, "SubhaloNr")) {
-        tree_halos_.subhalo_nr = read_1d_dataset<int32_t>(halos_group.getDataSet("SubhaloNr"));
+        auto halos_group = file.getGroup("TreeHalos");
+
+        // Read and append snap_num
+        if (has_dataset(halos_group, "SnapNum")) {
+            auto data = read_1d_dataset<int32_t>(halos_group.getDataSet("SnapNum"));
+            append_vector(tree_halos_.snap_num, data);
+        }
+        // Read and append subhalo_nr
+        if (has_dataset(halos_group, "SubhaloNr")) {
+            auto data = read_1d_dataset<int32_t>(halos_group.getDataSet("SubhaloNr"));
+            append_vector(tree_halos_.subhalo_nr, data);
+        }
     }
 
     search_loaded_ = true;
@@ -320,63 +426,92 @@ void MergerTree::load_full_halo_data() {
     // Ensure search data is loaded first
     load_search_data();
 
-    HighFive::File file(filename_, HighFive::File::ReadOnly);
-    auto halos_group = file.getGroup("TreeHalos");
+    // Reserve space
+    tree_halos_.group_nr.reserve(header_.n_halos);
+    tree_halos_.tree_id.reserve(header_.n_halos);
+    tree_halos_.tree_index.reserve(header_.n_halos);
+    tree_halos_.pos_x.reserve(header_.n_halos);
+    tree_halos_.pos_y.reserve(header_.n_halos);
+    tree_halos_.pos_z.reserve(header_.n_halos);
+    tree_halos_.vel_x.reserve(header_.n_halos);
+    tree_halos_.vel_y.reserve(header_.n_halos);
+    tree_halos_.vel_z.reserve(header_.n_halos);
+    tree_halos_.mass.reserve(header_.n_halos);
+    tree_halos_.m200c.reserve(header_.n_halos);
+    tree_halos_.r200c.reserve(header_.n_halos);
+    tree_halos_.main_progenitor.reserve(header_.n_halos);
+    tree_halos_.descendant.reserve(header_.n_halos);
+    tree_halos_.first_progenitor.reserve(header_.n_halos);
+    tree_halos_.next_progenitor.reserve(header_.n_halos);
 
-    // Read remaining identification arrays
-    if (has_dataset(halos_group, "GroupNr")) {
-        tree_halos_.group_nr = read_1d_dataset<int32_t>(halos_group.getDataSet("GroupNr"));
-    }
-    if (has_dataset(halos_group, "TreeID")) {
-        tree_halos_.tree_id = read_1d_dataset<int32_t>(halos_group.getDataSet("TreeID"));
-    }
-    if (has_dataset(halos_group, "TreeIndex")) {
-        tree_halos_.tree_index = read_1d_dataset<int64_t>(halos_group.getDataSet("TreeIndex"));
-    }
+    // Read and concatenate from all files
+    for (const auto& filepath : files_) {
+        HighFive::File file(filepath, HighFive::File::ReadOnly);
+        auto halos_group = file.getGroup("TreeHalos");
 
-    // Read positions (split 2D array into SOA)
-    if (has_dataset(halos_group, "SubhaloPos")) {
-        read_2d_dataset_split<float>(
-            halos_group.getDataSet("SubhaloPos"),
-            tree_halos_.pos_x, tree_halos_.pos_y, tree_halos_.pos_z
-        );
-    }
+        // Read remaining identification arrays
+        if (has_dataset(halos_group, "GroupNr")) {
+            auto data = read_1d_dataset<int32_t>(halos_group.getDataSet("GroupNr"));
+            append_vector(tree_halos_.group_nr, data);
+        }
+        if (has_dataset(halos_group, "TreeID")) {
+            auto data = read_1d_dataset<int32_t>(halos_group.getDataSet("TreeID"));
+            append_vector(tree_halos_.tree_id, data);
+        }
+        if (has_dataset(halos_group, "TreeIndex")) {
+            auto data = read_1d_dataset<int64_t>(halos_group.getDataSet("TreeIndex"));
+            append_vector(tree_halos_.tree_index, data);
+        }
 
-    // Read velocities
-    if (has_dataset(halos_group, "SubhaloVel")) {
-        read_2d_dataset_split<float>(
-            halos_group.getDataSet("SubhaloVel"),
-            tree_halos_.vel_x, tree_halos_.vel_y, tree_halos_.vel_z
-        );
-    }
+        // Read positions (split 2D array into SOA)
+        if (has_dataset(halos_group, "SubhaloPos")) {
+            std::vector<float> px, py, pz;
+            read_2d_dataset_split<float>(halos_group.getDataSet("SubhaloPos"), px, py, pz);
+            append_vector(tree_halos_.pos_x, px);
+            append_vector(tree_halos_.pos_y, py);
+            append_vector(tree_halos_.pos_z, pz);
+        }
 
-    // Read masses
-    if (has_dataset(halos_group, "SubhaloMass")) {
-        tree_halos_.mass = read_1d_dataset<float>(halos_group.getDataSet("SubhaloMass"));
-    }
-    if (has_dataset(halos_group, "Group_M_Crit200")) {
-        tree_halos_.m200c = read_1d_dataset<float>(halos_group.getDataSet("Group_M_Crit200"));
-    }
-    if (has_dataset(halos_group, "Group_R_Crit200")) {
-        tree_halos_.r200c = read_1d_dataset<float>(halos_group.getDataSet("Group_R_Crit200"));
-    }
+        // Read velocities
+        if (has_dataset(halos_group, "SubhaloVel")) {
+            std::vector<float> vx, vy, vz;
+            read_2d_dataset_split<float>(halos_group.getDataSet("SubhaloVel"), vx, vy, vz);
+            append_vector(tree_halos_.vel_x, vx);
+            append_vector(tree_halos_.vel_y, vy);
+            append_vector(tree_halos_.vel_z, vz);
+        }
 
-    // Read tree links (relative indices within tree)
-    if (has_dataset(halos_group, "TreeMainProgenitor")) {
-        tree_halos_.main_progenitor = read_1d_dataset<int32_t>(
-            halos_group.getDataSet("TreeMainProgenitor"));
-    }
-    if (has_dataset(halos_group, "TreeDescendant")) {
-        tree_halos_.descendant = read_1d_dataset<int32_t>(
-            halos_group.getDataSet("TreeDescendant"));
-    }
-    if (has_dataset(halos_group, "TreeFirstProgenitor")) {
-        tree_halos_.first_progenitor = read_1d_dataset<int32_t>(
-            halos_group.getDataSet("TreeFirstProgenitor"));
-    }
-    if (has_dataset(halos_group, "TreeNextProgenitor")) {
-        tree_halos_.next_progenitor = read_1d_dataset<int32_t>(
-            halos_group.getDataSet("TreeNextProgenitor"));
+        // Read masses
+        if (has_dataset(halos_group, "SubhaloMass")) {
+            auto data = read_1d_dataset<float>(halos_group.getDataSet("SubhaloMass"));
+            append_vector(tree_halos_.mass, data);
+        }
+        if (has_dataset(halos_group, "Group_M_Crit200")) {
+            auto data = read_1d_dataset<float>(halos_group.getDataSet("Group_M_Crit200"));
+            append_vector(tree_halos_.m200c, data);
+        }
+        if (has_dataset(halos_group, "Group_R_Crit200")) {
+            auto data = read_1d_dataset<float>(halos_group.getDataSet("Group_R_Crit200"));
+            append_vector(tree_halos_.r200c, data);
+        }
+
+        // Read tree links (relative indices within tree)
+        if (has_dataset(halos_group, "TreeMainProgenitor")) {
+            auto data = read_1d_dataset<int32_t>(halos_group.getDataSet("TreeMainProgenitor"));
+            append_vector(tree_halos_.main_progenitor, data);
+        }
+        if (has_dataset(halos_group, "TreeDescendant")) {
+            auto data = read_1d_dataset<int32_t>(halos_group.getDataSet("TreeDescendant"));
+            append_vector(tree_halos_.descendant, data);
+        }
+        if (has_dataset(halos_group, "TreeFirstProgenitor")) {
+            auto data = read_1d_dataset<int32_t>(halos_group.getDataSet("TreeFirstProgenitor"));
+            append_vector(tree_halos_.first_progenitor, data);
+        }
+        if (has_dataset(halos_group, "TreeNextProgenitor")) {
+            auto data = read_1d_dataset<int32_t>(halos_group.getDataSet("TreeNextProgenitor"));
+            append_vector(tree_halos_.next_progenitor, data);
+        }
     }
 
     halos_loaded_ = true;
@@ -595,6 +730,13 @@ void MergerTree::clear_halos_cache() {
 }
 
 void MergerTree::load_tree_halos_range(int64_t start_idx, int64_t end_idx) {
+    // Range loading with split files is not yet supported
+    if (files_.size() > 1) {
+        throw std::runtime_error(
+            "load_tree_halos_range() does not support split merger tree files. "
+            "Use load_search_data() and load_full_halo_data() instead."
+        );
+    }
 
     // Clear any existing data
     clear_halos_cache();
@@ -603,10 +745,10 @@ void MergerTree::load_tree_halos_range(int64_t start_idx, int64_t end_idx) {
         return;
     }
 
-    HighFive::File file(filename_, HighFive::File::ReadOnly);
+    HighFive::File file(files_[0], HighFive::File::ReadOnly);
 
     if (!file.exist("TreeHalos")) {
-        throw std::runtime_error("File does not contain TreeHalos group: " + filename_);
+        throw std::runtime_error("File does not contain TreeHalos group: " + files_[0]);
     }
 
     auto halos_group = file.getGroup("TreeHalos");

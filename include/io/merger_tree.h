@@ -422,7 +422,7 @@ public:
     }
 
 private:
-    std::string filename_;
+    std::vector<std::string> files_;  ///< List of split files (or single file)
     MergerTreeHeader header_;
 
     // Lazy-loaded data
