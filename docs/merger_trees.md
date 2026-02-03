@@ -570,13 +570,28 @@ info.r200c = h.r200c.empty() ? 0.0f : h.r200c[idx];
 
 ### Bug #4: ytree vs GADGET-4 Progenitor Definitions
 
-**Problem:** Validation against ytree showed mismatches because ytree's `['prog']` uses `TreeFirstProgenitor` while tessera uses `TreeMainProgenitor`.
+**Problem:** Validation against ytree showed 50 out of 37,219 trees had mismatching branch lengths. Investigation revealed ytree's `tree['prog']` iterator uses `TreeFirstProgenitor` while tessera uses `TreeMainProgenitor`.
 
-**Insight:** These are different but valid definitions:
-- `TreeMainProgenitor`: Most massive progenitor
-- `TreeFirstProgenitor`: First progenitor in linked list (arbitrary order)
+**GADGET-4 Progenitor Fields:**
+| Field | Definition | Use Case |
+|-------|------------|----------|
+| `TreeMainProgenitor` | Most massive progenitor at previous snapshot | **Halo evolution tracking** - follows dominant mass growth |
+| `TreeFirstProgenitor` | First progenitor in linked list order | Tree structure traversal - arbitrary ordering |
+| `TreeNextProgenitor` | Sibling progenitor in linked list | Iterating all progenitors |
 
-**Lesson:** Validate against raw HDF5 data, not other libraries with potentially different interpretations.
+**Why They Differ:**
+When a halo has multiple progenitors (merger event), `TreeFirstProgenitor` points to whichever progenitor appears first in the tree's internal ordering. `TreeMainProgenitor` specifically points to the progenitor that contributed the most mass. These only diverge when halos have >1 progenitor.
+
+**Example (Tree 5 at snap 59):**
+```
+Halo at snap=59, subhalo=84:
+  TreeMainProgenitor  → snap=58, subhalo=92 (most massive)
+  TreeFirstProgenitor → snap=58, subhalo=87 (first in list)
+```
+
+**Impact:** 50/37,219 trees (0.13%) had different branch lengths because ytree stopped early when following a less massive progenitor branch that terminated sooner.
+
+**Lesson:** For tracking halo mass evolution, always use `TreeMainProgenitor`. Validate against raw HDF5 data, not other libraries with potentially different interpretations.
 
 ### Bug #5: Root-First vs Time-Order Confusion
 
@@ -887,5 +902,5 @@ TreeHalos/
 
 ---
 
-*Document last updated: 2025-02-03*
-*Based on tessera commit: d4afaa5*
+*Document last updated: 2026-02-03*
+*Based on tessera commit: c6e97b7*
