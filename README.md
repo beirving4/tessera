@@ -151,6 +151,40 @@ config.output_cells = 128
 result = ts.density.compute_tetra_density_3d(sorted_positions, config)
 ```
 
+### Artifact Mitigation (for a >> 1 simulations)
+
+At late cosmological times (a > 10), tetrahedra become highly elongated as matter flows toward halos, causing radial streak artifacts. tessera provides four approaches to mitigate these:
+
+```python
+from tessera.utils import (
+    gaussian_smooth_density,
+    adaptive_smooth_density,
+    compute_particle_density_sph,
+    compute_density_auto,
+    HybridDensityConfig
+)
+
+# Option 1: Gaussian smoothing (post-processing)
+smoothed = gaussian_smooth_density(density, sigma=1.5)
+
+# Option 2: Adaptive smoothing (stronger in low-count regions)
+smoothed = adaptive_smooth_density(density, particle_counts, sigma_min=0.5, sigma_max=3.0)
+
+# Option 3: SPH-based density (bypasses tessellation)
+result = compute_particle_density_sph(positions, box_size, 256, n_neighbors=32, projection_axis=2)
+
+# Option 4: Automatic method selection (recommended)
+config = HybridDensityConfig(
+    tessellation_max_scale_factor=5.0,  # Use tessellation for a < 5
+    sph_min_scale_factor=10.0,          # Use SPH for a > 10
+    smoothing_sigma=1.5
+)
+result = compute_density_auto(positions, particle_ids, box_size, scale_factor=100.0, config=config)
+print(f"Method used: {result['method']}")  # 'tessellation', 'tessellation_smoothed', or 'sph'
+```
+
+See [docs/artifact_mitigation.md](docs/artifact_mitigation.md) for detailed documentation.
+
 ### Physical Space Density (for a > 1 simulations)
 
 For simulations run beyond a=1, you can compute density in physical coordinates while maintaining comoving grid extents:
@@ -420,6 +454,14 @@ from tessera.utils import load_snapshot, sort_positions_lagrangian, infer_grid_s
 - `save_density_hdf5()`: Save density field to HDF5 with metadata
 - `compute_mean_density()`: Compute mean 3D density
 - `compute_mean_surface_density()`: Compute mean surface density for slice
+
+**Artifact mitigation:**
+- `gaussian_smooth_density()`: Gaussian smoothing for artifact reduction
+- `adaptive_smooth_density()`: Count-weighted adaptive smoothing
+- `compute_particle_density_sph()`: SPH-style kernel density estimation
+- `compute_particle_density_cic()`: Cloud-in-Cell density assignment
+- `compute_density_auto()`: Auto-select method based on scale factor
+- `HybridDensityConfig`: Configuration for hybrid density computation
 
 **Halo evolution (re-exports from `ts.io`):**
 - `MergerTree`: C++ merger tree reader (high-performance, lazy loading)

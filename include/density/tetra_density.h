@@ -48,6 +48,14 @@ struct TetraDensityConfig {
     // gotetra compatibility mode
     bool gotetra_compatible = false;    ///< If true, use N+1 output cells like gotetra
                                         ///< This can improve quality at box boundaries
+
+    // Geometry filtering for artifact mitigation
+    // At late cosmological times (a >> 1), tetrahedra become highly elongated
+    // as matter flows toward halos. This causes radial streak artifacts.
+    // Geometry filtering skips or downweights samples from elongated tetrahedra.
+    double max_aspect_ratio = 0.0;              ///< Skip tetrahedra with aspect ratio > this (0 = disabled)
+    double elongation_downweight = 1.0;         ///< Weight factor for elongated tetrahedra [0,1]
+    double aspect_ratio_soft_threshold = 10.0;  ///< Start downweighting above this ratio
 };
 
 /**
@@ -55,11 +63,17 @@ struct TetraDensityConfig {
  */
 struct TetraDensityResult3D {
     std::vector<double> density;    ///< Flattened (cells^3) density array
+    std::vector<int64_t> particle_counts;  ///< Flattened (cells^3) sample count per cell
     int cells;                       ///< Cells per dimension
     double cell_width;               ///< Physical cell width
     double total_mass;               ///< Total mass deposited
     double mean_density;             ///< Mean density
     int64_t n_tetrahedra;           ///< Number of tetrahedra processed
+
+    // Geometry filtering quality metrics
+    int64_t skipped_tetrahedra = 0;       ///< Tetrahedra skipped due to aspect ratio
+    double mean_aspect_ratio = 0.0;       ///< Mean aspect ratio of processed tetrahedra
+    double max_observed_aspect_ratio = 0.0;  ///< Maximum aspect ratio observed
 };
 
 /**
@@ -67,12 +81,18 @@ struct TetraDensityResult3D {
  */
 struct TetraDensityResult2D {
     std::vector<double> density;    ///< Flattened (cells^2) surface density
+    std::vector<int64_t> particle_counts;  ///< Flattened (cells^2) projected sample count per cell
     int cells;                       ///< Cells per dimension
     double cell_width;               ///< Physical cell width
     int projection_axis;             ///< 0=x, 1=y, 2=z
     double slice_min;                ///< Slice start (if applicable)
     double slice_max;                ///< Slice end (if applicable)
     double mean_surface_density;     ///< Mean surface density
+
+    // Geometry filtering quality metrics (from underlying 3D computation)
+    int64_t skipped_tetrahedra = 0;       ///< Tetrahedra skipped due to aspect ratio
+    double mean_aspect_ratio = 0.0;       ///< Mean aspect ratio of processed tetrahedra
+    double max_observed_aspect_ratio = 0.0;  ///< Maximum aspect ratio observed
 };
 
 /**

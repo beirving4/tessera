@@ -53,6 +53,28 @@ from .halo_evolution import (
     check_merger_tree_available,
 )
 
+from .smoothing import (
+    # Gaussian smoothing
+    gaussian_smooth_density,
+    adaptive_smooth_density,
+    bilateral_smooth_density,
+    compute_smoothing_quality_metrics,
+)
+
+from .particle_density import (
+    # Particle-based density estimation
+    compute_particle_density_cic,
+    compute_particle_density_sph,
+)
+
+from .hybrid_density import (
+    # Hybrid density computation
+    HybridDensityConfig,
+    recommend_method,
+    compute_density_auto,
+    compare_methods,
+)
+
 __all__ = [
     # Snapshot loading
     'load_snapshot',
@@ -85,4 +107,17 @@ __all__ = [
     # Density rendering
     'DensityRenderConfig',
     'DensityRenderer',
+    # Artifact mitigation - Smoothing
+    'gaussian_smooth_density',
+    'adaptive_smooth_density',
+    'bilateral_smooth_density',
+    'compute_smoothing_quality_metrics',
+    # Artifact mitigation - Particle-based density
+    'compute_particle_density_cic',
+    'compute_particle_density_sph',
+    # Artifact mitigation - Hybrid density
+    'HybridDensityConfig',
+    'recommend_method',
+    'compute_density_auto',
+    'compare_methods',
 ]

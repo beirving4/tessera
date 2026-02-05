@@ -102,18 +102,28 @@ void bind_tetra_density(py::module& m) {
             },
             "Sub-box dimensions (dx, dy, dz)")
         .def_readwrite("gotetra_compatible", &TetraDensityConfig::gotetra_compatible,
-            "Use N+1 output cells like gotetra for better boundary handling");
-    
+            "Use N+1 output cells like gotetra for better boundary handling")
+        .def_readwrite("max_aspect_ratio", &TetraDensityConfig::max_aspect_ratio,
+            "Skip tetrahedra with aspect ratio above this threshold (0 = disabled)")
+        .def_readwrite("elongation_downweight", &TetraDensityConfig::elongation_downweight,
+            "Weight factor for elongated tetrahedra (1.0 = no downweight, 0 = skip)")
+        .def_readwrite("aspect_ratio_soft_threshold", &TetraDensityConfig::aspect_ratio_soft_threshold,
+            "Start downweighting tetrahedra above this aspect ratio");
+
     // TetraDensityResult3D
     py::class_<TetraDensityResult3D>(m, "TetraDensityResult3D",
         R"pbdoc(
         Result of 3D tetrahedron-based density computation.
-        
+
         Attributes
         ----------
         density : numpy.ndarray
             3D density field, shape (cells, cells, cells).
             Units: mass per volume.
+        particle_counts : numpy.ndarray
+            3D sample count field, shape (cells, cells, cells).
+            Number of Monte Carlo samples deposited in each cell.
+            Useful for identifying sparse/unreliable regions.
         cells : int
             Number of cells per dimension.
         cell_width : float
@@ -138,18 +148,37 @@ void bind_tetra_density(py::module& m) {
                 {sizeof(double) * c * c, sizeof(double) * c, sizeof(double)},
                 r.density.data()
             );
-        }, "3D density field as numpy array (cells, cells, cells)");
-    
+        }, "3D density field as numpy array (cells, cells, cells)")
+        .def_property_readonly("particle_counts", [](const TetraDensityResult3D& r) {
+            // Return as 3D numpy array
+            int c = r.cells;
+            return py::array_t<int64_t>(
+                {c, c, c},
+                {sizeof(int64_t) * c * c, sizeof(int64_t) * c, sizeof(int64_t)},
+                r.particle_counts.data()
+            );
+        }, "3D sample count field as numpy array (cells, cells, cells)")
+        .def_readonly("skipped_tetrahedra", &TetraDensityResult3D::skipped_tetrahedra,
+            "Number of tetrahedra skipped due to aspect ratio filtering")
+        .def_readonly("mean_aspect_ratio", &TetraDensityResult3D::mean_aspect_ratio,
+            "Mean aspect ratio of processed tetrahedra")
+        .def_readonly("max_observed_aspect_ratio", &TetraDensityResult3D::max_observed_aspect_ratio,
+            "Maximum aspect ratio observed");
+
     // TetraDensityResult2D
     py::class_<TetraDensityResult2D>(m, "TetraDensityResult2D",
         R"pbdoc(
         Result of 2D tetrahedron-based density computation (projection or slice).
-        
+
         Attributes
         ----------
         density : numpy.ndarray
             2D surface density field, shape (cells, cells).
             Units: mass per area.
+        particle_counts : numpy.ndarray
+            2D sample count field, shape (cells, cells).
+            Number of Monte Carlo samples deposited in each cell (projected).
+            Useful for identifying sparse/unreliable regions for void masking.
         cells : int
             Number of cells per dimension.
         cell_width : float
@@ -174,8 +203,22 @@ void bind_tetra_density(py::module& m) {
                 {sizeof(double) * c, sizeof(double)},
                 r.density.data()
             );
-        }, "2D surface density field as numpy array (cells, cells)");
-    
+        }, "2D surface density field as numpy array (cells, cells)")
+        .def_property_readonly("particle_counts", [](const TetraDensityResult2D& r) {
+            int c = r.cells;
+            return py::array_t<int64_t>(
+                {c, c},
+                {sizeof(int64_t) * c, sizeof(int64_t)},
+                r.particle_counts.data()
+            );
+        }, "2D sample count field as numpy array (cells, cells)")
+        .def_readonly("skipped_tetrahedra", &TetraDensityResult2D::skipped_tetrahedra,
+            "Number of tetrahedra skipped due to aspect ratio filtering")
+        .def_readonly("mean_aspect_ratio", &TetraDensityResult2D::mean_aspect_ratio,
+            "Mean aspect ratio of processed tetrahedra")
+        .def_readonly("max_observed_aspect_ratio", &TetraDensityResult2D::max_observed_aspect_ratio,
+            "Maximum aspect ratio observed");
+
     // UnitTetraSamples
     py::class_<UnitTetraSamples, std::shared_ptr<UnitTetraSamples>>(m, "UnitTetraSamples",
         R"pbdoc(

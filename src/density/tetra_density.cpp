@@ -485,15 +485,17 @@ static TetraDensityResult3D compute_density_3d_impl(
     int64_t out_dim_z = output_cells;
     int64_t cells_cu = static_cast<int64_t>(output_cells) * output_cells * output_cells;
 
-    // Thread-local density grids (avoid atomics)
+    // Thread-local density grids and particle count grids (avoid atomics)
     std::vector<std::vector<double>> thread_grids(n_threads);
+    std::vector<std::vector<int64_t>> thread_counts(n_threads);
     for (int t = 0; t < n_threads; ++t) {
         thread_grids[t].resize(cells_cu, 0.0);
+        thread_counts[t].resize(cells_cu, 0);
     }
-    
+
     // Counter for tetrahedra actually processed (for sub-box mode)
     std::atomic<int64_t> tetra_processed{0};
-    
+
     // Main parallel loop over tetrahedra
     #pragma omp parallel
     {
@@ -503,6 +505,7 @@ static TetraDensityResult3D compute_density_3d_impl(
         int tid = 0;
 #endif
         double* local_density = thread_grids[tid].data();
+        int64_t* local_counts = thread_counts[tid].data();
         int64_t local_tetra_count = 0;
         
         // Per-thread random buffer selection
@@ -583,6 +586,7 @@ static TetraDensityResult3D compute_density_3d_impl(
                     int64_t cell_idx = ix + iy * output_cells +
                                        iz * static_cast<int64_t>(output_cells) * output_cells;
                     local_density[cell_idx] += mass_per_sample;
+                    local_counts[cell_idx] += 1;
                 } else {
                     // Full-box mode: follow gotetra's approach
                     // Apply proper periodic wrapping to physical positions
@@ -608,22 +612,27 @@ static TetraDensityResult3D compute_density_3d_impl(
 
                     int64_t cell_idx = ix + iy * out_dim_x + iz * out_dim_x * out_dim_y;
                     local_density[cell_idx] += mass_per_sample;
+                    local_counts[cell_idx] += 1;
                 }
             }
         }
-        
+
         tetra_processed += local_tetra_count;
     }
-    
-    // Reduce thread-local grids (parallelized over cells)
+
+    // Reduce thread-local grids and counts (parallelized over cells)
     std::vector<double> density(cells_cu, 0.0);
+    std::vector<int64_t> particle_counts(cells_cu, 0);
     #pragma omp parallel for
     for (int64_t i = 0; i < cells_cu; ++i) {
         double sum = 0.0;
+        int64_t count_sum = 0;
         for (int t = 0; t < n_threads; ++t) {
             sum += thread_grids[t][i];
+            count_sum += thread_counts[t][i];
         }
         density[i] = sum;
+        particle_counts[i] = count_sum;
     }
 
     // Convert mass to density (mass per unit volume) - fused with parallel loop
@@ -643,6 +652,7 @@ static TetraDensityResult3D compute_density_3d_impl(
 
     TetraDensityResult3D result;
     result.density = std::move(density);
+    result.particle_counts = std::move(particle_counts);
     result.cells = output_cells;
     result.cell_width = cell_width;
     result.total_mass = total_mass;
@@ -689,16 +699,18 @@ TetraDensityResult2D compute_tetra_density_2d_projection(
     
     // Project along specified axis
     std::vector<double> density_2d(cells_sq, 0.0);
-    
+    std::vector<int64_t> counts_2d(cells_sq, 0);
+
     // Determine projection indices
     // axis=0 (x): sum over x, keep (y,z) -> output indexed by (y,z)
-    // axis=1 (y): sum over y, keep (x,z) -> output indexed by (x,z)  
+    // axis=1 (y): sum over y, keep (x,z) -> output indexed by (x,z)
     // axis=2 (z): sum over z, keep (x,y) -> output indexed by (x,y)
-    
+
     #pragma omp parallel for collapse(2)
     for (int i1 = 0; i1 < cells; ++i1) {
         for (int i2 = 0; i2 < cells; ++i2) {
             double sum = 0.0;
+            int64_t count_sum = 0;
             for (int ip = 0; ip < cells; ++ip) {
                 int64_t idx_3d;
                 if (projection_axis == 0) {
@@ -712,25 +724,28 @@ TetraDensityResult2D compute_tetra_density_2d_projection(
                     idx_3d = i1 + i2 * cells + ip * cells_sq;
                 }
                 sum += result_3d.density[idx_3d];
+                count_sum += result_3d.particle_counts[idx_3d];
             }
             // Multiply by cell_width to convert to surface density
             density_2d[i1 + i2 * cells] = sum * cell_width;
+            counts_2d[i1 + i2 * cells] = count_sum;
         }
     }
-    
+
     // Compute mean surface density
     double total_surface_mass = std::accumulate(density_2d.begin(), density_2d.end(), 0.0);
     double mean_surface_density = total_surface_mass / cells_sq;
-    
+
     TetraDensityResult2D result;
     result.density = std::move(density_2d);
+    result.particle_counts = std::move(counts_2d);
     result.cells = cells;
     result.cell_width = cell_width;
     result.projection_axis = projection_axis;
     result.slice_min = 0.0;
     result.slice_max = config.box_size;
     result.mean_surface_density = mean_surface_density;
-    
+
     return result;
 }
 
@@ -756,11 +771,13 @@ TetraDensityResult2D compute_tetra_density_2d_slice(
     
     // Project slice along specified axis
     std::vector<double> density_2d(cells_sq, 0.0);
-    
+    std::vector<int64_t> counts_2d(cells_sq, 0);
+
     #pragma omp parallel for collapse(2)
     for (int i1 = 0; i1 < cells; ++i1) {
         for (int i2 = 0; i2 < cells; ++i2) {
             double sum = 0.0;
+            int64_t count_sum = 0;
             for (int ip = idx_min; ip < idx_max; ++ip) {
                 int64_t idx_3d;
                 if (projection_axis == 0) {
@@ -771,23 +788,26 @@ TetraDensityResult2D compute_tetra_density_2d_slice(
                     idx_3d = i1 + i2 * cells + ip * cells_sq;
                 }
                 sum += result_3d.density[idx_3d];
+                count_sum += result_3d.particle_counts[idx_3d];
             }
             density_2d[i1 + i2 * cells] = sum * cell_width;
+            counts_2d[i1 + i2 * cells] = count_sum;
         }
     }
-    
+
     double total = std::accumulate(density_2d.begin(), density_2d.end(), 0.0);
     double mean_surface_density = total / cells_sq;
-    
+
     TetraDensityResult2D result;
     result.density = std::move(density_2d);
+    result.particle_counts = std::move(counts_2d);
     result.cells = cells;
     result.cell_width = cell_width;
     result.projection_axis = projection_axis;
     result.slice_min = slice_min;
     result.slice_max = slice_max;
     result.mean_surface_density = mean_surface_density;
-    
+
     return result;
 }
 
