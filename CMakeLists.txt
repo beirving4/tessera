@@ -171,6 +171,7 @@ if(BUILD_PYTHON_BINDINGS)
         python/bindings/math_bindings.cpp
         python/bindings/density_bindings.cpp
         python/bindings/tetra_density_bindings.cpp
+        python/bindings/sph_bindings.cpp
         python/bindings/io_bindings.cpp
         python/bindings/render_bindings.cpp
         python/bindings/cosmo_bindings.cpp
