@@ -11,8 +11,9 @@ This document provides comprehensive documentation on how merger trees are imple
 5. [Tessera Implementation Details](#tessera-implementation-details)
 6. [Performance Analysis](#performance-analysis)
 7. [Lessons Learned & Bugs Encountered](#lessons-learned--bugs-encountered)
-8. [Design Patterns for Future Implementation](#design-patterns-for-future-implementation)
-9. [References](#references)
+8. [Tracking Errors and Validation](#tracking-errors-and-validation)
+9. [Design Patterns for Future Implementation](#design-patterns-for-future-implementation)
+10. [References](#references)
 
 ---
 
@@ -614,6 +615,157 @@ Halo at snap=59, subhalo=84:
 
 ---
 
+## Tracking Errors and Validation
+
+Merger tree algorithms can sometimes produce incorrect links, especially in complex merger scenarios or at early cosmic times. This section describes how to identify tracking errors and use position-matching as a validation or fallback method.
+
+### Common Tracking Error Symptoms
+
+**1. Sudden Mass Jumps**
+
+Large (>50%) mass changes between adjacent snapshots often indicate tracking errors:
+```
+Snap 42 → 43: M200c jumped from 2.5e12 to 5.4e12 (+116%)
+```
+
+Genuine major mergers do cause mass jumps, but they should be accompanied by:
+- A second massive progenitor at the earlier snapshot
+- Position of the descendant between the two progenitors
+- Combined progenitor mass roughly matching descendant mass
+
+**2. Position Discontinuities**
+
+Large position jumps (>5 cMpc/h between snapshots) suggest the tree jumped to a different halo:
+```
+Snap 42: pos = [45.2, 182.1, 99.8] cMpc/h
+Snap 43: pos = [136.5, 67.3, 221.4] cMpc/h  ← 90+ cMpc/h jump!
+```
+
+**3. Coordinate Oscillations**
+
+Coordinates that oscillate wildly instead of following smooth Hubble flow suggest the tree is jumping between different halos at each snapshot.
+
+### Diagnosing Tracking Errors
+
+Use this diagnostic workflow:
+
+1. **Plot mass accretion history**: Look for sudden spikes or drops
+2. **Plot coordinate evolution**: Look for jumps or oscillations
+3. **Check progenitor properties**: For mass jumps, verify merger scenario
+4. **Compare with position matching**: Validate tree links independently
+
+```python
+from tessera.examples.halo_evolution import (
+    MergerTree, HaloTracker,
+    PositionMatchingTracker, HaloCatalogLoader
+)
+
+# Load merger tree
+tree = MergerTree('trees.hdf5')
+tracker = HaloTracker(tree)
+
+# Get tree-based branch
+tree_branch = tracker.trace_main_branch(snap_num=74, subhalo_nr=0)
+
+# Set up position matching
+loader = HaloCatalogLoader('/path/to/halo_catalogs')
+pos_tracker = PositionMatchingTracker(loader, box_size=128.0)
+
+# Compare: this will flag any discrepancies
+comparison = pos_tracker.compare_with_merger_tree(tree_branch, verbose=True)
+
+# Check for mismatches
+for snap, info in comparison.items():
+    if not info['match']:
+        print(f"Snap {snap}: Tree={info['tree_group']}, Position={info['pos_group']}")
+        if info['mass_ratio']:
+            print(f"  Mass ratio (pos/tree): {info['mass_ratio']:.2f}")
+```
+
+### Position-Matching Algorithm
+
+The position-matching tracker uses a combined scoring function:
+
+```
+score = distance + mass_weight × |log₁₀(M_candidate/M_target)|
+```
+
+Key parameters:
+- `search_radius`: Maximum distance to consider (default: 5 cMpc/h)
+- `mass_weight`: Relative importance of mass similarity (default: 0.3)
+- `min_mass_ratio`: Minimum mass ratio to consider (default: 0.05)
+
+The algorithm:
+1. Start from a known halo at a reference snapshot
+2. For each adjacent snapshot:
+   - Load all group positions and masses from the halo catalog
+   - Compute periodic distances to all candidates within search radius
+   - Score candidates by distance + weighted mass similarity
+   - Select the best-scoring candidate
+3. Continue tracking forward/backward through available snapshots
+
+### Case Study: L128 N1024 Branch Tracking Error
+
+In our L128 simulation, we discovered the merger tree had incorrect links:
+
+**Symptoms:**
+- Mass spike of +116% at snap 42→43
+- Position jump of 90+ cMpc/h at the same transition
+- Coordinate oscillations from snap 43 onward
+
+**Investigation:**
+```python
+# Check if mass jump was a major merger
+progenitors = tracker.trace_all_progenitors(snap_num=43, subhalo_nr=subhalo_id)
+prog_masses = [h.m200c for h in progenitors.get(42, [])]
+# Found only one significant progenitor (15:1 mass ratio)
+# Combined mass = 49% of descendant → NOT a merger, it's a tracking error
+```
+
+**Resolution:**
+Position-matched tracking showed the correct halo had:
+- Continuous position evolution (jumps < 0.1 cMpc/h)
+- Mass ratio of 1.00 compared to the M200c values in the branch catalog
+- The tree's subhalo IDs pointed to tiny groups (~2×10¹⁰ M☉) instead of the massive target halo (~5×10¹² M☉)
+
+**Root cause:** The SubLink algorithm incorrectly linked subhalo IDs at snap 42→43, causing the tree to jump to a completely different structure. The branch catalog stored correct M200c values but wrong subhalo IDs.
+
+### When to Use Position Matching
+
+**Use position matching when:**
+- Validating merger tree results for production science
+- You observe suspicious mass jumps or position discontinuities
+- The merger tree shows tracking failures at early times
+- You need to track halos but merger trees are unavailable
+
+**Limitations:**
+- Slower than tree traversal (must load full catalogs)
+- May fail during genuine mergers where halos overlap
+- Requires well-resolved halos (>1000 particles)
+- Does not identify "main" progenitor in multi-progenitor scenarios
+
+### Validation Utility
+
+To validate an entire branch catalog:
+
+```python
+from tessera.examples.halo_evolution import validate_branch_catalog
+
+result = validate_branch_catalog(
+    catalog_path='branch_catalog.hdf5',
+    halo_catalog_dir='/path/to/halo_catalogs',
+    box_size=128.0,
+    branch_id=0,
+    verbose=True
+)
+
+if not result['valid']:
+    print(f"Branch has {result['n_mismatches']} tracking errors")
+    print(f"Problem snapshots: {result['mismatch_snaps']}")
+```
+
+---
+
 ## Design Patterns for Future Implementation
 
 ### 1. Abstract Tree Interface
@@ -902,5 +1054,5 @@ TreeHalos/
 
 ---
 
-*Document last updated: 2026-02-03*
+*Document last updated: 2026-02-06*
 *Based on tessera commit: c6e97b7*

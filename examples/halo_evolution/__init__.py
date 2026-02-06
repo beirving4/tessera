@@ -77,6 +77,14 @@ except ImportError:
 # Branch catalog for efficient array job processing
 from .branch_catalog import BranchCatalog, Branch, unwrap_branch_coordinates
 
+# Position-based tracking (alternative to merger trees)
+from .position_tracker import (
+    PositionMatchingTracker,
+    HaloCatalogLoader,
+    TrackedHalo,
+    validate_branch_catalog,
+)
+
 __all__ = [
     'MergerTree',
     'HaloTracker',
@@ -84,6 +92,11 @@ __all__ = [
     'BranchCatalog',
     'Branch',
     'unwrap_branch_coordinates',
+    # Position tracking
+    'PositionMatchingTracker',
+    'HaloCatalogLoader',
+    'TrackedHalo',
+    'validate_branch_catalog',
 ]
 
 if DensityRenderer is not None:

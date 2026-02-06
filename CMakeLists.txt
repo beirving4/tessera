@@ -90,6 +90,7 @@ file(GLOB_RECURSE ORIGAMI_SOURCES "src/origami/*.cpp")
 if(NOT BUILD_WITH_HDF5)
     list(FILTER IO_SOURCES EXCLUDE REGEX "gadget4\\.cpp$")
     list(FILTER IO_SOURCES EXCLUDE REGEX "merger_tree\\.cpp$")
+    list(FILTER IO_SOURCES EXCLUDE REGEX "position_tracker\\.cpp$")
 endif()
 
 set(ALL_SOURCES

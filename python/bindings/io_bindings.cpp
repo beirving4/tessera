@@ -7,6 +7,7 @@
 #ifdef TESSERA_HAS_HDF5
 #include "io/gadget4.h"
 #include "io/merger_tree.h"
+#include "io/position_tracker.h"
 #endif
 
 namespace py = pybind11;
@@ -713,6 +714,315 @@ void bind_io(py::module& m) {
           - Memory efficient: tree data is shared read-only across threads
           - Releases GIL during extraction for Python concurrency
           - Low-memory mode (chunk_size > 0) is slower but uses less RAM
+          )pbdoc");
+
+    // =========================================================================
+    // Position-Based Halo Tracking
+    // =========================================================================
+
+    // PositionMatchConfig
+    py::class_<PositionMatchConfig>(m, "PositionMatchConfig",
+        R"pbdoc(
+        Configuration for position-based halo matching.
+
+        Attributes
+        ----------
+        search_radius : float
+            Maximum search radius [Mpc/h] (default: 5.0)
+        mass_weight : float
+            Weight for mass similarity in scoring (default: 0.3)
+        min_mass_ratio : float
+            Minimum mass ratio to consider a match (default: 0.05)
+        )pbdoc")
+        .def(py::init<>())
+        .def_readwrite("search_radius", &PositionMatchConfig::search_radius)
+        .def_readwrite("mass_weight", &PositionMatchConfig::mass_weight)
+        .def_readwrite("min_mass_ratio", &PositionMatchConfig::min_mass_ratio)
+        .def_static("default_config", &PositionMatchConfig::default_config,
+                    "Get default configuration");
+
+    // TrackedHaloInfo
+    py::class_<TrackedHaloInfo>(m, "TrackedHaloInfo",
+        R"pbdoc(
+        Information about a tracked halo at one snapshot.
+
+        Units (GADGET-4 internal code units):
+        - Positions: Mpc/h
+        - Masses: 10^10 M_sun/h
+        - Radii: Mpc/h
+        )pbdoc")
+        .def(py::init<>())
+        .def_readwrite("snap_num", &TrackedHaloInfo::snap_num, "Snapshot number")
+        .def_readwrite("group_nr", &TrackedHaloInfo::group_nr, "FOF group index")
+        .def_readwrite("scale_factor", &TrackedHaloInfo::scale_factor, "Scale factor")
+        .def_readwrite("position", &TrackedHaloInfo::position, "Comoving position [Mpc/h]")
+        .def_readwrite("m200c", &TrackedHaloInfo::m200c, "M200 critical [10^10 M_sun/h]")
+        .def_readwrite("r200c", &TrackedHaloInfo::r200c, "R200 critical [Mpc/h]")
+        .def_readwrite("match_score", &TrackedHaloInfo::match_score, "Match quality score")
+        .def_readwrite("match_distance", &TrackedHaloInfo::match_distance, "Distance from previous")
+        .def("is_valid", &TrackedHaloInfo::is_valid, "Check if valid")
+        .def("__repr__", [](const TrackedHaloInfo& h) {
+            return "TrackedHaloInfo(snap=" + std::to_string(h.snap_num) +
+                   ", group=" + std::to_string(h.group_nr) +
+                   ", m200c=" + std::to_string(h.m200c) + ")";
+        });
+
+    // HaloCatalogData
+    py::class_<HaloCatalogData>(m, "HaloCatalogData",
+        "Data for all FOF groups at a single snapshot")
+        .def(py::init<>())
+        .def_readwrite("snap_num", &HaloCatalogData::snap_num)
+        .def_readwrite("scale_factor", &HaloCatalogData::scale_factor)
+        .def_readwrite("pos_x", &HaloCatalogData::pos_x)
+        .def_readwrite("pos_y", &HaloCatalogData::pos_y)
+        .def_readwrite("pos_z", &HaloCatalogData::pos_z)
+        .def_readwrite("m200c", &HaloCatalogData::m200c)
+        .def_readwrite("r200c", &HaloCatalogData::r200c)
+        .def("n_groups", &HaloCatalogData::n_groups, "Number of groups")
+        .def("is_valid", &HaloCatalogData::is_valid, "Check if valid");
+
+    // HaloCatalogReader
+    py::class_<HaloCatalogReader>(m, "HaloCatalogReader",
+        R"pbdoc(
+        FOF/SUBFIND Halo Catalog Reader.
+
+        Loads halo data from GADGET-4 FOF/SUBFIND output files.
+        Handles both single-file and sharded catalogs.
+
+        Examples
+        --------
+        >>> reader = ts.io.HaloCatalogReader("/path/to/catalogs")
+        >>> snaps = reader.get_available_snapshots()
+        >>> data = reader.load_snapshot(74)
+        )pbdoc")
+        .def(py::init<const std::string&>(), py::arg("catalog_dir"),
+             "Construct reader from catalog directory")
+        .def("get_available_snapshots", &HaloCatalogReader::get_available_snapshots,
+             "Get list of available snapshot numbers")
+        .def("load_snapshot", &HaloCatalogReader::load_snapshot, py::arg("snap_num"),
+             "Load FOF group data for a snapshot")
+        .def("load_snapshots", &HaloCatalogReader::load_snapshots, py::arg("snap_nums"),
+             "Load multiple snapshots")
+        .def("load_all_snapshots", &HaloCatalogReader::load_all_snapshots,
+             "Load all available snapshots")
+        .def("catalog_dir", &HaloCatalogReader::catalog_dir,
+             "Get catalog directory path");
+
+    // PositionMatcher
+    py::class_<PositionMatcher>(m, "PositionMatcher",
+        R"pbdoc(
+        Position-based halo matcher.
+
+        Core algorithm for matching halos between snapshots using position
+        and mass similarity.
+
+        The combined scoring function is:
+            score = distance + mass_weight * |log10(M/M_target)|
+        )pbdoc")
+        .def(py::init<float, PositionMatchConfig>(),
+             py::arg("box_size"),
+             py::arg("config") = PositionMatchConfig{},
+             "Construct matcher with box size and optional config")
+        .def("periodic_distance", &PositionMatcher::periodic_distance,
+             py::arg("pos1"), py::arg("pos2"),
+             "Compute periodic distance between two positions")
+        .def("box_size", &PositionMatcher::box_size, "Get box size")
+        .def("config", &PositionMatcher::config, py::return_value_policy::reference_internal,
+             "Get configuration");
+
+    // PositionBranchExtractor Strategy enum
+    py::enum_<PositionBranchExtractor::Strategy>(m, "PositionTrackingStrategy",
+        "Parallelization strategy for position tracking")
+        .value("PARALLEL_BRANCHES", PositionBranchExtractor::Strategy::PARALLEL_BRANCHES,
+               "Each thread tracks one branch (simple, some memory duplication)")
+        .value("PRELOAD_CATALOGS", PositionBranchExtractor::Strategy::PRELOAD_CATALOGS,
+               "Load all catalogs first, parallelize matching (memory efficient, default)");
+
+    // PositionBranchExtractor
+    py::class_<PositionBranchExtractor>(m, "PositionBranchExtractor",
+        R"pbdoc(
+        Position-based branch extraction.
+
+        Tracks halos across snapshots using position matching instead of
+        merger tree links. Supports two parallelization strategies:
+
+        - PARALLEL_BRANCHES: Each thread tracks one branch (simple)
+        - PRELOAD_CATALOGS: Load all catalogs, parallelize matching (default)
+
+        Examples
+        --------
+        >>> reader = ts.io.HaloCatalogReader("/path/to/catalogs")
+        >>> extractor = ts.io.PositionBranchExtractor(reader, box_size=128.0)
+        >>> branch = extractor.track_branch(74, 0, backward=True)
+        )pbdoc")
+        .def(py::init<HaloCatalogReader&, float, PositionMatchConfig>(),
+             py::arg("reader"),
+             py::arg("box_size"),
+             py::arg("config") = PositionMatchConfig{},
+             py::keep_alive<1, 2>(),  // Keep reader alive
+             "Construct extractor")
+        .def("track_branch", &PositionBranchExtractor::track_branch,
+             py::arg("start_snap"),
+             py::arg("start_group_nr"),
+             py::arg("backward") = true,
+             py::arg("forward") = false,
+             py::arg("snap_min") = std::nullopt,
+             py::arg("snap_max") = std::nullopt,
+             "Track a single branch by position matching")
+        .def("track_branch_preloaded", &PositionBranchExtractor::track_branch_preloaded,
+             py::arg("catalogs"),
+             py::arg("start_snap"),
+             py::arg("start_group_nr"),
+             py::arg("backward") = true,
+             py::arg("forward") = false,
+             "Track branch using preloaded catalogs")
+        .def("unwrap_coordinates", &PositionBranchExtractor::unwrap_coordinates,
+             py::arg("branch"),
+             "Unwrap periodic coordinates for smooth visualization")
+        .def("preload_all_catalogs", &PositionBranchExtractor::preload_all_catalogs,
+             "Preload all catalogs into memory")
+        .def("clear_preloaded_catalogs", &PositionBranchExtractor::clear_preloaded_catalogs,
+             "Clear preloaded catalogs")
+        .def("catalogs_preloaded", &PositionBranchExtractor::catalogs_preloaded,
+             "Check if catalogs are preloaded");
+
+    // BranchStartPoint
+    py::class_<BranchStartPoint>(m, "BranchStartPoint",
+        "Starting point specification for branch extraction")
+        .def(py::init<>())
+        .def(py::init([](int32_t snap, int32_t group, int32_t id) {
+            return BranchStartPoint{snap, group, id};
+        }), py::arg("snap_num"), py::arg("group_nr"), py::arg("branch_id") = -1)
+        .def_readwrite("snap_num", &BranchStartPoint::snap_num)
+        .def_readwrite("group_nr", &BranchStartPoint::group_nr)
+        .def_readwrite("branch_id", &BranchStartPoint::branch_id);
+
+    // PositionBranchCatalogData
+    py::class_<PositionBranchCatalogData>(m, "PositionBranchCatalogData",
+        R"pbdoc(
+        Position-matched branch catalog data.
+
+        Similar to BranchCatalogData but includes match quality information
+        and uses FOF group numbers instead of subhalo numbers.
+        )pbdoc")
+        .def(py::init<>())
+        // Index arrays
+        .def_readwrite("branch_id", &PositionBranchCatalogData::branch_id)
+        .def_readwrite("start_offset", &PositionBranchCatalogData::start_offset)
+        .def_readwrite("length", &PositionBranchCatalogData::length)
+        .def_readwrite("root_snap", &PositionBranchCatalogData::root_snap)
+        .def_readwrite("root_group", &PositionBranchCatalogData::root_group)
+        .def_readwrite("root_m200c", &PositionBranchCatalogData::root_m200c)
+        .def_readwrite("a_min", &PositionBranchCatalogData::a_min)
+        .def_readwrite("a_max", &PositionBranchCatalogData::a_max)
+        // Data arrays
+        .def_readwrite("snap_num", &PositionBranchCatalogData::snap_num)
+        .def_readwrite("group_nr", &PositionBranchCatalogData::group_nr)
+        .def_readwrite("scale_factor", &PositionBranchCatalogData::scale_factor)
+        .def_readwrite("pos_x", &PositionBranchCatalogData::pos_x)
+        .def_readwrite("pos_y", &PositionBranchCatalogData::pos_y)
+        .def_readwrite("pos_z", &PositionBranchCatalogData::pos_z)
+        .def_readwrite("m200c", &PositionBranchCatalogData::m200c)
+        .def_readwrite("r200c", &PositionBranchCatalogData::r200c)
+        .def_readwrite("match_score", &PositionBranchCatalogData::match_score)
+        .def_readwrite("match_distance", &PositionBranchCatalogData::match_distance)
+        // Methods
+        .def("n_branches", &PositionBranchCatalogData::n_branches)
+        .def("n_halos", &PositionBranchCatalogData::n_halos)
+        .def("empty", &PositionBranchCatalogData::empty)
+        .def("__repr__", [](const PositionBranchCatalogData& d) {
+            return "PositionBranchCatalogData(n_branches=" + std::to_string(d.n_branches()) +
+                   ", n_halos=" + std::to_string(d.n_halos()) + ")";
+        });
+
+    // extract_position_branches_parallel
+    m.def("extract_position_branches_parallel",
+          [](HaloCatalogReader& reader,
+             float box_size,
+             const std::vector<BranchStartPoint>& start_points,
+             PositionMatchConfig config,
+             PositionBranchExtractor::Strategy strategy,
+             int n_threads,
+             py::object progress_callback) -> PositionBranchCatalogData {
+              std::function<void(size_t, size_t)> cpp_callback = nullptr;
+              if (!progress_callback.is_none()) {
+                  cpp_callback = [&progress_callback](size_t done, size_t total) {
+                      py::gil_scoped_acquire acquire;
+                      progress_callback(done, total);
+                  };
+              }
+              py::gil_scoped_release release;
+              return extract_position_branches_parallel(
+                  reader, box_size, start_points, config, strategy, n_threads, cpp_callback
+              );
+          },
+          py::arg("reader"),
+          py::arg("box_size"),
+          py::arg("start_points"),
+          py::arg("config") = PositionMatchConfig{},
+          py::arg("strategy") = PositionBranchExtractor::Strategy::PRELOAD_CATALOGS,
+          py::arg("n_threads") = 0,
+          py::arg("progress_callback") = py::none(),
+          R"pbdoc(
+          Extract position-matched branches in parallel.
+
+          Parameters
+          ----------
+          reader : HaloCatalogReader
+              Catalog reader instance
+          box_size : float
+              Simulation box size [Mpc/h]
+          start_points : list[BranchStartPoint]
+              Starting points for each branch
+          config : PositionMatchConfig, optional
+              Matching configuration
+          strategy : PositionTrackingStrategy, optional
+              Parallelization strategy (default: PRELOAD_CATALOGS)
+          n_threads : int, optional
+              Number of threads (0 = auto)
+          progress_callback : callable, optional
+              Progress callback(done, total)
+
+          Returns
+          -------
+          PositionBranchCatalogData
+              Extracted branches with match quality information
+          )pbdoc");
+
+    // validate_branch_with_position_matching
+    m.def("validate_branch_with_position_matching",
+          &validate_branch_with_position_matching,
+          py::arg("tree_snap_nums"),
+          py::arg("tree_group_nrs"),
+          py::arg("tree_m200c"),
+          py::arg("reader"),
+          py::arg("box_size"),
+          py::arg("config") = PositionMatchConfig{},
+          R"pbdoc(
+          Validate a merger tree branch using position matching.
+
+          Compares merger tree tracking with position-based tracking to identify
+          potential tracking errors.
+
+          Parameters
+          ----------
+          tree_snap_nums : list[int]
+              Snapshot numbers from merger tree branch
+          tree_group_nrs : list[int]
+              Group numbers from merger tree branch
+          tree_m200c : list[float]
+              M200c values from merger tree branch
+          reader : HaloCatalogReader
+              Catalog reader instance
+          box_size : float
+              Simulation box size [Mpc/h]
+          config : PositionMatchConfig, optional
+              Matching configuration
+
+          Returns
+          -------
+          dict
+              Map of snap_num -> {tree_group, pos_group, match, mass_ratio}
           )pbdoc");
 
     // Flag to indicate HDF5 support is available
