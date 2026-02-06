@@ -262,6 +262,7 @@ private:
     std::vector<std::vector<int32_t>> cells_;
     double cell_size_;
     double box_size_;
+    double offset_;  // Offset for centered coordinates (box_size/2)
     int grid_dim_;
     bool periodic_;
     int64_t n_particles_;

@@ -371,6 +371,7 @@ SpatialHashGrid::SpatialHashGrid(
     , periodic_(periodic)
     , n_particles_(static_cast<int64_t>(particles.size()))
     , particles_(&particles)
+    , offset_(box_size / 2.0)  // Offset to handle centered coordinates
 {
     if (cell_size <= 0) {
         throw std::invalid_argument("cell_size must be positive");
@@ -384,10 +385,12 @@ SpatialHashGrid::SpatialHashGrid(
     cells_.resize(n_cells);
 
     // Insert particles into cells
+    // Particles are in centered coordinates [-box_size/2, +box_size/2]
+    // Shift to [0, box_size] for grid indexing
     for (size_t i = 0; i < particles.size(); ++i) {
-        float px = particles.x[i];
-        float py = particles.y[i];
-        float pz = particles.z[i];
+        float px = particles.x[i] + static_cast<float>(offset_);
+        float py = particles.y[i] + static_cast<float>(offset_);
+        float pz = particles.z[i] + static_cast<float>(offset_);
 
         // Handle periodicity
         if (periodic_) {
@@ -441,9 +444,10 @@ void SpatialHashGrid::find_neighbors(
 
     int n_cells_radius = static_cast<int>(std::ceil(radius / cell_size_)) + 1;
 
-    int cx = static_cast<int>(x / cell_size_);
-    int cy = static_cast<int>(y / cell_size_);
-    int cz = static_cast<int>(z / cell_size_);
+    // Apply offset to convert centered coordinates to grid coordinates
+    int cx = static_cast<int>((x + offset_) / cell_size_);
+    int cy = static_cast<int>((y + offset_) / cell_size_);
+    int cz = static_cast<int>((z + offset_) / cell_size_);
 
     double radius_sq = radius * radius;
 
@@ -504,19 +508,23 @@ void SpatialHashGrid::find_neighbors_2d(
 
     int n_cells_radius = static_cast<int>(std::ceil(radius / cell_size_)) + 1;
 
+    // Apply offset to convert centered coordinates to grid coordinates
+    double x_shifted = x + offset_;
+    double y_shifted = y + offset_;
+
     // Map 2D query to 3D grid
     int cx, cy, cz;
     if (axis == 0) {  // Project along x
         cx = 0;
-        cy = static_cast<int>(x / cell_size_);
-        cz = static_cast<int>(y / cell_size_);
+        cy = static_cast<int>(x_shifted / cell_size_);
+        cz = static_cast<int>(y_shifted / cell_size_);
     } else if (axis == 1) {  // Project along y
-        cx = static_cast<int>(x / cell_size_);
+        cx = static_cast<int>(x_shifted / cell_size_);
         cy = 0;
-        cz = static_cast<int>(y / cell_size_);
+        cz = static_cast<int>(y_shifted / cell_size_);
     } else {  // Project along z
-        cx = static_cast<int>(x / cell_size_);
-        cy = static_cast<int>(y / cell_size_);
+        cx = static_cast<int>(x_shifted / cell_size_);
+        cy = static_cast<int>(y_shifted / cell_size_);
         cz = 0;
     }
 
@@ -607,8 +615,17 @@ void SPHRenderer::transform_to_render_coords(
     output.reserve(input.size());
 
     double half_width = config_.render_width / 2.0;
-    double search_radius = half_width + kernel_.support_radius() *
-        (config_.smoothing_length > 0 ? config_.smoothing_length : config_.render_width / 20.0);
+
+    // For adaptive smoothing (smoothing_length=0), use a generous estimate
+    // The smoothing length will be computed later based on particle density,
+    // but we need to include enough particles in the search region first.
+    // Use render_width/4 as a conservative estimate for h, giving a search
+    // buffer of ~0.5*render_width which should capture particles whose kernels
+    // extend into the render region.
+    double h_estimate = config_.smoothing_length > 0
+        ? config_.smoothing_length
+        : config_.render_width / 4.0;
+    double search_radius = half_width + kernel_.support_radius() * h_estimate;
 
     for (size_t i = 0; i < input.size(); ++i) {
         double dx = input.x[i] - config_.center[0];
