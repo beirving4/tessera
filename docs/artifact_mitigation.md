@@ -101,37 +101,61 @@ print(f"Mean aspect ratio: {result.mean_aspect_ratio:.1f}")
 - May reduce total deposited mass (mass conservation affected)
 - Requires tuning thresholds for each scale factor
 
-### 3. Particle-Based/SPH Visualization
+### 3. SPH Density Rendering (C++ Core)
 
 **Best for**: Extreme scale factors (a > 10) where tessellation breaks down
 
-Bypass tessellation entirely and use SPH-style kernel density estimation.
+Bypass tessellation entirely and use the built-in SIMD-optimized SPH renderer.
+This is a high-performance C++ implementation with OpenMP parallelization.
 
 ```python
-from tessera.utils import compute_particle_density_sph
+import tessera as ts
 
-# SPH density (no Lagrangian ordering needed!)
-result = compute_particle_density_sph(
-    positions,           # Raw particle positions
-    box_size=256.0,
-    output_cells=256,
-    kernel='cubic_spline',
-    n_neighbors=32,      # Adaptive smoothing length
-    projection_axis=2    # 2D projection
+# High-level convenience function
+result = ts.density.render_sph_density_2d(
+    positions,                    # Raw particle positions (N, 3)
+    center=(50.0, 50.0, 50.0),   # Region center
+    box_width=10.0,              # Render region width
+    output_cells=256,            # Output resolution
+    sim_box_size=256.0,          # Simulation box size (for periodicity)
+    projection_axis=2,           # Project along z-axis
+    kernel=ts.density.SPHKernel.CUBIC_SPLINE,
+    smoothing_length=0.0,        # 0 = adaptive
+    n_threads=0                  # 0 = auto
 )
 
-density = result['density']
+density = result.density
+print(f"Rendered in {result.render_time_ms:.1f} ms")
+
+# Or with full configuration control
+config = ts.density.SPHConfig.for_halo(
+    halo_center=(50.0, 50.0, 50.0),
+    box_width=10.0,
+    sim_box=256.0,
+    resolution=256
+)
+renderer = ts.density.SPHRenderer(config)
+result = renderer.render_2d(particles)
 ```
+
+**Available kernels**:
+- `SPHKernel.CUBIC_SPLINE` - M4 cubic spline (fastest, recommended)
+- `SPHKernel.WENDLAND_C2` - Smoother than cubic
+- `SPHKernel.WENDLAND_C4` - Very smooth
+- `SPHKernel.QUINTIC_SPLINE` - M6 quintic (highest accuracy)
 
 **Pros**:
 - No tessellation artifacts by design
 - Works without Lagrangian ordering (simpler pipeline)
-- Natural handling of sparse regions
+- 15-30x faster than Python-based alternatives (pynbody)
+- SIMD-optimized kernel evaluation (AVX2)
+- OpenMP parallelization
 
 **Cons**:
-- Slower than tessellation for large particle counts
-- May over-smooth fine structure
+- May over-smooth fine structure compared to tessellation
 - Different density estimator (not exactly comparable to tessellation)
+
+See [SPH Rendering Documentation](sph_rendering.md) for full details.
 
 ### 4. Hybrid Approach (Automatic Method Selection)
 

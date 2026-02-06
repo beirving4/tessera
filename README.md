@@ -47,6 +47,7 @@ The library also includes **ORIGAMI morphological classification** (Falck, Neyri
 - **GADGET-4 I/O**: Read HDF5 snapshots (single or distributed) and FOF/Subfind catalogs
 - **Merger tree support**: High-performance C++ reader for GADGET-4 merger trees with SIMD-optimized search
 - **Multi-threaded**: Parallel computation with OpenMP
+- **SPH density rendering**: SIMD-optimized SPH renderer as alternative to tessellation (no late-time artifacts)
 - **Validated**: Tested against original gotetra with >0.999 correlation
 
 ## Installation
@@ -170,8 +171,15 @@ smoothed = gaussian_smooth_density(density, sigma=1.5)
 # Option 2: Adaptive smoothing (stronger in low-count regions)
 smoothed = adaptive_smooth_density(density, particle_counts, sigma_min=0.5, sigma_max=3.0)
 
-# Option 3: SPH-based density (bypasses tessellation)
-result = compute_particle_density_sph(positions, box_size, 256, n_neighbors=32, projection_axis=2)
+# Option 3: C++ SPH renderer (15-30x faster than Python alternatives)
+result = ts.density.render_sph_density_2d(
+    positions,
+    center=(halo_x, halo_y, halo_z),
+    box_width=10.0,
+    output_cells=256,
+    sim_box_size=box_size,
+    kernel=ts.density.SPHKernel.CUBIC_SPLINE
+)
 
 # Option 4: Automatic method selection (recommended)
 config = HybridDensityConfig(
@@ -318,12 +326,21 @@ The animation script supports callout annotations for labeling cosmic events—e
 
 ## Modules
 
-### `ts.density` - Tetrahedron Density Fields
+### `ts.density` - Density Field Computation
 
-- `TetraDensityConfig`: Configuration for density computation
+**Tetrahedron-based (phase-space tessellation):**
+- `TetraDensityConfig`: Configuration for tessellation density
 - `compute_tetra_density_3d()`: Full 3D density field
 - `compute_tetra_density_2d_projection()`: 2D projection along an axis
 - `sort_by_lagrangian_id()`: Sort particles to Lagrangian grid order
+
+**SPH-based (no tessellation artifacts):**
+- `SPHConfig`: Configuration for SPH rendering
+- `SPHRenderer`: High-performance SPH renderer class
+- `render_sph_density_2d()`: 2D SPH density projection (convenience function)
+- `SPHKernel`: Kernel types (CUBIC_SPLINE, WENDLAND_C2, WENDLAND_C4, QUINTIC_SPLINE)
+- `SPHParticles`: Structure-of-arrays particle container
+- `estimate_smoothing_length()`: Estimate h from particle density
 
 ### `ts.origami` - Morphological Classification
 
