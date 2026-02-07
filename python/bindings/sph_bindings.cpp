@@ -463,6 +463,112 @@ void bind_sph(py::module& m) {
         (256, 256)
         )pbdoc");
 
+    // render_sph_density_2d with per-particle smoothing lengths
+    m.def("render_sph_density_2d_with_hsml",
+        [](py::array_t<double, py::array::c_style | py::array::forcecast> positions,
+           py::array_t<float, py::array::c_style | py::array::forcecast> smoothing_lengths,
+           std::tuple<double, double, double> center,
+           double box_width,
+           int output_cells,
+           double sim_box_size,
+           int projection_axis,
+           SPHKernel kernel,
+           int n_threads) {
+            auto pos_buf = positions.request();
+            if (pos_buf.ndim != 2 || pos_buf.shape[1] != 3) {
+                throw std::runtime_error("positions must have shape (N, 3)");
+            }
+            int64_t n = pos_buf.shape[0];
+
+            auto h_buf = smoothing_lengths.request();
+            if (h_buf.ndim != 1 || h_buf.shape[0] != n) {
+                throw std::runtime_error("smoothing_lengths must have shape (N,) matching positions");
+            }
+
+            // Build SPHParticles with provided smoothing lengths
+            SPHParticles particles;
+            particles.x.resize(n);
+            particles.y.resize(n);
+            particles.z.resize(n);
+            particles.h.resize(n);
+
+            const double* pos_ptr = static_cast<const double*>(pos_buf.ptr);
+            const float* h_ptr = static_cast<const float*>(h_buf.ptr);
+
+            for (int64_t i = 0; i < n; i++) {
+                particles.x[i] = static_cast<float>(pos_ptr[i * 3 + 0]);
+                particles.y[i] = static_cast<float>(pos_ptr[i * 3 + 1]);
+                particles.z[i] = static_cast<float>(pos_ptr[i * 3 + 2]);
+                particles.h[i] = h_ptr[i];
+            }
+
+            // Configure renderer
+            SPHConfig config;
+            config.center = {std::get<0>(center), std::get<1>(center), std::get<2>(center)};
+            config.render_width = box_width;
+            config.output_cells = output_cells;
+            config.projection_axis = projection_axis;
+            config.sim_box_size = sim_box_size;
+            config.periodic = (sim_box_size > 0);
+            config.kernel = kernel;
+            config.smoothing_length = -1.0;  // Negative = use provided h values
+            config.n_threads = n_threads;
+
+            SPHRenderer renderer(config);
+            return renderer.render_2d(particles);
+        },
+        py::arg("positions"),
+        py::arg("smoothing_lengths"),
+        py::arg("center"),
+        py::arg("box_width"),
+        py::arg("output_cells") = 256,
+        py::arg("sim_box_size") = 0.0,
+        py::arg("projection_axis") = 2,
+        py::arg("kernel") = SPHKernel::CUBIC_SPLINE,
+        py::arg("n_threads") = 0,
+        R"pbdoc(
+        Render 2D SPH density projection with per-particle smoothing lengths.
+
+        Uses simulation-provided smoothing lengths (e.g., SubfindHsml from GADGET)
+        instead of computing adaptive values. This produces more accurate results
+        for late-time snapshots where particle distributions are highly non-uniform.
+
+        Parameters
+        ----------
+        positions : numpy.ndarray
+            Particle positions, shape (N, 3).
+        smoothing_lengths : numpy.ndarray
+            Per-particle smoothing lengths, shape (N,).
+        center : tuple
+            Center of rendering region (x, y, z).
+        box_width : float
+            Width of rendering region.
+        output_cells : int
+            Output grid resolution. Default: 256.
+        sim_box_size : float
+            Full simulation box size (for periodic boundaries). Default: 0 (non-periodic).
+        projection_axis : int
+            Axis to project along (0=x, 1=y, 2=z). Default: 2 (z).
+        kernel : SPHKernel
+            SPH kernel type. Default: CUBIC_SPLINE.
+        n_threads : int
+            Number of threads. 0 = auto. Default: 0.
+
+        Returns
+        -------
+        SPHResult2D
+            2D density projection result.
+
+        Examples
+        --------
+        >>> result = ts.density.render_sph_density_2d_with_hsml(
+        ...     positions,
+        ...     smoothing_lengths,  # From SubfindHsml
+        ...     center=(50.0, 50.0, 50.0),
+        ...     box_width=10.0
+        ... )
+        )pbdoc");
+
     // Utility function
     m.def("estimate_smoothing_length", &estimate_smoothing_length,
         py::arg("n_particles"),
