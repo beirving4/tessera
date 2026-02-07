@@ -808,6 +808,48 @@ void bind_io(py::module& m) {
         .def("catalog_dir", &HaloCatalogReader::catalog_dir,
              "Get catalog directory path");
 
+    // SpatialGrid - for fast neighbor lookups
+    py::class_<SpatialGrid>(m, "SpatialGrid",
+        R"pbdoc(
+        Spatial grid index for O(1) neighbor lookups.
+
+        Divides the simulation box into cubic cells and indexes groups by cell.
+        Enables fast neighbor queries by only checking groups in nearby cells
+        instead of all groups in the catalog.
+        )pbdoc")
+        .def(py::init<float, float>(),
+             py::arg("box_size"),
+             py::arg("cell_size"),
+             "Construct spatial grid with box size and cell size")
+        .def("build", &SpatialGrid::build, py::arg("catalog"),
+             "Build index from catalog data")
+        .def("get_candidates", &SpatialGrid::get_candidates, py::arg("pos"),
+             "Get candidate group indices near a position")
+        .def("is_built", &SpatialGrid::is_built, "Check if index has been built")
+        .def("n_cells_per_dim", &SpatialGrid::n_cells_per_dim, "Get cells per dimension")
+        .def("n_cells_total", &SpatialGrid::n_cells_total, "Get total number of cells")
+        .def("cell_size", &SpatialGrid::cell_size, "Get cell size")
+        .def("clear", &SpatialGrid::clear, "Clear the index")
+        .def("get_stats", &SpatialGrid::get_stats,
+             "Get (min, max, avg) groups per cell");
+
+    // IndexedHaloCatalog - catalog with spatial index
+    py::class_<IndexedHaloCatalog>(m, "IndexedHaloCatalog",
+        R"pbdoc(
+        Indexed halo catalog with spatial grid for fast neighbor queries.
+
+        Wraps HaloCatalogData with a pre-built spatial index for O(k) matching
+        instead of O(N) brute-force search.
+        )pbdoc")
+        .def(py::init<HaloCatalogData, float, float>(),
+             py::arg("catalog"),
+             py::arg("box_size"),
+             py::arg("cell_size"),
+             "Construct from catalog data with box size and cell size")
+        .def_readonly("data", &IndexedHaloCatalog::data, "The underlying catalog data")
+        .def_readonly("grid", &IndexedHaloCatalog::grid, "The spatial index")
+        .def("is_valid", &IndexedHaloCatalog::is_valid, "Check if valid");
+
     // PositionMatcher
     py::class_<PositionMatcher>(m, "PositionMatcher",
         R"pbdoc(
@@ -823,6 +865,20 @@ void bind_io(py::module& m) {
              py::arg("box_size"),
              py::arg("config") = PositionMatchConfig{},
              "Construct matcher with box size and optional config")
+        .def("find_best_match",
+             py::overload_cast<const std::array<float, 3>&, float, const HaloCatalogData&>(
+                 &PositionMatcher::find_best_match, py::const_),
+             py::arg("target_pos"), py::arg("target_mass"), py::arg("catalog"),
+             "Find best match in catalog (O(N) brute force)")
+        .def("find_best_match_indexed",
+             [](const PositionMatcher& self,
+                const std::array<float, 3>& pos,
+                float mass,
+                const IndexedHaloCatalog& indexed) {
+                 return self.find_best_match(pos, mass, indexed);
+             },
+             py::arg("target_pos"), py::arg("target_mass"), py::arg("indexed_catalog"),
+             "Find best match using spatial index (O(k) fast)")
         .def("periodic_distance", &PositionMatcher::periodic_distance,
              py::arg("pos1"), py::arg("pos2"),
              "Compute periodic distance between two positions")

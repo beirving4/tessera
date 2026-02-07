@@ -30,6 +30,7 @@ namespace io {
 class HaloCatalogReader;
 class PositionMatcher;
 class PositionBranchExtractor;
+class SpatialGrid;
 
 /**
  * Data for all FOF groups at a single snapshot.
@@ -83,6 +84,107 @@ struct HaloCatalogData {
         m200c.clear();
         r200c.clear();
     }
+};
+
+/**
+ * Spatial grid index for O(1) neighbor lookups.
+ *
+ * Divides the simulation box into cubic cells and indexes groups by cell.
+ * Enables fast neighbor queries by only checking groups in nearby cells
+ * instead of all groups in the catalog.
+ *
+ * Handles periodic boundary conditions automatically.
+ */
+class SpatialGrid {
+public:
+    /**
+     * Construct spatial grid.
+     * @param box_size Simulation box size [Mpc/h]
+     * @param cell_size Size of each cell [Mpc/h], typically = search_radius
+     */
+    SpatialGrid(float box_size, float cell_size);
+
+    /**
+     * Build index from catalog data.
+     * @param catalog Halo catalog to index
+     */
+    void build(const HaloCatalogData& catalog);
+
+    /**
+     * Get candidate group indices near a position.
+     *
+     * Returns all groups within 1 cell radius (27 cells checked).
+     * Caller should still compute exact distances to filter.
+     *
+     * @param pos Query position [Mpc/h]
+     * @return Vector of group indices to check
+     */
+    std::vector<int32_t> get_candidates(const std::array<float, 3>& pos) const;
+
+    /**
+     * Check if index has been built.
+     */
+    bool is_built() const { return !cells_.empty(); }
+
+    /**
+     * Get number of cells per dimension.
+     */
+    int32_t n_cells_per_dim() const { return n_cells_; }
+
+    /**
+     * Get total number of cells.
+     */
+    size_t n_cells_total() const { return cells_.size(); }
+
+    /**
+     * Get cell size.
+     */
+    float cell_size() const { return cell_size_; }
+
+    /**
+     * Clear the index.
+     */
+    void clear();
+
+    /**
+     * Get statistics about the index.
+     * @return Tuple of (min groups per cell, max groups per cell, avg groups per cell)
+     */
+    std::tuple<size_t, size_t, float> get_stats() const;
+
+private:
+    float box_size_;
+    float cell_size_;
+    int32_t n_cells_;  // cells per dimension
+
+    // Flattened 3D grid: cells_[cell_index] = vector of group indices in that cell
+    std::vector<std::vector<int32_t>> cells_;
+
+    // Convert position to cell index
+    int32_t pos_to_cell_1d(float x) const;
+    size_t cell_3d_to_flat(int32_t ix, int32_t iy, int32_t iz) const;
+};
+
+/**
+ * Indexed halo catalog with spatial grid for fast neighbor queries.
+ *
+ * Wraps HaloCatalogData with a pre-built spatial index.
+ */
+struct IndexedHaloCatalog {
+    HaloCatalogData data;       ///< The underlying catalog data
+    SpatialGrid grid;           ///< Spatial index
+
+    /**
+     * Construct from catalog data.
+     * @param catalog Catalog data to wrap
+     * @param cell_size Cell size for spatial grid [Mpc/h]
+     */
+    IndexedHaloCatalog(HaloCatalogData catalog, float box_size, float cell_size);
+
+    /**
+     * Check if valid.
+     */
+    bool is_valid() const { return data.is_valid() && grid.is_built(); }
 };
 
 /**
@@ -224,6 +326,9 @@ public:
      *
      * Uses combined scoring: score = distance + mass_weight * |log10(M/M_target)|
      *
+     * NOTE: This is O(N) where N is number of groups. For large catalogs,
+     * prefer the overload that takes IndexedHaloCatalog for O(k) performance.
+     *
      * @param target_pos Target position [Mpc/h]
      * @param target_mass Target mass [10^10 Msun/h]
      * @param catalog Catalog data to search
@@ -233,6 +338,23 @@ public:
         const std::array<float, 3>& target_pos,
         float target_mass,
         const HaloCatalogData& catalog
+    ) const;
+
+    /**
+     * Find the best matching group using spatial index (fast).
+     *
+     * Uses pre-built spatial grid for O(k) performance where k is the
+     * number of groups in nearby cells, typically << N total groups.
+     *
+     * @param target_pos Target position [Mpc/h]
+     * @param target_mass Target mass [10^10 Msun/h]
+     * @param indexed_catalog Indexed catalog with spatial grid
+     * @return Match result
+     */
+    PositionMatchResult find_best_match(
+        const std::array<float, 3>& target_pos,
+        float target_mass,
+        const IndexedHaloCatalog& indexed_catalog
     ) const;
 
     /**

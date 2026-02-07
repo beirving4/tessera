@@ -304,6 +304,119 @@ std::map<int32_t, HaloCatalogData> HaloCatalogReader::load_all_snapshots() const
 }
 
 // =============================================================================
+// SpatialGrid implementation
+// =============================================================================
+
+SpatialGrid::SpatialGrid(float box_size, float cell_size)
+    : box_size_(box_size), cell_size_(cell_size) {
+    // Compute number of cells per dimension
+    n_cells_ = static_cast<int32_t>(std::ceil(box_size / cell_size));
+    if (n_cells_ < 1) n_cells_ = 1;
+
+    // Adjust cell size to fit box exactly
+    cell_size_ = box_size_ / static_cast<float>(n_cells_);
+}
+
+void SpatialGrid::build(const HaloCatalogData& catalog) {
+    const size_t n_cells_total = static_cast<size_t>(n_cells_) * n_cells_ * n_cells_;
+    cells_.clear();
+    cells_.resize(n_cells_total);
+
+    // Reserve average expected capacity per cell
+    const size_t n_groups = catalog.n_groups();
+    const size_t avg_per_cell = std::max(size_t(1), n_groups / n_cells_total);
+    for (auto& cell : cells_) {
+        cell.reserve(avg_per_cell * 2);  // 2x average for variance
+    }
+
+    // Insert each group into its cell
+    for (size_t i = 0; i < n_groups; i++) {
+        int32_t ix = pos_to_cell_1d(catalog.pos_x[i]);
+        int32_t iy = pos_to_cell_1d(catalog.pos_y[i]);
+        int32_t iz = pos_to_cell_1d(catalog.pos_z[i]);
+        size_t cell_idx = cell_3d_to_flat(ix, iy, iz);
+        cells_[cell_idx].push_back(static_cast<int32_t>(i));
+    }
+}
+
+std::vector<int32_t> SpatialGrid::get_candidates(const std::array<float, 3>& pos) const {
+    std::vector<int32_t> candidates;
+
+    // Get center cell
+    int32_t cx = pos_to_cell_1d(pos[0]);
+    int32_t cy = pos_to_cell_1d(pos[1]);
+    int32_t cz = pos_to_cell_1d(pos[2]);
+
+    // Check 3x3x3 neighborhood (27 cells)
+    for (int32_t dx = -1; dx <= 1; dx++) {
+        for (int32_t dy = -1; dy <= 1; dy++) {
+            for (int32_t dz = -1; dz <= 1; dz++) {
+                // Periodic wrap
+                int32_t ix = (cx + dx + n_cells_) % n_cells_;
+                int32_t iy = (cy + dy + n_cells_) % n_cells_;
+                int32_t iz = (cz + dz + n_cells_) % n_cells_;
+
+                size_t cell_idx = cell_3d_to_flat(ix, iy, iz);
+                const auto& cell = cells_[cell_idx];
+                candidates.insert(candidates.end(), cell.begin(), cell.end());
+            }
+        }
+    }
+
+    return candidates;
+}
+
+void SpatialGrid::clear() {
+    cells_.clear();
+}
+
+std::tuple<size_t, size_t, float> SpatialGrid::get_stats() const {
+    if (cells_.empty()) {
+        return {0, 0, 0.0f};
+    }
+
+    size_t min_count = std::numeric_limits<size_t>::max();
+    size_t max_count = 0;
+    size_t total = 0;
+
+    for (const auto& cell : cells_) {
+        min_count = std::min(min_count, cell.size());
+        max_count = std::max(max_count, cell.size());
+        total += cell.size();
+    }
+
+    float avg = static_cast<float>(total) / static_cast<float>(cells_.size());
+    return {min_count, max_count, avg};
+}
+
+int32_t SpatialGrid::pos_to_cell_1d(float x) const {
+    // Handle periodic boundaries
+    while (x < 0.0f) x += box_size_;
+    while (x >= box_size_) x -= box_size_;
+
+    int32_t cell = static_cast<int32_t>(x / cell_size_);
+    // Clamp to valid range (handles edge case where x == box_size_)
+    if (cell >= n_cells_) cell = n_cells_ - 1;
+    if (cell < 0) cell = 0;
+    return cell;
+}
+
+size_t SpatialGrid::cell_3d_to_flat(int32_t ix, int32_t iy, int32_t iz) const {
+    return static_cast<size_t>(ix) * n_cells_ * n_cells_ +
+           static_cast<size_t>(iy) * n_cells_ +
+           static_cast<size_t>(iz);
+}
+
+// =============================================================================
+// IndexedHaloCatalog implementation
+// =============================================================================
+
+IndexedHaloCatalog::IndexedHaloCatalog(HaloCatalogData catalog, float box_size, float cell_size)
+    : data(std::move(catalog)), grid(box_size, cell_size) {
+    grid.build(data);
+}
+
+// =============================================================================
 // PositionMatcher implementation
 // =============================================================================
 
@@ -428,6 +541,62 @@ PositionMatchResult PositionMatcher::find_best_match(
 
         if (score < result.score) {
             result.group_nr = static_cast<int32_t>(i);
+            result.score = score;
+            result.distance = dist;
+        }
+    }
+
+    return result;
+}
+
+PositionMatchResult PositionMatcher::find_best_match(
+    const std::array<float, 3>& target_pos,
+    float target_mass,
+    const IndexedHaloCatalog& indexed_catalog
+) const {
+    PositionMatchResult result;
+
+    if (!indexed_catalog.is_valid()) {
+        return result;
+    }
+
+    const auto& catalog = indexed_catalog.data;
+    const float min_mass = target_mass * config_.min_mass_ratio;
+
+    // Get candidate groups from spatial grid (only nearby cells)
+    auto candidates = indexed_catalog.grid.get_candidates(target_pos);
+
+    // Check only candidates
+    for (int32_t group_nr : candidates) {
+        std::array<float, 3> group_pos = {
+            catalog.pos_x[group_nr],
+            catalog.pos_y[group_nr],
+            catalog.pos_z[group_nr]
+        };
+
+        float dist = periodic_distance(target_pos, group_pos);
+
+        // Skip if outside search radius
+        if (dist >= config_.search_radius) {
+            continue;
+        }
+
+        float mass = catalog.m200c[group_nr];
+
+        // Skip if below minimum mass
+        if (mass <= min_mass) {
+            continue;
+        }
+
+        // Compute score
+        float mass_ratio = 0.0f;
+        if (target_mass > 0.0f && mass > 0.0f) {
+            mass_ratio = std::abs(std::log10(mass / target_mass));
+        }
+        float score = dist + config_.mass_weight * mass_ratio;
+
+        if (score < result.score) {
+            result.group_nr = group_nr;
             result.score = score;
             result.distance = dist;
         }
@@ -774,8 +943,28 @@ PositionBranchCatalogData extract_position_branches_parallel(
     if (strategy == PositionBranchExtractor::Strategy::PRELOAD_CATALOGS) {
         // Option B: Preload all catalogs, then parallelize matching
         std::cout << "Loading all halo catalogs..." << std::endl;
-        auto catalogs = reader.load_all_snapshots();
-        std::cout << "Loaded " << catalogs.size() << " snapshots" << std::endl;
+        auto raw_catalogs = reader.load_all_snapshots();
+        std::cout << "Loaded " << raw_catalogs.size() << " snapshots" << std::endl;
+
+        // Build spatial indices for fast neighbor lookup
+        std::cout << "Building spatial indices (cell_size=" << config.search_radius << " Mpc/h)..." << std::endl;
+        std::map<int32_t, IndexedHaloCatalog> catalogs;
+        for (auto& [snap, cat] : raw_catalogs) {
+            catalogs.emplace(
+                std::piecewise_construct,
+                std::forward_as_tuple(snap),
+                std::forward_as_tuple(std::move(cat), box_size, config.search_radius)
+            );
+        }
+
+        // Print index stats for first catalog
+        if (!catalogs.empty()) {
+            const auto& first_idx = catalogs.begin()->second;
+            auto [min_c, max_c, avg_c] = first_idx.grid.get_stats();
+            std::cout << "  Grid: " << first_idx.grid.n_cells_per_dim() << "^3 cells, "
+                      << "groups/cell: min=" << min_c << " max=" << max_c
+                      << " avg=" << avg_c << std::endl;
+        }
 
         PositionMatcher matcher(box_size, config);
 
@@ -793,13 +982,14 @@ PositionBranchCatalogData extract_position_branches_parallel(
                     continue;
                 }
 
-                const auto& start_catalog = start_it->second;
+                const auto& start_indexed = start_it->second;
+                const auto& start_catalog = start_indexed.data;
                 if (start.group_nr >= static_cast<int32_t>(start_catalog.n_groups())) {
                     completed++;
                     continue;
                 }
 
-                // Track branch using preloaded catalogs
+                // Track branch using preloaded indexed catalogs
                 std::vector<TrackedHaloInfo> branch;
 
                 // Create starting halo
@@ -824,28 +1014,30 @@ PositionBranchCatalogData extract_position_branches_parallel(
                 }
                 std::sort(backward_snaps.rbegin(), backward_snaps.rend());
 
-                // Track backward
+                // Track backward using indexed catalogs (O(k) per match instead of O(N))
                 std::array<float, 3> current_pos = start_halo.position;
                 float current_mass = start_halo.m200c;
 
                 for (int32_t snap : backward_snaps) {
-                    const auto& catalog = catalogs.at(snap);
-                    if (!catalog.is_valid()) continue;
+                    const auto& indexed_catalog = catalogs.at(snap);
+                    if (!indexed_catalog.is_valid()) continue;
 
-                    auto match = matcher.find_best_match(current_pos, current_mass, catalog);
+                    // Use fast spatial-indexed matching
+                    auto match = matcher.find_best_match(current_pos, current_mass, indexed_catalog);
                     if (!match.found()) continue;
 
+                    const auto& cat = indexed_catalog.data;
                     TrackedHaloInfo halo;
                     halo.snap_num = snap;
                     halo.group_nr = match.group_nr;
-                    halo.scale_factor = catalog.scale_factor;
+                    halo.scale_factor = cat.scale_factor;
                     halo.position = {
-                        catalog.pos_x[match.group_nr],
-                        catalog.pos_y[match.group_nr],
-                        catalog.pos_z[match.group_nr]
+                        cat.pos_x[match.group_nr],
+                        cat.pos_y[match.group_nr],
+                        cat.pos_z[match.group_nr]
                     };
-                    halo.m200c = catalog.m200c[match.group_nr];
-                    halo.r200c = catalog.r200c.empty() ? 0.0f : catalog.r200c[match.group_nr];
+                    halo.m200c = cat.m200c[match.group_nr];
+                    halo.r200c = cat.r200c.empty() ? 0.0f : cat.r200c[match.group_nr];
                     halo.match_score = match.score;
                     halo.match_distance = match.distance;
 
@@ -869,13 +1061,99 @@ PositionBranchCatalogData extract_position_branches_parallel(
             }
         }
 #else
-        // Single-threaded fallback
-        PositionBranchExtractor extractor(reader, box_size, config);
+        // Single-threaded fallback - build indexed catalogs
+        std::map<int32_t, IndexedHaloCatalog> indexed_catalogs;
+        for (auto& [snap, cat] : raw_catalogs) {
+            indexed_catalogs.emplace(
+                std::piecewise_construct,
+                std::forward_as_tuple(snap),
+                std::forward_as_tuple(std::move(cat), box_size, config.search_radius)
+            );
+        }
+        PositionMatcher single_matcher(box_size, config);
+
         for (size_t i = 0; i < n_branches; i++) {
             const auto& start = start_points[i];
-            all_branches[i] = extractor.track_branch_preloaded(
-                catalogs, start.snap_num, start.group_nr, true, false
-            );
+
+            // Find starting catalog
+            auto start_it = indexed_catalogs.find(start.snap_num);
+            if (start_it == indexed_catalogs.end() || !start_it->second.is_valid()) {
+                continue;
+            }
+
+            const auto& start_indexed = start_it->second;
+            const auto& start_catalog = start_indexed.data;
+            if (start.group_nr >= static_cast<int32_t>(start_catalog.n_groups())) {
+                continue;
+            }
+
+            std::vector<TrackedHaloInfo> branch;
+
+            // Create starting halo
+            TrackedHaloInfo start_halo;
+            start_halo.snap_num = start.snap_num;
+            start_halo.group_nr = start.group_nr;
+            start_halo.scale_factor = start_catalog.scale_factor;
+            start_halo.position = {
+                start_catalog.pos_x[start.group_nr],
+                start_catalog.pos_y[start.group_nr],
+                start_catalog.pos_z[start.group_nr]
+            };
+            start_halo.m200c = start_catalog.m200c[start.group_nr];
+            start_halo.r200c = start_catalog.r200c.empty() ? 0.0f
+                               : start_catalog.r200c[start.group_nr];
+            branch.push_back(start_halo);
+
+            // Get sorted snapshots
+            std::vector<int32_t> backward_snaps;
+            for (const auto& [snap, _] : indexed_catalogs) {
+                if (snap < start.snap_num) backward_snaps.push_back(snap);
+            }
+            std::sort(backward_snaps.rbegin(), backward_snaps.rend());
+
+            // Track backward
+            std::array<float, 3> current_pos = start_halo.position;
+            float current_mass = start_halo.m200c;
+
+            for (int32_t snap : backward_snaps) {
+                const auto& indexed_catalog = indexed_catalogs.at(snap);
+                if (!indexed_catalog.is_valid()) continue;
+
+                auto match = single_matcher.find_best_match(current_pos, current_mass, indexed_catalog);
+                if (!match.found()) continue;
+
+                const auto& cat = indexed_catalog.data;
+                TrackedHaloInfo halo;
+                halo.snap_num = snap;
+                halo.group_nr = match.group_nr;
+                halo.scale_factor = cat.scale_factor;
+                halo.position = {
+                    cat.pos_x[match.group_nr],
+                    cat.pos_y[match.group_nr],
+                    cat.pos_z[match.group_nr]
+                };
+                halo.m200c = cat.m200c[match.group_nr];
+                halo.r200c = cat.r200c.empty() ? 0.0f : cat.r200c[match.group_nr];
+                halo.match_score = match.score;
+                halo.match_distance = match.distance;
+
+                branch.push_back(halo);
+                current_pos = halo.position;
+                current_mass = halo.m200c;
+            }
+
+            // Sort by scale factor
+            std::sort(branch.begin(), branch.end(),
+                      [](const TrackedHaloInfo& a, const TrackedHaloInfo& b) {
+                          return a.scale_factor < b.scale_factor;
+                      });
+
+            all_branches[i] = std::move(branch);
+
+            if (progress_callback && (i + 1) % 100 == 0) {
+                progress_callback(i + 1, n_branches);
+            }
+        }
             if (progress_callback && (i + 1) % 100 == 0) {
                 progress_callback(i + 1, n_branches);
             }
