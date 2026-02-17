@@ -143,6 +143,25 @@ At a > 10, tetrahedra become highly elongated → radial streak artifacts in den
 ### Performance scaling
 ORIGAMI morphology is **memory-bandwidth limited**, not CPU-limited. More than 4-8 OpenMP threads provides no benefit (and may slow things down on macOS). The 3-5x pipeline speedup over Python comes from eliminating Python overhead in sorting/ID detection, not from parallel scaling of morphology.
 
+## Reference papers
+
+Local copies of key papers underpinning the techniques in this codebase, stored at `/Users/bryen/Downloads/tessera papers/`:
+
+```
+tessera papers/
+├── density distribution papers/
+│   └── Density Distribution of the Cosmological Matter Field.pdf
+├── origami_papers/
+│   ├── An Origami Approximation to the Cosmic Web.pdf
+│   ├── ORIGAMI - Delineating Halos Using Phase Space Fields.pdf
+│   ├── Origami Constraints on the Initial Conditions Arrangement of Dark Matter Caustics and Streams.pdf
+│   └── Tracing the Cosmic Web.pdf
+└── tesselation papers/
+    ├── A New Approach to Simulating Collisionless Dark Matter Fluids.pdf
+    ├── A Novel Approach to Visualizing Dark Matter Simulations.pdf
+    └── Tracing the Dark Matter Sheet in Phase Space.pdf
+```
+
 ## Platform notes
 
 - **macOS ARM64**: `__init__.py` auto-sets `OMP_NUM_THREADS=1` and `KMP_DUPLICATE_LIB_OK=TRUE` to work around OpenMP crashes. Tests set this in `conftest.py`.
