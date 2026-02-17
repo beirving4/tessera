@@ -60,6 +60,21 @@ Most manual testing and edge-case discovery has been done with these GADGET-4 sn
 
 Use these to verify new features work correctly at both epochs, especially since a=100 exercises late-time artifact edge cases (elongated tetrahedra, stream crossing).
 
+### Test halo catalogs
+
+FOF/Subfind catalogs associated with the test snapshots:
+
+- **a=1:** `/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/Uniform_L256_N256_primary_sandbox/gadget4/output/fof_subhalo_tab_034.hdf5`
+- **a=100:** `/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/Uniform_L256_N256_primary_sandbox/gadget4/output/fof_subhalo_tab_074.hdf5`
+
+### Test simulation output directory
+
+All snapshots, halo catalogs, and merger tree data live in:
+`/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/Uniform_L256_N256_primary_sandbox/gadget4/output/`
+
+- **Merger tree:** `trees.hdf5` in the above directory
+- Use the full snapshot and catalog series in this folder to test animation capabilities and halo evolutionary tracking via `MergerTree`/`HaloTracker`.
+
 ## Architecture
 
 ### Three-layer design
