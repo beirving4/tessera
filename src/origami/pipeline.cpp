@@ -6,6 +6,9 @@
 #include "origami/pipeline.h"
 #include "density/tetra_density.h"
 #include "stats/histogram.h"
+#ifdef TESSERA_HAS_VORO
+#include "density/voronoi_density.h"
+#endif
 
 #include <cmath>
 #include <algorithm>
@@ -604,6 +607,31 @@ OrigamiPipelineResult run_pipeline_impl(
     result.morphology_time_ms = get_time_ms() - t0;
 
     // === Optional: Density Field ===
+#ifdef TESSERA_HAS_VORO
+    if (config.use_voronoi_density) {
+        // Use Voronoi (VTFE) density: density_i = mean_density * V_mean / V_i
+        // Does NOT require Lagrangian sorting — works on Eulerian positions.
+        // Resolves high-density tail up to 10^4-10^6.
+        t0 = get_time_ms();
+
+        density::VoronoiDensityConfig voro_config;
+        voro_config.box_size = config.box_size;
+        voro_config.n_threads = config.n_threads;
+        voro_config.compute_volumes = false;  // Only need density
+
+        auto voro_result = density::compute_voronoi_density(
+            sorted_ptr, n_particles, voro_config);
+
+        result.particle_density = std::move(voro_result.density);
+        result.mean_density = voro_result.mean_density;
+        result.density_cells = 0;
+        result.density_cell_width = 0.0;
+
+        result.density_time_ms = get_time_ms() - t0;
+        result.sampling_time_ms = 0.0;
+
+    } else
+#endif
     if (config.use_direct_particle_density) {
         // Use direct particle density method (memory-efficient, no 3D grid)
         // This computes density directly at particle positions from tetrahedra volumes

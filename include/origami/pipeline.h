@@ -73,6 +73,16 @@ struct OrigamiPipelineConfig {
                                                ///< - But may differ slightly at distribution extremes
                                                ///< Default: false (use grid-based Monte Carlo)
 
+    bool use_voronoi_density = false;  ///< If true, use Voronoi (VTFE) density instead of
+                                       ///< tessellation-based methods. VTFE computes density from
+                                       ///< Voronoi cell volumes in Eulerian space:
+                                       ///<   density_i = mean_density * V_mean / V_i
+                                       ///< This resolves high-density tails up to 10^4-10^6,
+                                       ///< does NOT require Lagrangian sorting for density,
+                                       ///< and has no grid smoothing artifacts.
+                                       ///< Requires BUILD_WITH_VORO=ON.
+                                       ///< Default: false
+
     // === Optional: Grid deposition (set > 0 to enable) ===
     int grid_cells = 0;                 ///< 0 = skip, >0 = deposit morphology at this resolution
 

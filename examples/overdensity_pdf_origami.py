@@ -16,6 +16,7 @@ Usage:
     python overdensity_pdf_origami.py
     python overdensity_pdf_origami.py --jackknife  # With uncertainty estimation
     python overdensity_pdf_origami.py --jackknife --n-subboxes 3  # 27 sub-boxes
+    python overdensity_pdf_origami.py --jackknife --direct  # Direct particle density (no grid)
 """
 
 import os
@@ -36,10 +37,17 @@ SCRIPT_DIR = Path(__file__).parent.resolve()
 # Import shared utilities
 from tessera.utils import infer_grid_size, load_snapshot_h5py
 
-# Try to import local config, fall back to example paths
+# Import local config (use importlib to avoid collision with pip 'config' package)
 try:
-    from config import SNAPSHOT_BASE
-except ImportError:
+    import importlib.util
+    _config_path = SCRIPT_DIR / 'config.py'
+    if not _config_path.exists():
+        raise FileNotFoundError
+    _spec = importlib.util.spec_from_file_location('examples_config', str(_config_path))
+    _config = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_config)
+    SNAPSHOT_BASE = _config.SNAPSHOT_BASE
+except (FileNotFoundError, AttributeError):
     raise ImportError(
         "Please create examples/config.py with your local paths.\n"
         "Copy config.example.py to config.py and update the paths."
@@ -89,7 +97,8 @@ def load_snapshot(snapshot_name):
 
 def run_origami_with_pdf(positions, particle_ids, box_size, grid_size,
                          use_jackknife=False, n_subboxes_per_dim=2,
-                         output_cells=256, n_samples=100, n_bins=100):
+                         output_cells=256, n_samples=100, n_bins=100,
+                         use_direct=False, use_vtfe=False):
     """Run unified ORIGAMI pipeline with integrated PDF computation.
 
     Args:
@@ -102,18 +111,31 @@ def run_origami_with_pdf(positions, particle_ids, box_size, grid_size,
         output_cells: Density grid resolution
         n_samples: Monte Carlo samples for density
         n_bins: Number of histogram bins
+        use_direct: Use direct particle density (no grid smoothing)
+        use_vtfe: Use Voronoi (VTFE) density from Eulerian cell volumes
 
     Returns:
         result: Pipeline result with all outputs
         hist_results: Dict formatted for compatibility with save/plot functions
     """
-    print("  Running unified ORIGAMI pipeline with PDF computation...")
+    if use_vtfe:
+        mode_str = "Voronoi (VTFE) density"
+    elif use_direct:
+        mode_str = "direct particle density"
+    else:
+        mode_str = "grid-sampled density"
+    print(f"  Running unified ORIGAMI pipeline with PDF computation ({mode_str})...")
 
     # Configure pipeline
     config = ts.origami.PipelineConfig(grid_size, float(box_size))
-    config.density_output_cells = output_cells
+    if use_vtfe:
+        config.use_voronoi_density = True
+    elif use_direct:
+        config.use_direct_particle_density = True
+    else:
+        config.density_output_cells = output_cells
+        config.sample_density_at_particles = True
     config.density_n_samples = n_samples
-    config.sample_density_at_particles = True
     config.n_threads = 1
     config.n_split = 1
 
@@ -346,16 +368,23 @@ def create_figure(hist_results, snapshot_info, output_path):
     print(f"  Saved figure: {output_path}")
 
 
-def process_snapshot(snapshot_info, use_jackknife=False, n_subboxes_per_dim=2):
+def process_snapshot(snapshot_info, use_jackknife=False, n_subboxes_per_dim=2,
+                     use_direct=False, use_vtfe=False):
     """Process a single snapshot: compute ORIGAMI, density, and PDFs using unified pipeline.
 
     Args:
         snapshot_info: Dict with snapshot name and description
         use_jackknife: If True, use jackknife resampling for uncertainty estimation
         n_subboxes_per_dim: Sub-boxes per dimension for jackknife (2->8, 3->27)
+        use_direct: If True, use direct particle density (no grid smoothing)
+        use_vtfe: If True, use Voronoi (VTFE) density from Eulerian cell volumes
     """
     print(f"\n{'='*70}")
     print(f"Processing {snapshot_info['name']} ({snapshot_info['description']})")
+    if use_vtfe:
+        print(f"  [Voronoi (VTFE) density mode]")
+    elif use_direct:
+        print(f"  [Direct particle density mode]")
     if use_jackknife:
         print(f"  [Jackknife enabled: {n_subboxes_per_dim}^3 = {n_subboxes_per_dim**3} sub-boxes]")
     print('='*70)
@@ -377,7 +406,9 @@ def process_snapshot(snapshot_info, use_jackknife=False, n_subboxes_per_dim=2):
         n_subboxes_per_dim=n_subboxes_per_dim,
         output_cells=256,
         n_samples=100,
-        n_bins=100
+        n_bins=100,
+        use_direct=use_direct,
+        use_vtfe=use_vtfe,
     )
 
     # Store linear regime info in snapshot_info for saving
@@ -390,6 +421,10 @@ def process_snapshot(snapshot_info, use_jackknife=False, n_subboxes_per_dim=2):
 
     # Save to HDF5
     suffix = "_jackknife" if use_jackknife else ""
+    if use_vtfe:
+        suffix += "_vtfe"
+    elif use_direct:
+        suffix += "_direct"
     h5_path = SCRIPT_DIR / f"{snapshot_info['name']}_overdensity_pdf{suffix}.h5"
     save_to_hdf5(h5_path, hist_results, snapshot_info)
 
@@ -410,12 +445,18 @@ Examples:
     python overdensity_pdf_origami.py
     python overdensity_pdf_origami.py --jackknife
     python overdensity_pdf_origami.py --jackknife --n-subboxes 3
+    python overdensity_pdf_origami.py --jackknife --direct
         """
     )
     parser.add_argument('--jackknife', action='store_true',
                         help='Enable jackknife resampling for uncertainty estimation')
     parser.add_argument('--n-subboxes', type=int, default=2, dest='n_subboxes_per_dim',
                         help='Sub-boxes per dimension for jackknife (default: 2, giving 8 sub-boxes)')
+    parser.add_argument('--direct', action='store_true',
+                        help='Use direct particle density (no grid smoothing, resolves higher densities)')
+    parser.add_argument('--vtfe', action='store_true',
+                        help='Use Voronoi (VTFE) density from Eulerian cell volumes '
+                             '(resolves 10^4-10^6 overdensities)')
     return parser.parse_args()
 
 
@@ -424,6 +465,10 @@ def main():
 
     print("="*70)
     print("Overdensity PDF Analysis with ORIGAMI Morphology")
+    if args.vtfe:
+        print("  [Voronoi (VTFE) density mode]")
+    elif args.direct:
+        print("  [Direct particle density mode]")
     if args.jackknife:
         print(f"  [Jackknife enabled: {args.n_subboxes_per_dim}^3 = {args.n_subboxes_per_dim**3} sub-boxes]")
     print("="*70)
@@ -434,7 +479,9 @@ def main():
         results = process_snapshot(
             snap_info.copy(),
             use_jackknife=args.jackknife,
-            n_subboxes_per_dim=args.n_subboxes_per_dim
+            n_subboxes_per_dim=args.n_subboxes_per_dim,
+            use_direct=args.direct,
+            use_vtfe=args.vtfe,
         )
         all_results[snap_info['name']] = results
 

@@ -519,6 +519,11 @@ void bind_origami(py::module& m) {
         .def_readwrite("use_direct_particle_density", &OrigamiPipelineConfig::use_direct_particle_density,
             "Use direct volume-based density instead of grid-based Monte Carlo. "
             "More memory-efficient and faster, but may differ slightly at distribution extremes. Default: False.")
+        .def_readwrite("use_voronoi_density", &OrigamiPipelineConfig::use_voronoi_density,
+            "Use Voronoi (VTFE) density from Eulerian cell volumes. "
+            "Resolves high-density tail up to 10^4-10^6 without grid smoothing. "
+            "Does not require Lagrangian sorting for density computation. "
+            "Requires BUILD_WITH_VORO=ON. Default: False.")
         .def_readwrite("grid_cells", &OrigamiPipelineConfig::grid_cells)
         .def_readwrite("sample_density_at_particles", &OrigamiPipelineConfig::sample_density_at_particles)
         .def_readwrite("pdf_n_bins", &OrigamiPipelineConfig::pdf_n_bins,

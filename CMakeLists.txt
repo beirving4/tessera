@@ -11,6 +11,7 @@ option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 option(BUILD_TESTS "Build unit tests" OFF)
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(BUILD_WITH_HDF5 "Build with HDF5 support for GADGET-4" ON)
+option(BUILD_WITH_VORO "Build with Voronoi density support (voro++)" ON)
 
 # Find threads
 find_package(Threads REQUIRED)
@@ -35,6 +36,19 @@ if(APPLE)
     endif()
 endif()
 find_package(OpenMP)
+
+# macOS specific: Ensure C++ standard library headers are found
+# Must be before FetchContent so fetched libraries inherit these paths
+if(APPLE)
+    execute_process(
+        COMMAND xcrun --show-sdk-path
+        OUTPUT_VARIABLE MACOS_SDK_PATH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    if(EXISTS "${MACOS_SDK_PATH}/usr/include/c++/v1")
+        include_directories(SYSTEM "${MACOS_SDK_PATH}/usr/include/c++/v1")
+    endif()
+endif()
 
 # Find HDF5 (for GADGET-4 I/O)
 if(BUILD_WITH_HDF5)
@@ -61,16 +75,18 @@ if(BUILD_WITH_HDF5)
     FetchContent_MakeAvailable(HighFive)
 endif()
 
-# macOS specific: Ensure C++ standard library headers are found
-if(APPLE)
-    execute_process(
-        COMMAND xcrun --show-sdk-path
-        OUTPUT_VARIABLE MACOS_SDK_PATH
-        OUTPUT_STRIP_TRAILING_WHITESPACE
+# Fetch voro++ for Voronoi density computation
+if(BUILD_WITH_VORO)
+    include(FetchContent)
+    FetchContent_Declare(
+        voro
+        GIT_REPOSITORY https://github.com/chr1shr/voro.git
+        GIT_TAG master
     )
-    if(EXISTS "${MACOS_SDK_PATH}/usr/include/c++/v1")
-        include_directories(SYSTEM "${MACOS_SDK_PATH}/usr/include/c++/v1")
-    endif()
+    set(VORO_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(VORO_BUILD_CMD_LINE OFF CACHE BOOL "" FORCE)
+    set(VORO_ENABLE_DOXYGEN OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(voro)
 endif()
 
 # Include directories
@@ -91,6 +107,11 @@ if(NOT BUILD_WITH_HDF5)
     list(FILTER IO_SOURCES EXCLUDE REGEX "gadget4\\.cpp$")
     list(FILTER IO_SOURCES EXCLUDE REGEX "merger_tree\\.cpp$")
     list(FILTER IO_SOURCES EXCLUDE REGEX "position_tracker\\.cpp$")
+endif()
+
+# Remove voro++-dependent files when voro++ is disabled
+if(NOT BUILD_WITH_VORO)
+    list(FILTER DENSITY_SOURCES EXCLUDE REGEX "voronoi_density\\.cpp$")
 endif()
 
 set(ALL_SOURCES
@@ -126,6 +147,12 @@ endif()
 if(BUILD_WITH_HDF5)
     target_link_libraries(tessera_core PUBLIC HighFive)
     target_compile_definitions(tessera_core PUBLIC TESSERA_HAS_HDF5)
+endif()
+
+# Link voro++ if enabled
+if(BUILD_WITH_VORO)
+    target_link_libraries(tessera_core PUBLIC voro++)
+    target_compile_definitions(tessera_core PUBLIC TESSERA_HAS_VORO)
 endif()
 
 # Set compiler flags
@@ -178,6 +205,7 @@ if(BUILD_PYTHON_BINDINGS)
         python/bindings/halo_bindings.cpp
         python/bindings/stats_bindings.cpp
         python/bindings/origami_bindings.cpp
+        python/bindings/voronoi_density_bindings.cpp
     )
     target_link_libraries(_tessera PRIVATE tessera_core)
     target_include_directories(_tessera PRIVATE ${NUMPY_INCLUDE_DIR})

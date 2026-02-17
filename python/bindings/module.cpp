@@ -16,6 +16,7 @@ void bind_cosmo(py::module& m);
 void bind_halo(py::module& m);
 void bind_stats(py::module_& m);
 void bind_origami(py::module& m);
+void bind_voronoi_density(py::module& m);
 
 PYBIND11_MODULE(_tessera, m) {
     m.doc() = R"pbdoc(
@@ -52,6 +53,7 @@ PYBIND11_MODULE(_tessera, m) {
     bind_density(density_m);
     bind_tetra_density(density_m);  // Add tessellation functions to density module
     bind_sph(density_m);  // Add SPH rendering to density module
+    bind_voronoi_density(density_m);  // Add Voronoi (VTFE) density to density module
     bind_io(io_m);
     bind_render(render_m);
     bind_cosmo(cosmo_m);
