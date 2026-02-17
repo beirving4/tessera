@@ -51,6 +51,15 @@ python -m pytest tests/ -v --ignore=tests/test_io.py -k "not requires_tree_file"
 **Markers:** `@pytest.mark.requires_hdf5`, `@pytest.mark.requires_tree_file`
 **Environment:** `TESSERA_TEST_TREE_FILE` — path to a merger tree HDF5 file for I/O tests.
 
+### Test snapshots
+
+Most manual testing and edge-case discovery has been done with these GADGET-4 snapshots (L=256 Mpc/h, N=256³):
+
+- **Present day (a=1):** `/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/Uniform_L256_N256_primary_sandbox/gadget4/output/snapshot_034.hdf5`
+- **Far future (a=100):** `/Users/bryen/Documents/Physics Research/Stanford/asymptotic_assembly/Uniform_L256_N256_primary_sandbox/gadget4/output/snapshot_074.hdf5`
+
+Use these to verify new features work correctly at both epochs, especially since a=100 exercises late-time artifact edge cases (elongated tetrahedra, stream crossing).
+
 ## Architecture
 
 ### Three-layer design
