@@ -118,6 +118,31 @@ Both expose the same submodules: `ts.density`, `ts.origami`, `ts.stats`, `ts.io`
 
 Positions are `np.ndarray` of shape `(N, 3)` with dtype `float64` and C-contiguous layout (`np.ascontiguousarray`). Particle IDs are `int64`. Results come back as flat arrays that need reshaping (e.g., `result.density` → `.reshape(256, 256, 256)` for 3D).
 
+## Important gotchas
+
+### `run_pipeline()` modifies input arrays
+`ts.origami.run_pipeline()` sorts positions **in-place** to save memory. Use `run_pipeline_safe()` if the original array must be preserved.
+
+### GADGET-4 particle ID encoding
+Particle IDs encode Lagrangian grid positions. GADGET-4 default is z-major: `ID = 1 + z + y*N + x*N²`. The pipeline auto-detects ordering via `detect_id_ordering()`, but this matters when writing manual sorting code.
+
+### Late-time tessellation artifacts
+At a > 10, tetrahedra become highly elongated → radial streak artifacts in density fields. These artifacts primarily affect **zoomed-in halo renderings** where particle counts and distribution are sparse. Full-box computations (thin-slice projections, 3D density fields, etc.) with many particles are largely unaffected. Four mitigation approaches exist for the sparse-region case (see `docs/artifact_mitigation.md`):
+- a < 5: pure tessellation works fine
+- 5 ≤ a < 10: tessellation + geometry filtering
+- a ≥ 10: use SPH renderer (`ts.density.render_sph_density_2d`) — no Lagrangian sorting needed, 15-30x faster than Python alternatives
+
+### Merger tree index pitfalls
+- `StartOffset` in `TreeTable` is **global** even in split files — do not add file-based offsets
+- `TreeID` values do **not** match array indices — use binary search on `StartOffset` ranges
+- Use `TreeMainProgenitor` (not `TreeFirstProgenitor`) for tracking halo mass evolution; they diverge during mergers
+
+### Chunked extraction is broken
+`extract_all_branches_parallel` with `chunk_size > 0` is currently broken (see `docs/dev/chunked_extraction_bugs.md`). Normal mode (`chunk_size=0`) works correctly. Low priority since it only affects very large tree files (60-100 GB) on memory-constrained systems.
+
+### Performance scaling
+ORIGAMI morphology is **memory-bandwidth limited**, not CPU-limited. More than 4-8 OpenMP threads provides no benefit (and may slow things down on macOS). The 3-5x pipeline speedup over Python comes from eliminating Python overhead in sorting/ID detection, not from parallel scaling of morphology.
+
 ## Platform notes
 
 - **macOS ARM64**: `__init__.py` auto-sets `OMP_NUM_THREADS=1` and `KMP_DUPLICATE_LIB_OK=TRUE` to work around OpenMP crashes. Tests set this in `conftest.py`.
