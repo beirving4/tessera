@@ -29,7 +29,10 @@ from datetime import datetime
 
 # Set environment variables before any imports
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
-os.environ['OMP_NUM_THREADS'] = '1'
+# Let C++ code manage thread count (auto-detect, capped at 8)
+# The __init__.py sets OMP_NUM_THREADS=1 on macOS ARM64 by default,
+# but density computation benefits from parallelism.
+os.environ['OMP_NUM_THREADS'] = '4'
 
 # Configuration
 SCRIPT_DIR = Path(__file__).parent.resolve()
@@ -53,13 +56,13 @@ except (FileNotFoundError, AttributeError):
         "Copy config.example.py to config.py and update the paths."
     )
 
-# Import tessera (try installed package first, then development build)
+# Import tessera (try package first, then development build)
 try:
-    import _tessera as ts
+    import tessera as ts
 except ImportError:
     REPO_ROOT = SCRIPT_DIR.parent
     sys.path.insert(0, str(REPO_ROOT / 'build'))
-    import _tessera as ts
+    import tessera as ts
 
 # Snapshots to analyze
 SNAPSHOTS = [
@@ -98,7 +101,8 @@ def load_snapshot(snapshot_name):
 def run_origami_with_pdf(positions, particle_ids, box_size, grid_size,
                          use_jackknife=False, n_subboxes_per_dim=2,
                          output_cells=256, n_samples=100, n_bins=100,
-                         use_direct=False, use_vtfe=False):
+                         use_direct=False, use_vtfe=False, use_cic=False,
+                         cic_cells=256):
     """Run unified ORIGAMI pipeline with integrated PDF computation.
 
     Args:
@@ -113,12 +117,16 @@ def run_origami_with_pdf(positions, particle_ids, box_size, grid_size,
         n_bins: Number of histogram bins
         use_direct: Use direct particle density (no grid smoothing)
         use_vtfe: Use Voronoi (VTFE) density from Eulerian cell volumes
+        use_cic: Use CIC (Cloud-in-Cell) grid density
+        cic_cells: Grid resolution for CIC density
 
     Returns:
         result: Pipeline result with all outputs
         hist_results: Dict formatted for compatibility with save/plot functions
     """
-    if use_vtfe:
+    if use_cic:
+        mode_str = f"CIC density ({cic_cells}^3 grid)"
+    elif use_vtfe:
         mode_str = "Voronoi (VTFE) density"
     elif use_direct:
         mode_str = "direct particle density"
@@ -128,7 +136,10 @@ def run_origami_with_pdf(positions, particle_ids, box_size, grid_size,
 
     # Configure pipeline
     config = ts.origami.PipelineConfig(grid_size, float(box_size))
-    if use_vtfe:
+    if use_cic:
+        config.use_cic_density = True
+        config.cic_output_cells = cic_cells
+    elif use_vtfe:
         config.use_voronoi_density = True
     elif use_direct:
         config.use_direct_particle_density = True
@@ -136,7 +147,6 @@ def run_origami_with_pdf(positions, particle_ids, box_size, grid_size,
         config.density_output_cells = output_cells
         config.sample_density_at_particles = True
     config.density_n_samples = n_samples
-    config.n_threads = 1
     config.n_split = 1
 
     # PDF configuration
@@ -369,7 +379,7 @@ def create_figure(hist_results, snapshot_info, output_path):
 
 
 def process_snapshot(snapshot_info, use_jackknife=False, n_subboxes_per_dim=2,
-                     use_direct=False, use_vtfe=False):
+                     use_direct=False, use_vtfe=False, use_cic=False, cic_cells=256):
     """Process a single snapshot: compute ORIGAMI, density, and PDFs using unified pipeline.
 
     Args:
@@ -378,10 +388,14 @@ def process_snapshot(snapshot_info, use_jackknife=False, n_subboxes_per_dim=2,
         n_subboxes_per_dim: Sub-boxes per dimension for jackknife (2->8, 3->27)
         use_direct: If True, use direct particle density (no grid smoothing)
         use_vtfe: If True, use Voronoi (VTFE) density from Eulerian cell volumes
+        use_cic: If True, use CIC (Cloud-in-Cell) grid density
+        cic_cells: Grid resolution for CIC density
     """
     print(f"\n{'='*70}")
     print(f"Processing {snapshot_info['name']} ({snapshot_info['description']})")
-    if use_vtfe:
+    if use_cic:
+        print(f"  [CIC density mode ({cic_cells}^3 grid)]")
+    elif use_vtfe:
         print(f"  [Voronoi (VTFE) density mode]")
     elif use_direct:
         print(f"  [Direct particle density mode]")
@@ -409,6 +423,8 @@ def process_snapshot(snapshot_info, use_jackknife=False, n_subboxes_per_dim=2,
         n_bins=100,
         use_direct=use_direct,
         use_vtfe=use_vtfe,
+        use_cic=use_cic,
+        cic_cells=cic_cells,
     )
 
     # Store linear regime info in snapshot_info for saving
@@ -421,7 +437,9 @@ def process_snapshot(snapshot_info, use_jackknife=False, n_subboxes_per_dim=2,
 
     # Save to HDF5
     suffix = "_jackknife" if use_jackknife else ""
-    if use_vtfe:
+    if use_cic:
+        suffix += "_cic"
+    elif use_vtfe:
         suffix += "_vtfe"
     elif use_direct:
         suffix += "_direct"
@@ -457,6 +475,10 @@ Examples:
     parser.add_argument('--vtfe', action='store_true',
                         help='Use Voronoi (VTFE) density from Eulerian cell volumes '
                              '(resolves 10^4-10^6 overdensities)')
+    parser.add_argument('--cic', action='store_true',
+                        help='Use CIC (Cloud-in-Cell) grid density (fastest, grid-smoothed)')
+    parser.add_argument('--cic-cells', type=int, default=256,
+                        help='Grid resolution for CIC density (default: 256)')
     return parser.parse_args()
 
 
@@ -465,7 +487,9 @@ def main():
 
     print("="*70)
     print("Overdensity PDF Analysis with ORIGAMI Morphology")
-    if args.vtfe:
+    if args.cic:
+        print(f"  [CIC density mode ({args.cic_cells}^3 grid)]")
+    elif args.vtfe:
         print("  [Voronoi (VTFE) density mode]")
     elif args.direct:
         print("  [Direct particle density mode]")
@@ -482,6 +506,8 @@ def main():
             n_subboxes_per_dim=args.n_subboxes_per_dim,
             use_direct=args.direct,
             use_vtfe=args.vtfe,
+            use_cic=args.cic,
+            cic_cells=args.cic_cells,
         )
         all_results[snap_info['name']] = results
 

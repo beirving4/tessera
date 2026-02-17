@@ -5,6 +5,7 @@
 
 #include "origami/pipeline.h"
 #include "density/tetra_density.h"
+#include "density/cic_density.h"
 #include "stats/histogram.h"
 #ifdef TESSERA_HAS_VORO
 #include "density/voronoi_density.h"
@@ -607,6 +608,32 @@ OrigamiPipelineResult run_pipeline_impl(
     result.morphology_time_ms = get_time_ms() - t0;
 
     // === Optional: Density Field ===
+    if (config.use_cic_density) {
+        // Use CIC (Cloud-in-Cell) grid density: fastest method, grid-smoothed.
+        // Does NOT require Lagrangian sorting — works on Eulerian positions.
+        t0 = get_time_ms();
+
+        density::CICDensityConfig cic_config;
+        cic_config.box_size = config.box_size;
+        cic_config.output_cells = config.cic_output_cells;
+        cic_config.particle_mass = config.particle_mass;
+        cic_config.n_threads = config.n_threads;
+        cic_config.periodic = config.density_periodic;
+        cic_config.sample_at_particles = true;
+
+        auto cic_result = density::compute_cic_density(
+            sorted_ptr, n_particles, cic_config);
+
+        result.particle_density = std::move(cic_result.particle_density);
+        result.density_3d = std::move(cic_result.grid_density);
+        result.mean_density = cic_result.mean_density;
+        result.density_cells = cic_result.output_cells;
+        result.density_cell_width = cic_result.cell_width;
+
+        result.density_time_ms = get_time_ms() - t0;
+        result.sampling_time_ms = 0.0;
+
+    } else
 #ifdef TESSERA_HAS_VORO
     if (config.use_voronoi_density) {
         // Use Voronoi (VTFE) density: density_i = mean_density * V_mean / V_i

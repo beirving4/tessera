@@ -206,6 +206,7 @@ if(BUILD_PYTHON_BINDINGS)
         python/bindings/stats_bindings.cpp
         python/bindings/origami_bindings.cpp
         python/bindings/voronoi_density_bindings.cpp
+        python/bindings/cic_density_bindings.cpp
     )
     target_link_libraries(_tessera PRIVATE tessera_core)
     target_include_directories(_tessera PRIVATE ${NUMPY_INCLUDE_DIR})

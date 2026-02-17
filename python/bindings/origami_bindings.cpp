@@ -524,6 +524,12 @@ void bind_origami(py::module& m) {
             "Resolves high-density tail up to 10^4-10^6 without grid smoothing. "
             "Does not require Lagrangian sorting for density computation. "
             "Requires BUILD_WITH_VORO=ON. Default: False.")
+        .def_readwrite("use_cic_density", &OrigamiPipelineConfig::use_cic_density,
+            "Use CIC (Cloud-in-Cell) grid density. Fastest method but grid-smoothed "
+            "(smoothing scale = cell_width). Does not require Lagrangian sorting. "
+            "Reference: Klypin et al. 2018. Default: False.")
+        .def_readwrite("cic_output_cells", &OrigamiPipelineConfig::cic_output_cells,
+            "Grid resolution for CIC density (cells per dimension). Default: 256.")
         .def_readwrite("grid_cells", &OrigamiPipelineConfig::grid_cells)
         .def_readwrite("sample_density_at_particles", &OrigamiPipelineConfig::sample_density_at_particles)
         .def_readwrite("pdf_n_bins", &OrigamiPipelineConfig::pdf_n_bins,

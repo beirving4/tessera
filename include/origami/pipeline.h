@@ -83,6 +83,15 @@ struct OrigamiPipelineConfig {
                                        ///< Requires BUILD_WITH_VORO=ON.
                                        ///< Default: false
 
+    bool use_cic_density = false;      ///< If true, use CIC (Cloud-in-Cell) grid density.
+                                       ///< Deposits mass onto a regular grid with trilinear weights,
+                                       ///< then samples back at particle positions.
+                                       ///< Fastest method but grid-smoothed (smoothing scale = cell_width).
+                                       ///< Does NOT require Lagrangian sorting.
+                                       ///< Reference: Klypin et al. 2018, MNRAS 478, 4602.
+                                       ///< Default: false
+    int cic_output_cells = 256;        ///< Grid resolution for CIC density (cells per dimension)
+
     // === Optional: Grid deposition (set > 0 to enable) ===
     int grid_cells = 0;                 ///< 0 = skip, >0 = deposit morphology at this resolution
 
