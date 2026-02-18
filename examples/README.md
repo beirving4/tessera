@@ -157,6 +157,43 @@ python examples/overdensity_pdf_origami.py snapshot_034.hdf5 -o pdf.h5 --jackkni
 python examples/origami_slice_render.py snapshot_034.hdf5 --plot morphology.png
 ```
 
+### Power Spectrum & PDF Analysis
+
+#### `power_spectrum_analysis.py`
+
+Full P(k) and smoothed-PDF pipeline:
+- CIC density → overdensity → P(k) with CIC deconvolution
+- Comparison with GADGET-4 built-in P(k)
+- Fourier-space smoothing at multiple scales
+- σ_R² cross-check (field variance vs P(k) integral)
+- 3-panel diagnostic figure
+
+```bash
+python examples/power_spectrum_analysis.py
+python examples/power_spectrum_analysis.py --snapshot snapshot_074
+python examples/power_spectrum_analysis.py --cic-cells 128
+```
+
+#### `pdf_resolution_comparison.py`
+
+CIC PDF resolution dependence study:
+- Compares overdensity PDFs at N_grid = 64, 128, 256
+- Quantifies empty cell fractions and discreteness artifacts
+- Side-by-side comparison at a=1 and a=100
+
+```bash
+python examples/pdf_resolution_comparison.py
+```
+
+#### `density_method_comparison.py`
+
+Compare CIC, DTFE, and VTFE density estimation methods on the same snapshot.
+
+```bash
+python examples/density_method_comparison.py
+python examples/density_method_comparison.py --snapshot snapshot_074
+```
+
 ### Time-Series Visualization
 
 #### `time_series_pipeline.py`

@@ -75,6 +75,25 @@ from .hybrid_density import (
     compare_methods,
 )
 
+from .fourier import (
+    # Fourier-space operations
+    smooth_field_fourier,
+    compute_power_spectrum,
+    sigma_R_squared_from_pk,
+    sigma_R_squared_from_field,
+    gaussian_window,
+    tophat_window,
+    # CIC grid configuration
+    recommend_cic_config,
+)
+
+from .gadget4_pk import (
+    # GADGET-4 power spectrum reader
+    read_gadget4_powerspec,
+    read_gadget4_colossus_pk,
+    get_powerspec_paths,
+)
+
 __all__ = [
     # Snapshot loading
     'load_snapshot',
@@ -120,4 +139,17 @@ __all__ = [
     'recommend_method',
     'compute_density_auto',
     'compare_methods',
+    # Fourier-space operations
+    'smooth_field_fourier',
+    'compute_power_spectrum',
+    'sigma_R_squared_from_pk',
+    'sigma_R_squared_from_field',
+    'gaussian_window',
+    'tophat_window',
+    # GADGET-4 power spectrum reader
+    'read_gadget4_powerspec',
+    'read_gadget4_colossus_pk',
+    'get_powerspec_paths',
+    # CIC grid configuration
+    'recommend_cic_config',
 ]

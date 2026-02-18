@@ -294,6 +294,9 @@ The `examples/` directory contains complete scripts demonstrating various use ca
 | `overdensity_pdf_origami.py` | Overdensity distributions by morphological class (supports `--jackknife`) |
 | `origami_slice_render.py` | 2D thin-slice visualization of ORIGAMI morphology |
 | `origami_slice_animation.py` | Animated ORIGAMI morphology evolution |
+| `density_method_comparison.py` | CIC vs DTFE vs VTFE density estimation comparison |
+| `power_spectrum_analysis.py` | P(k) computation, GADGET-4 comparison, Fourier smoothing, σ_R² cross-check |
+| `pdf_resolution_comparison.py` | CIC PDF resolution dependence across grid sizes |
 | `time_series_origami.py` | ORIGAMI time-series with density-blended coloring |
 | `time_series_pipeline.py` | Complete panoramic time-series visualization |
 | `generate_projections.py` | Generate 2D density projections from snapshots |
@@ -480,6 +483,19 @@ from tessera.utils import load_snapshot, sort_positions_lagrangian, infer_grid_s
 - `compute_density_auto()`: Auto-select method based on scale factor
 - `HybridDensityConfig`: Configuration for hybrid density computation
 
+**Fourier-space operations:**
+- `smooth_field_fourier()`: FFT-based smoothing of 3D periodic grids (Gaussian or top-hat)
+- `compute_power_spectrum()`: Spherically-averaged P(k) with CIC deconvolution and shot noise subtraction
+- `sigma_R_squared_from_pk()`: Variance σ_R² from P(k) integration with effective window
+- `sigma_R_squared_from_field()`: Direct field variance measurement
+- `recommend_cic_config()`: Auto-select CIC grid resolution based on Klypin et al. (2018) constraints
+- `gaussian_window()`, `tophat_window()`: Fourier-space window functions
+
+**GADGET-4 power spectrum reader:**
+- `read_gadget4_powerspec()`: Parse and stitch folded GADGET-4 `powerspec_NNN.txt` files
+- `read_gadget4_colossus_pk()`: Read 2-column `for_colossus_NNN.txt` log-space format
+- `get_powerspec_paths()`: Find all power spectrum files in a directory
+
 **Halo evolution (re-exports from `ts.io`):**
 - `MergerTree`: C++ merger tree reader (high-performance, lazy loading)
 - `HaloTracker`: Branch tracing with prefetching
@@ -530,6 +546,7 @@ See `tests/origami_validation/` for validation scripts and results.
 - **Phase-space tessellation**: Abel, T., Hahn, O., & Kaehler, R. 2012, MNRAS, 427, 61 - [Tracing the dark matter sheet in phase space](https://academic.oup.com/mnras/article/427/1/61/1032914)
 - **Visualization**: Kaehler, R., Hahn, O., & Abel, T. 2012, IEEE TVCG, 18, 2078 - [A Novel Approach to Visualizing Dark Matter Simulations](https://ieeexplore.ieee.org/document/6327223)
 - **Sheet simulation**: Hahn, O., Abel, T., & Kaehler, R. 2013, MNRAS, 434, 1171 - [A new approach to simulating collisionless dark matter fluids](https://academic.oup.com/mnras/article/434/2/1171/1064908)
+- **Density PDF**: Klypin, A., Prada, F., Betancort-Rijo, J., & Albareti, F.D. 2018, MNRAS, 481, 4588 - [Density distribution of the cosmological matter field](https://academic.oup.com/mnras/article/481/4/4588/5107359)
 
 ## License
 
