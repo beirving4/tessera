@@ -150,6 +150,8 @@ At a > 10, tetrahedra become highly elongated → radial streak artifacts in den
 ### Performance scaling
 ORIGAMI morphology is **memory-bandwidth limited**, not CPU-limited. More than 4-8 OpenMP threads provides no benefit (and may slow things down on macOS). The 3-5x pipeline speedup over Python comes from eliminating Python overhead in sorting/ID detection, not from parallel scaling of morphology.
 
+Voronoi (VTFE) density is **CPU-limited** and scales well with threads. Each thread gets its own `voro_compute` object (~108 KB). On 256³ particles: 3.6x at 4 threads, 5.8x at 8 threads (a=1); 3.8x at 4 threads, 6.9x at 8 threads (a=100). Use `n_threads=0` for auto-detect or set explicitly.
+
 ## Reference papers
 
 Local copies of key papers underpinning the techniques in this codebase, stored at `/Users/bryen/Downloads/tessera papers/`:
@@ -171,7 +173,6 @@ tessera papers/
 
 ## Platform notes
 
-- **macOS ARM64**: `__init__.py` auto-sets `OMP_NUM_THREADS=1` and `KMP_DUPLICATE_LIB_OK=TRUE` to work around OpenMP crashes. Tests set this in `conftest.py`.
+- **macOS ARM64 OpenMP**: The build system (`CMakeLists.txt`) prefers conda's libomp when `$CONDA_PREFIX` is set, falling back to Homebrew. This avoids the dual-libomp crash that occurs when tessera loads Homebrew's libomp while numpy/scipy load conda's copy. `__init__.py` detects the actual linkage at runtime via `otool` and only forces `OMP_NUM_THREADS=1` if a conflict is found. Always set `KMP_DUPLICATE_LIB_OK=TRUE` on macOS as a safety net (done automatically by `__init__.py` and `conftest.py`).
 - **HDF5 conflicts**: On macOS, h5py and tessera's HighFive can conflict. The package provides `tessera.check_h5py_compatibility()` for diagnosis.
-- **CMake on macOS**: OpenMP detection requires Homebrew libomp; `CMakeLists.txt` handles this with `brew --prefix libomp`.
 - **Build option `BUILD_WITH_HDF5=OFF`**: Disables GADGET-4 I/O and merger tree code for environments without HDF5.

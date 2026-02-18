@@ -152,6 +152,57 @@ For significant parallel speedup in morphology, these larger changes would be ne
    - More threads may actually slow down on some systems
    - The 4.64x pipeline speedup comes from eliminating Python overhead, not from parallel scaling
 
+## Voronoi (VTFE) Density Parallel Scaling
+
+**Date:** February 2025
+**System:** macOS (Apple Silicon M-series, conda libomp)
+**Grid Size:** N = 256³ = 16,777,216 particles
+
+Unlike ORIGAMI morphology, the Voronoi density computation is **CPU-limited** (not memory-bandwidth limited) and scales well with threads. Each thread gets its own `voro_compute` object with private mask/queue buffers (~108 KB per thread).
+
+### Thread-Safety Implementation
+
+Three fixes enable safe parallel Voronoi computation:
+1. **Pre-build periodic images**: `create_all_images()` before the parallel region makes `create_periodic_image()` a no-op during `compute_cell()`
+2. **Per-thread `voro_compute` objects**: Each thread owns private `mask[]`/`qu[]` buffers instead of sharing the container's internal `voro_compute` member
+3. **Block coordinates from `c_loop`**: Captured during sequential iteration, passed to per-thread `compute_cell()`
+
+### Scaling Results
+
+#### snapshot_034 (a=1, present day)
+
+| Threads | Time | Speedup | Efficiency |
+|---------|------|---------|------------|
+| 1 | 705.6s | 1.0x | 100% |
+| 2 | 365.2s | 1.9x | 97% |
+| 4 | 194.4s | 3.6x | 91% |
+| 8 | 121.7s | 5.8x | 72% |
+
+#### snapshot_074 (a=100, far future)
+
+| Threads | Time | Speedup | Efficiency |
+|---------|------|---------|------------|
+| 1 | 3200.7s | 1.0x | 100% |
+| 2 | 1619.9s | 2.0x | 99% |
+| 4 | 834.4s | 3.8x | 96% |
+| 8 | 465.6s | 6.9x | 86% |
+
+Volume conservation is exact across all thread counts (`vol_sum/box_vol = 1.00000000`).
+
+### Why Voronoi Scales Better Than ORIGAMI
+
+1. **CPU-bound work**: Each `compute_cell()` call does substantial geometric computation (plane cutting, vertex enumeration) — microseconds per cell, not memory lookups
+2. **Independent cells**: Each particle's Voronoi cell is computed independently with no data dependencies between cells
+3. **No shared writes**: Each thread writes to a distinct `volumes[loc.id]` element (particle IDs are unique)
+4. **a=100 scales better**: Longer per-cell compute time (extreme density contrasts, elongated cells) means more useful work relative to scheduling overhead
+
+### macOS OpenMP Fix
+
+The previous macOS ARM64 `OMP_NUM_THREADS=1` workaround was a blanket disable caused by loading two different libomp copies (Homebrew + conda). The fix:
+- `CMakeLists.txt` now prefers conda's libomp (`$CONDA_PREFIX/lib/libomp.dylib`) when building inside a conda environment
+- `__init__.py` detects actual libomp conflicts at runtime and only restricts threading when necessary
+- Result: **full multi-threading now works on macOS ARM64**
+
 ## Benchmark Commands
 
 ```bash
