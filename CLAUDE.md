@@ -2,6 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Environment
+
+Use the `astro_312` conda environment (Python 3.12, located at `/Users/bryen/miniconda3/envs/astro_312`) for running tessera:
+```bash
+conda activate astro_312
+```
+
 ## Build & Install
 
 ```bash

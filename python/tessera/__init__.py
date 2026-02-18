@@ -45,20 +45,54 @@ import platform as _platform
 import sys as _sys
 
 
+def _has_libomp_conflict():
+    """Check if tessera's native module links a different libomp than the process.
+
+    On macOS, loading two libomp copies (e.g. Homebrew + conda) causes crashes.
+    If tessera was built against conda's libomp (the same one numpy/scipy use),
+    multi-threading is safe and we should NOT force OMP_NUM_THREADS=1.
+    """
+    try:
+        import subprocess as _sp
+        _so_path = _os.path.join(_os.path.dirname(__file__), "_tessera" +
+                                  _os.path.splitext(__import__('importlib').util
+                                  .find_spec("_tessera").origin)[1]
+                                  if __import__('importlib').util.find_spec("_tessera")
+                                  else "")
+        if not _os.path.isfile(_so_path):
+            # Installed as top-level _tessera, check site-packages
+            import importlib.util
+            spec = importlib.util.find_spec("_tessera")
+            _so_path = spec.origin if spec else ""
+        if not _so_path or not _os.path.isfile(_so_path):
+            return True  # Can't check, assume conflict for safety
+        result = _sp.run(["otool", "-L", _so_path], capture_output=True, text=True)
+        for line in result.stdout.splitlines():
+            if "libomp" in line:
+                # Extract the dylib path
+                path = line.strip().split()[0]
+                conda_prefix = _os.environ.get("CONDA_PREFIX", "")
+                if conda_prefix and path.startswith(conda_prefix):
+                    return False  # Same libomp as conda — no conflict
+                if "/homebrew/" in path.lower() or "/opt/homebrew/" in path:
+                    return True   # Homebrew libomp — likely conflicts with conda
+                return True  # Unknown libomp — assume conflict
+        return False  # No libomp linked (OpenMP disabled) — no conflict
+    except Exception:
+        return True  # Can't determine — assume conflict for safety
+
+
 def _configure_platform():
     """
     Configure environment for platform-specific issues.
 
-    On macOS with Apple Silicon, there are known issues with OpenMP that can
-    cause crashes during multi-threaded density computations. This function
-    automatically sets environment variables to work around these issues.
+    On macOS with Apple Silicon, crashes can occur when multiple libomp copies
+    are loaded (e.g. Homebrew's for tessera + conda's for numpy). If tessera
+    was built against conda's libomp (matching numpy/scipy), multi-threading
+    is safe and OMP_NUM_THREADS is left unrestricted.
 
-    Issues addressed:
-    1. OpenMP thread crashes on Apple Silicon: Set OMP_NUM_THREADS=1
-    2. Duplicate OpenMP library conflicts: Set KMP_DUPLICATE_LIB_OK=TRUE
-
-    These settings are only applied on macOS ARM64 and only if the user hasn't
-    already set them explicitly.
+    Only when a libomp conflict is detected does this force OMP_NUM_THREADS=1.
+    KMP_DUPLICATE_LIB_OK=TRUE is always set on macOS ARM64 as a safety net.
     """
     system = _platform.system()
     machine = _platform.machine()
@@ -67,16 +101,14 @@ def _configure_platform():
     is_macos_arm64 = (system == "Darwin" and machine == "arm64")
 
     if is_macos_arm64:
-        # Fix OpenMP crashes on Apple Silicon
-        # Only set if not already configured by user
-        if "OMP_NUM_THREADS" not in _os.environ:
-            _os.environ["OMP_NUM_THREADS"] = "1"
-
         # Fix duplicate OpenMP library conflicts
-        # This occurs when multiple libraries (e.g., numpy, tessera) link different
-        # versions of libomp
         if "KMP_DUPLICATE_LIB_OK" not in _os.environ:
             _os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+        # Only force single-thread if a libomp conflict is detected
+        if "OMP_NUM_THREADS" not in _os.environ:
+            if _has_libomp_conflict():
+                _os.environ["OMP_NUM_THREADS"] = "1"
 
         return True  # Platform workarounds applied
 

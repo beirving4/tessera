@@ -26,7 +26,12 @@ import numpy as np
 
 # Set environment variables before any imports
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
-os.environ['OMP_NUM_THREADS'] = '4'
+# Use single thread on macOS to avoid OpenMP crashes
+import platform
+if platform.system() == 'Darwin':
+    os.environ.setdefault('OMP_NUM_THREADS', '1')
+else:
+    os.environ.setdefault('OMP_NUM_THREADS', '4')
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
 
@@ -60,6 +65,7 @@ except ImportError:
 
 def load_snapshot(snapshot_name):
     """Load particle data from GADGET-4 snapshot."""
+    import h5py as h5
     snapshot_path = SNAPSHOT_BASE / f"{snapshot_name}.hdf5"
     print(f"Loading {snapshot_path}...")
 
@@ -68,8 +74,14 @@ def load_snapshot(snapshot_name):
     )
     grid_size = infer_grid_size(len(positions))
 
+    # Read particle mass from MassTable (GADGET-4 convention: index 1 = DM)
+    with h5.File(snapshot_path, 'r') as f:
+        mass_table = f['Header'].attrs['MassTable']
+        particle_mass = float(mass_table[1])  # 10^10 Msun/h
+
     print(f"  {len(positions):,} particles (grid: {grid_size}^3), box: {box_size}, a={scale_factor:.4f}")
-    return positions, particle_ids, box_size, grid_size
+    print(f"  Particle mass: {particle_mass:.6f} [10^10 Msun/h]")
+    return positions, particle_ids, box_size, grid_size, particle_mass
 
 
 def compute_overdensity_pdf(values, n_bins=100, range_min=None, range_max=None):
@@ -95,21 +107,27 @@ def compute_overdensity_pdf(values, n_bins=100, range_min=None, range_max=None):
     return bin_centers, pdf, bin_edges
 
 
-def run_cic(positions, box_size, cic_cells):
-    """Run CIC density and return per-particle overdensity + timing."""
+def run_cic(positions, box_size, cic_cells, particle_mass=1.0):
+    """Run CIC density and return grid-cell overdensities (volume-weighted) + timing.
+
+    Following Klypin et al. 2018, the CIC PDF is computed over grid cells
+    (volume-weighted), not particle-sampled values. Particle sampling introduces
+    a self-contribution bias that shifts the PDF to higher overdensities.
+    """
     t0 = time.time()
     result = ts.density.compute_cic_density(
         positions, box_size=float(box_size), output_cells=cic_cells,
-        sample_at_particles=True)
+        particle_mass=particle_mass, sample_at_particles=False)
     elapsed = time.time() - t0
 
-    overdensity = np.array(result.particle_density) / result.mean_density
-    print(f"  CIC:  {elapsed:.2f}s, mean(1+d)={overdensity.mean():.6f}, "
+    grid_density = np.array(result.grid_density).ravel()
+    overdensity = grid_density / result.mean_density
+    print(f"  CIC:  {elapsed:.2f}s ({cic_cells}^3 cells), mean(1+d)={overdensity.mean():.6f}, "
           f"min={overdensity.min():.4f}, max={overdensity.max():.1f}")
     return overdensity, elapsed
 
 
-def run_dtfe(positions, particle_ids, box_size, grid_size):
+def run_dtfe(positions, particle_ids, box_size, grid_size, particle_mass=1.0):
     """Run DTFE (tessellation) density and return per-particle overdensity + timing."""
     # DTFE requires Lagrangian sorting
     pos_copy = positions.copy()
@@ -120,8 +138,12 @@ def run_dtfe(positions, particle_ids, box_size, grid_size):
         pos_copy, particle_ids, grid_size, float(box_size))
 
     # Compute direct particle density from tetrahedra
-    result = ts.density.compute_particle_density(
-        sorted_pos, lagrangian_grid_size=grid_size, box_size=float(box_size))
+    config = ts.density.ParticleDensityConfig()
+    config.lagrangian_grid_size = grid_size
+    config.box_size = float(box_size)
+    config.particle_mass = particle_mass
+    config.n_threads = 1
+    result = ts.density.compute_particle_density(sorted_pos, config)
     elapsed = time.time() - t0
 
     overdensity = np.array(result.density) / result.mean_density
@@ -231,18 +253,18 @@ def main():
     print("Density Method Comparison: CIC vs DTFE vs VTFE")
     print("=" * 70)
 
-    positions, particle_ids, box_size, grid_size = load_snapshot(args.snapshot)
+    positions, particle_ids, box_size, grid_size, particle_mass = load_snapshot(args.snapshot)
 
     results = {}
 
     # CIC
     print("\nRunning CIC density...")
-    od_cic, t_cic = run_cic(positions, box_size, args.cic_cells)
+    od_cic, t_cic = run_cic(positions, box_size, args.cic_cells, particle_mass)
     results['CIC'] = {'overdensity': od_cic, 'time': t_cic}
 
     # DTFE
     print("\nRunning DTFE density...")
-    od_dtfe, t_dtfe = run_dtfe(positions, particle_ids, box_size, grid_size)
+    od_dtfe, t_dtfe = run_dtfe(positions, particle_ids, box_size, grid_size, particle_mass)
     results['DTFE'] = {'overdensity': od_dtfe, 'time': t_dtfe}
 
     # VTFE

@@ -33,6 +33,18 @@ def _get_ts():
         return ts
 
 
+def _parallel_threads():
+    """Return thread count for parallel tests.
+
+    Uses 4 threads on all platforms.  On macOS, the dual-libomp crash is
+    avoided by building tessera against conda's libomp (same copy that
+    numpy/scipy use).  If the old Homebrew-linked build is still installed,
+    __init__.py forces OMP_NUM_THREADS=1 and the OpenMP runtime will
+    silently clamp the thread count.
+    """
+    return 4
+
+
 def _has_voronoi():
     """Check if Voronoi density is available."""
     ts = _get_ts()
@@ -84,7 +96,9 @@ class TestVoronoiDensityBasic:
 
         volumes = np.array(result.volumes)
         assert len(volumes) == n_particles
-        np.testing.assert_allclose(volumes, expected_volume, rtol=1e-10)
+        # rtol ~1e-7 accounts for the small random jitter applied to break
+        # voro++ duplicate detection on co-located particles
+        np.testing.assert_allclose(volumes, expected_volume, rtol=1e-7)
 
     def test_volume_sum_equals_box_volume(self):
         """Sum of all Voronoi volumes should equal total box volume."""
@@ -184,6 +198,75 @@ class TestVoronoiDensityBasic:
 
         density = np.array(result.density)
         assert np.all(density > 0)
+
+    def test_parallel_matches_serial(self):
+        """Parallel should give identical volumes to serial (n_threads=1).
+
+        On macOS ARM64, OpenMP is limited to 1 thread; the per-thread
+        voro_compute code path is still exercised.  On Linux, n_threads=4
+        tests actual thread-safety.
+        """
+        ts = _get_ts()
+        n_threads = _parallel_threads()
+        n_particles = 16 ** 3
+        box_size = 50.0
+
+        np.random.seed(314)
+        positions = np.random.uniform(0, box_size, (n_particles, 3)).astype(np.float64)
+        positions = np.ascontiguousarray(positions)
+
+        result_serial = ts.density.compute_voronoi_density(
+            positions, box_size=box_size, n_threads=1)
+        result_parallel = ts.density.compute_voronoi_density(
+            positions, box_size=box_size, n_threads=n_threads)
+
+        vol_serial = np.array(result_serial.volumes)
+        vol_parallel = np.array(result_parallel.volumes)
+        np.testing.assert_allclose(vol_parallel, vol_serial, rtol=1e-12)
+
+    def test_parallel_volume_sum(self):
+        """Volume sum with parallel threads still equals box volume."""
+        ts = _get_ts()
+        n_threads = _parallel_threads()
+        n_particles = 16 ** 3
+        box_size = 50.0
+
+        np.random.seed(271)
+        positions = np.random.uniform(0, box_size, (n_particles, 3)).astype(np.float64)
+        positions = np.ascontiguousarray(positions)
+
+        result = ts.density.compute_voronoi_density(
+            positions, box_size=box_size, n_threads=n_threads)
+
+        volumes = np.array(result.volumes)
+        np.testing.assert_allclose(volumes.sum(), box_size ** 3, rtol=1e-8)
+
+    def test_parallel_uniform_grid(self):
+        """Uniform grid with parallel threads gives equal volumes."""
+        ts = _get_ts()
+        n_threads = _parallel_threads()
+        grid_size = 8
+        box_size = 10.0
+        cell_size = box_size / grid_size
+
+        positions = []
+        for x in range(grid_size):
+            for y in range(grid_size):
+                for z in range(grid_size):
+                    positions.append([
+                        (x + 0.5) * cell_size,
+                        (y + 0.5) * cell_size,
+                        (z + 0.5) * cell_size
+                    ])
+        positions = np.array(positions, dtype=np.float64)
+
+        result = ts.density.compute_voronoi_density(
+            positions, box_size=box_size, n_threads=n_threads)
+
+        n_particles = grid_size ** 3
+        expected_volume = box_size ** 3 / n_particles
+        volumes = np.array(result.volumes)
+        np.testing.assert_allclose(volumes, expected_volume, rtol=1e-7)
 
     def test_input_validation(self):
         """Should raise on invalid inputs."""

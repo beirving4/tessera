@@ -18,13 +18,28 @@ find_package(Threads REQUIRED)
 
 # Find OpenMP (for ORIGAMI and density computation)
 if(APPLE)
-    # On macOS, we need to help CMake find libomp from Homebrew
-    execute_process(
-        COMMAND brew --prefix libomp
-        OUTPUT_VARIABLE LIBOMP_PREFIX
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET
-    )
+    # On macOS, prefer conda environment's libomp when available.
+    # This avoids loading two different libomp copies (conda + Homebrew)
+    # in the same Python process, which causes crashes on ARM64.
+    # Fall back to Homebrew's libomp if no conda env is active.
+    set(LIBOMP_PREFIX "")
+    if(DEFINED ENV{CONDA_PREFIX} AND EXISTS "$ENV{CONDA_PREFIX}/lib/libomp.dylib"
+       AND EXISTS "$ENV{CONDA_PREFIX}/include/omp.h")
+        set(LIBOMP_PREFIX "$ENV{CONDA_PREFIX}")
+        message(STATUS "Using conda libomp: ${LIBOMP_PREFIX}/lib/libomp.dylib")
+    else()
+        execute_process(
+            COMMAND brew --prefix libomp
+            OUTPUT_VARIABLE BREW_LIBOMP_PREFIX
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+        if(BREW_LIBOMP_PREFIX AND EXISTS "${BREW_LIBOMP_PREFIX}/lib/libomp.dylib")
+            set(LIBOMP_PREFIX "${BREW_LIBOMP_PREFIX}")
+            message(STATUS "Using Homebrew libomp: ${LIBOMP_PREFIX}/lib/libomp.dylib")
+        endif()
+    endif()
+
     if(LIBOMP_PREFIX)
         set(OpenMP_C_FLAGS "-Xclang -fopenmp")
         set(OpenMP_CXX_FLAGS "-Xclang -fopenmp")

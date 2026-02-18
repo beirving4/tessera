@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <numeric>
 #include <stdexcept>
+#include <random>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -44,11 +45,12 @@ VoronoiDensityResult compute_voronoi_density(
     const double mean_vol = box_vol / static_cast<double>(n_particles);
     const double mean_density = static_cast<double>(n_particles) / box_vol;
 
-    // Determine thread count
+    // Determine thread count.  Per-thread voro_compute objects use ~108 KB
+    // each (mask + queue), so even 64 threads costs only ~7 MB.
     int n_threads = config.n_threads;
 #ifdef _OPENMP
     if (n_threads <= 0) {
-        n_threads = std::min(omp_get_max_threads(), 8);
+        n_threads = omp_get_max_threads();
     }
 #else
     n_threads = 1;
@@ -60,16 +62,31 @@ VoronoiDensityResult compute_voronoi_density(
         static_cast<double>(n_particles) / 5.0))));
     int init_mem = 8;  // Initial memory per cell
 
-    // Create periodic container and add particles
+    // Create periodic container and add particles.
+    // Use put(particle_order&, ...) to bypass voro++'s hard-coded duplicate
+    // detection (squared-distance < 1e-10), which would call exit(1) on the
+    // co-located particles that naturally arise from shell-crossing in N-body
+    // simulations.  A tiny random perturbation (~1e-8 * mean_spacing) is still
+    // applied to break exact geometric degeneracies in the Voronoi construction.
     voro::container_periodic con(L, 0.0, L, 0.0, 0.0, L,
                                   n_grid, n_grid, n_grid, init_mem);
 
+    const double mean_spacing = L / std::cbrt(static_cast<double>(n_particles));
+    const double eps = 1e-8 * mean_spacing;
+    std::mt19937_64 rng(42);
+    std::uniform_real_distribution<double> jitter(-eps, eps);
+
+    voro::particle_order po(static_cast<int>(n_particles));
     for (int64_t i = 0; i < n_particles; ++i) {
-        con.put(static_cast<int>(i),
-                positions[3 * i],
-                positions[3 * i + 1],
-                positions[3 * i + 2]);
+        con.put(po, static_cast<int>(i),
+                positions[3 * i]     + jitter(rng),
+                positions[3 * i + 1] + jitter(rng),
+                positions[3 * i + 2] + jitter(rng));
     }
+
+    // Pre-build all periodic images so that create_periodic_image() becomes a
+    // no-op during parallel compute_cell() calls (the img[] flags are already set).
+    con.create_all_images();
 
     // Compute Voronoi volumes
     VoronoiDensityResult result;
@@ -79,29 +96,35 @@ VoronoiDensityResult compute_voronoi_density(
 
     std::vector<double> volumes(n_particles, 0.0);
 
-    // Collect (ijk, q, id) tuples from the container's loop iterator,
-    // then compute cells in parallel using compute_cell(c, ijk, q).
-    struct CellLoc { int ijk; int q; int id; };
+    // Collect (ijk, q, id, ci, cj, ck) tuples from the container's loop
+    // iterator, then compute cells in parallel via per-thread voro_compute objects.
+    struct CellLoc { int ijk; int q; int id; int ci, cj, ck; };
     std::vector<CellLoc> locs;
     locs.reserve(n_particles);
 
     voro::c_loop_all_periodic cl(con);
     if (cl.start()) do {
-        locs.push_back({cl.ijk, cl.q, cl.pid()});
+        locs.push_back({cl.ijk, cl.q, cl.pid(), cl.i, cl.j, cl.k});
     } while (cl.inc());
 
     int64_t n_locs = static_cast<int64_t>(locs.size());
 
+    // Dimensions for per-thread voro_compute objects (matches container_prd.cc:76).
+    int hx = 2 * con.nx + 1;
+    int hy = 2 * con.ey + 1;
+    int hz = 2 * con.ez + 1;
+
     // Parallel Voronoi cell computation.
-    // compute_cell(c, ijk, q) is safe to call from multiple threads as long as
-    // each thread uses its own voronoicell object and the container is read-only.
+    // Each thread gets its own voro_compute (owns private mask[]/qu[] buffers)
+    // to avoid data races on the container's internal voro_compute member.
     #pragma omp parallel num_threads(n_threads)
     {
+        voro::voro_compute<voro::container_periodic> thread_vc(con, hx, hy, hz);
         voro::voronoicell c;
         #pragma omp for schedule(dynamic, 64)
         for (int64_t idx = 0; idx < n_locs; ++idx) {
             const auto& loc = locs[idx];
-            if (con.compute_cell(c, loc.ijk, loc.q)) {
+            if (thread_vc.compute_cell(c, loc.ijk, loc.q, loc.ci, loc.cj, loc.ck)) {
                 volumes[loc.id] = c.volume();
             }
         }
