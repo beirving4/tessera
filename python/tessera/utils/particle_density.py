@@ -5,6 +5,9 @@ This module provides SPH-style and Cloud-in-Cell (CIC) density estimation
 that bypasses tessellation entirely. Useful for extreme scale factors (a > 10)
 where tetrahedra become highly elongated and tessellation produces artifacts.
 
+Also provides ``compute_cic_density_pdf`` for computing mass-weighted and
+volume-weighted overdensity PDFs from CIC output in a single call.
+
 Example usage:
     >>> from tessera.utils.particle_density import compute_particle_density_sph
     >>>
@@ -439,3 +442,160 @@ def _kernel_2d(q: float, kernel_type: str) -> float:
             return 0.0
     else:
         raise ValueError(f"Unknown kernel type: {kernel_type}")
+
+
+# Import tessera C++ module (needed for compute_cic_density_pdf)
+try:
+    import tessera as _ts
+except ImportError:
+    try:
+        import _tessera as _ts
+    except ImportError:
+        _ts = None
+
+
+def compute_cic_density_pdf(
+    positions: NDArray[np.floating],
+    box_size: float,
+    output_cells: int = 256,
+    n_bins: int = 100,
+    range_min: float = 0.0,
+    range_max: float = 0.0,
+    particle_mass: float = 1.0,
+    n_threads: int = 0,
+    periodic: bool = True,
+) -> dict:
+    """
+    Compute mass-weighted and volume-weighted overdensity PDFs from CIC density.
+
+    This is a convenience function that calls the C++ CIC density estimator,
+    computes overdensity (1+delta) using the appropriate mean for each weighting,
+    and returns both PDFs along with the raw overdensity arrays.
+
+    **Volume-weighted PDF**: Each grid cell contributes equally (uniform volume).
+    Overdensity is normalised by the grid mean: ``rho_V = mean(grid_density)``.
+
+    **Mass-weighted PDF**: Each particle contributes equally (uniform mass).
+    Overdensity is normalised by the particle mean: ``rho_M = mean(particle_density)``.
+
+    Parameters
+    ----------
+    positions : ndarray, shape (N, 3)
+        Particle positions (no Lagrangian ordering required).
+    box_size : float
+        Physical size of the periodic simulation box.
+    output_cells : int, default=256
+        Grid resolution (cells per dimension).
+    n_bins : int, default=100
+        Number of logarithmic bins for the PDFs.
+    range_min : float, default=0.0
+        Lower edge of the bin range in (1+delta). If 0, auto-detected from
+        the 0.005th percentile of positive overdensity values.
+    range_max : float, default=0.0
+        Upper edge of the bin range in (1+delta). If 0, auto-detected from
+        the 99.995th percentile of positive overdensity values.
+    particle_mass : float, default=1.0
+        Mass per particle.
+    n_threads : int, default=0
+        Number of OpenMP threads. 0 = auto-detect (capped at 8).
+    periodic : bool, default=True
+        Use periodic boundary conditions.
+
+    Returns
+    -------
+    result : dict
+        Dictionary containing:
+
+        - ``pdf_mass_weighted``: mass-weighted PDF values, shape (n_bins,)
+        - ``pdf_volume_weighted``: volume-weighted PDF values, shape (n_bins,)
+        - ``bin_edges``: log-spaced bin edges in (1+delta), shape (n_bins+1,)
+        - ``bin_centers``: geometric bin centers, shape (n_bins,)
+        - ``overdensity_grid``: (1+delta) on the grid, shape (output_cells,)*3
+        - ``overdensity_particles``: (1+delta) per particle, shape (N,)
+        - ``rho_V``: volume-weighted mean density = total_mass / box_volume
+        - ``rho_M``: mass-weighted mean density = mean(particle_density)
+        - ``n_particles``: number of particles
+        - ``output_cells``: grid resolution used
+
+    Raises
+    ------
+    ImportError
+        If the tessera C++ module is not available.
+
+    Examples
+    --------
+    >>> result = compute_cic_density_pdf(positions, box_size=256.0, output_cells=128)
+    >>> plt.loglog(result['bin_centers'], result['pdf_mass_weighted'], label='mass')
+    >>> plt.loglog(result['bin_centers'], result['pdf_volume_weighted'], label='volume')
+    """
+    if _ts is None:
+        raise ImportError(
+            "tessera C++ module is required for compute_cic_density_pdf. "
+            "Install with: pip install ."
+        )
+
+    positions = np.ascontiguousarray(positions, dtype=np.float64)
+
+    # Run C++ CIC density with particle sampling enabled
+    cic_result = _ts.density.compute_cic_density(
+        positions,
+        box_size=box_size,
+        output_cells=output_cells,
+        particle_mass=particle_mass,
+        n_threads=n_threads,
+        periodic=periodic,
+        sample_at_particles=True,
+    )
+
+    grid_density = np.array(cic_result.grid_density)
+    particle_density = np.array(cic_result.particle_density)
+
+    # Compute mean densities
+    rho_V = float(np.mean(grid_density))          # volume-weighted mean
+    rho_M = float(np.mean(particle_density))       # mass-weighted mean
+
+    # Compute overdensity (1+delta) with appropriate normalisation
+    overdensity_grid = grid_density / rho_V
+    overdensity_particles = particle_density / rho_M
+
+    # Auto-detect bin range from the union of both arrays (positive values only)
+    od_grid_pos = overdensity_grid[overdensity_grid > 0].ravel()
+    od_part_pos = overdensity_particles[overdensity_particles > 0]
+
+    if range_min <= 0.0 or range_max <= 0.0:
+        all_positive = np.concatenate([od_grid_pos, od_part_pos])
+        if range_min <= 0.0:
+            range_min = float(np.percentile(all_positive, 0.005))
+        if range_max <= 0.0:
+            range_max = float(np.percentile(all_positive, 99.995))
+
+    bin_edges = np.logspace(np.log10(range_min), np.log10(range_max), n_bins + 1)
+    bin_centers = np.sqrt(bin_edges[:-1] * bin_edges[1:])
+    bin_widths = np.diff(bin_edges)
+
+    # Volume-weighted PDF: histogram grid cells with uniform weights
+    hist_vol, _ = np.histogram(od_grid_pos, bins=bin_edges)
+    total_vol = float(np.sum(hist_vol))
+    pdf_volume_weighted = hist_vol / (total_vol * bin_widths) if total_vol > 0 else hist_vol.astype(float)
+
+    # Mass-weighted PDF: histogram particles with uniform weights
+    hist_mass, _ = np.histogram(od_part_pos, bins=bin_edges)
+    total_mass = float(np.sum(hist_mass))
+    pdf_mass_weighted = hist_mass / (total_mass * bin_widths) if total_mass > 0 else hist_mass.astype(float)
+
+    return {
+        # PDFs
+        'pdf_mass_weighted': pdf_mass_weighted,
+        'pdf_volume_weighted': pdf_volume_weighted,
+        'bin_edges': bin_edges,
+        'bin_centers': bin_centers,
+        # Raw data
+        'overdensity_grid': overdensity_grid,
+        'overdensity_particles': overdensity_particles,
+        # Normalisation info
+        'rho_V': rho_V,
+        'rho_M': rho_M,
+        # Metadata
+        'n_particles': int(cic_result.n_particles),
+        'output_cells': int(cic_result.output_cells),
+    }

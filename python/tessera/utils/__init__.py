@@ -65,6 +65,8 @@ from .particle_density import (
     # Particle-based density estimation
     compute_particle_density_cic,
     compute_particle_density_sph,
+    # CIC density PDF helper
+    compute_cic_density_pdf,
 )
 
 from .hybrid_density import (
@@ -134,6 +136,8 @@ __all__ = [
     # Artifact mitigation - Particle-based density
     'compute_particle_density_cic',
     'compute_particle_density_sph',
+    # CIC density PDF helper
+    'compute_cic_density_pdf',
     # Artifact mitigation - Hybrid density
     'HybridDensityConfig',
     'recommend_method',
