@@ -317,6 +317,9 @@ struct ParticleDensityConfig {
  */
 struct ParticleDensityResult {
     std::vector<double> density;    ///< Per-particle density (N^3)
+    std::vector<double> particle_volume;  ///< Per-particle tessellation volume (N^3)
+                                          ///< Sum of V/4 from all adjacent tetrahedra.
+                                          ///< Smoothing length: h_i = particle_volume[i]^(1/3)
     double mean_density;            ///< Mean density (should equal particle_mass * N^3 / box^3)
     double total_time_ms;           ///< Computation time in milliseconds
     int64_t n_tetrahedra;          ///< Number of tetrahedra processed

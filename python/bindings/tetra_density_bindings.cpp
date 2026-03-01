@@ -668,7 +668,15 @@ void bind_tetra_density(py::module& m) {
                 {sizeof(double)},
                 r.density.data()
             );
-        }, "Per-particle density as numpy array (N^3,)");
+        }, "Per-particle density as numpy array (N^3,)")
+        .def_property_readonly("particle_volume", [](const ParticleDensityResult& r) {
+            return py::array_t<double>(
+                {static_cast<py::ssize_t>(r.particle_volume.size())},
+                {sizeof(double)},
+                r.particle_volume.data()
+            );
+        }, "Per-particle tessellation volume as numpy array (N^3,). "
+           "Smoothing length: h_i = particle_volume[i]^(1/3)");
 
     // Main computation function
     m.def("compute_particle_density",

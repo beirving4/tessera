@@ -702,6 +702,17 @@ void bind_origami(py::module& m) {
                 r.particle_density.data()
             );
         }, "Per-particle density values")
+        .def_property_readonly("particle_volume", [](const OrigamiPipelineResult& r) {
+            if (r.particle_volume.empty()) {
+                return py::array_t<double>();
+            }
+            return py::array_t<double>(
+                {static_cast<py::ssize_t>(r.particle_volume.size())},
+                {sizeof(double)},
+                r.particle_volume.data()
+            );
+        }, "Per-particle tessellation volume (direct density only). "
+           "Smoothing length: h_i = particle_volume[i]^(1/3)")
         .def_property_readonly("morphology_grid", [](const OrigamiPipelineResult& r) {
             if (r.morphology_grid.empty()) {
                 return py::array_t<uint8_t>();

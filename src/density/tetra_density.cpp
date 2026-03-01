@@ -1196,11 +1196,13 @@ static ParticleDensityResult compute_particle_density_impl(
 
     // Thread-local volume statistics
     std::vector<double> t_vol_min(n_threads, std::numeric_limits<double>::max());
+    std::vector<double> t_vol_min_nonzero(n_threads, std::numeric_limits<double>::max());
     std::vector<double> t_vol_max(n_threads, 0.0);
     std::vector<double> t_vol_sum(n_threads, 0.0);
     std::vector<double> t_vol_sum_sq(n_threads, 0.0);
     std::vector<double> t_log_vol_sum(n_threads, 0.0);
     std::vector<double> t_log_vol_sum_sq(n_threads, 0.0);
+    std::vector<int64_t> t_zero_vol_count(n_threads, 0);
 
     // Main parallel loop over tetrahedra
     #pragma omp parallel
@@ -1214,11 +1216,13 @@ static ParticleDensityResult compute_particle_density_impl(
         double* local_volume = thread_volumes[tid].data();
         int64_t local_tetra_count = 0;
         double local_vol_min = std::numeric_limits<double>::max();
+        double local_vol_min_nonzero = std::numeric_limits<double>::max();
         double local_vol_max = 0.0;
         double local_vol_sum = 0.0;
         double local_vol_sum_sq = 0.0;
         double local_log_vol_sum = 0.0;
         double local_log_vol_sum_sq = 0.0;
+        int64_t local_zero_vol_count = 0;
 
         double corners[4][3];
         std::array<int64_t, 4> idx;
@@ -1246,9 +1250,14 @@ static ParticleDensityResult compute_particle_density_impl(
             local_vol_max = std::max(local_vol_max, volume);
             local_vol_sum += volume;
             local_vol_sum_sq += volume * volume;
-            double log_vol = std::log(volume);
-            local_log_vol_sum += log_vol;
-            local_log_vol_sum_sq += log_vol * log_vol;
+            if (volume > 0.0) {
+                local_vol_min_nonzero = std::min(local_vol_min_nonzero, volume);
+                double log_vol = std::log(volume);
+                local_log_vol_sum += log_vol;
+                local_log_vol_sum_sq += log_vol * log_vol;
+            } else {
+                local_zero_vol_count++;
+            }
 
             // Each vertex gets 1/4 of this tetrahedron's mass and volume
             double mass_per_vertex = mass_per_tetra / 4.0;
@@ -1265,11 +1274,13 @@ static ParticleDensityResult compute_particle_density_impl(
 
         tetra_processed += local_tetra_count;
         t_vol_min[tid] = local_vol_min;
+        t_vol_min_nonzero[tid] = local_vol_min_nonzero;
         t_vol_max[tid] = local_vol_max;
         t_vol_sum[tid] = local_vol_sum;
         t_vol_sum_sq[tid] = local_vol_sum_sq;
         t_log_vol_sum[tid] = local_log_vol_sum;
         t_log_vol_sum_sq[tid] = local_log_vol_sum_sq;
+        t_zero_vol_count[tid] = local_zero_vol_count;
     }
 
     // Reduce thread-local accumulators
@@ -1321,16 +1332,36 @@ static ParticleDensityResult compute_particle_density_impl(
     double mean_density = density_sum / n_particles;
 
     // Compute tetrahedra volume statistics
-    double global_vol_min = *std::min_element(t_vol_min.begin(), t_vol_min.end());
     double global_vol_max = *std::max_element(t_vol_max.begin(), t_vol_max.end());
     double global_vol_sum = 0.0, global_vol_sum_sq = 0.0;
     double global_log_vol_sum = 0.0, global_log_vol_sum_sq = 0.0;
+    int64_t total_zero_vol_count = 0;
+    double global_vol_min_nonzero = std::numeric_limits<double>::max();
     for (int t = 0; t < n_threads; ++t) {
         global_vol_sum += t_vol_sum[t];
         global_vol_sum_sq += t_vol_sum_sq[t];
         global_log_vol_sum += t_log_vol_sum[t];
         global_log_vol_sum_sq += t_log_vol_sum_sq[t];
+        total_zero_vol_count += t_zero_vol_count[t];
+        global_vol_min_nonzero = std::min(global_vol_min_nonzero, t_vol_min_nonzero[t]);
     }
+
+    // Replace zero-volume tetrahedra with floor = min_nonzero / 1e20
+    double floor_vol = global_vol_min_nonzero / 1e20;
+    double global_vol_min;
+    if (total_zero_vol_count > 0) {
+        global_vol_min = floor_vol;
+        // Patch linear accumulators (contribution is negligible but correct)
+        global_vol_sum += total_zero_vol_count * floor_vol;
+        global_vol_sum_sq += total_zero_vol_count * floor_vol * floor_vol;
+        // Patch log accumulators
+        double log_floor = std::log(floor_vol);
+        global_log_vol_sum += total_zero_vol_count * log_floor;
+        global_log_vol_sum_sq += total_zero_vol_count * log_floor * log_floor;
+    } else {
+        global_vol_min = *std::min_element(t_vol_min.begin(), t_vol_min.end());
+    }
+
     double n_tetra_d = static_cast<double>(n_tetra);
     // Linear-space statistics
     double arith_mean_vol = global_vol_sum / n_tetra_d;
@@ -1347,6 +1378,7 @@ static ParticleDensityResult compute_particle_density_impl(
 
     ParticleDensityResult result;
     result.density = std::move(density);
+    result.particle_volume = std::move(particle_volume);
     result.mean_density = mean_density;
     result.total_time_ms = elapsed_ms;
     result.n_tetrahedra = tetra_processed.load();

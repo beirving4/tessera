@@ -172,6 +172,8 @@ struct OrigamiPipelineResult {
 
     // === Optional: Per-particle density (if sample_density_at_particles) ===
     std::vector<double> particle_density;
+    std::vector<double> particle_volume;    ///< Per-particle tessellation volume (direct density only)
+                                            ///< Smoothing length: h_i = particle_volume[i]^(1/3)
 
     // === Optional: Grid-based outputs (if grid_cells > 0) ===
     std::vector<uint8_t> morphology_grid;       ///< Dominant class per cell

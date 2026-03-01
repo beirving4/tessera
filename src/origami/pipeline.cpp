@@ -674,6 +674,7 @@ OrigamiPipelineResult run_pipeline_impl(
         auto direct_result = density::compute_particle_density(sorted_ptr, direct_config);
 
         result.particle_density = std::move(direct_result.density);
+        result.particle_volume = std::move(direct_result.particle_volume);
         result.mean_density = direct_result.mean_density;
         result.min_tetra_volume = direct_result.min_tetra_volume;
         result.max_tetra_volume = direct_result.max_tetra_volume;
