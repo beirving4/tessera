@@ -105,6 +105,10 @@ struct OrigamiPipelineConfig {
     double pdf_range_max = 0.0;         ///< Maximum bin edge (0 = auto-detect from data)
     bool pdf_jackknife = false;         ///< Enable jackknife resampling for uncertainty estimation
     int pdf_jackknife_subboxes = 2;     ///< Sub-boxes per dimension for jackknife (2->8, 3->27)
+    bool pdf_volume_weighted = false;   ///< Compute volume-weighted PDF from density grid cells.
+                                        ///< Requires density_3d to be non-empty (grid-MC or CIC).
+                                        ///< Each grid cell contributes equally (uniform volume).
+                                        ///< Overdensity normalized by grid mean (rho_V).
 
     // === Threading ===
     int n_threads = 0;                  ///< 0 = auto-detect
@@ -199,6 +203,13 @@ struct OrigamiPipelineResult {
     std::vector<double> pdf_wall_error;     ///< Jackknife error for wall PDF
     std::vector<double> pdf_filament_error; ///< Jackknife error for filament PDF
     std::vector<double> pdf_halo_error;     ///< Jackknife error for halo PDF
+
+    // Volume-weighted PDF (from grid cells, global only)
+    std::vector<double> pdf_all_volume_weighted;   ///< Volume-weighted PDF
+    std::vector<int64_t> hist_all_volume_weighted; ///< Volume-weighted histogram counts
+
+    // Mass-weighted mean density (particle mean, used for mass-weighted overdensity)
+    double rho_M = 0.0;   ///< Mass-weighted mean = mean(particle_density)
 
     // PDF statistics
     double overdensity_mean = 0.0;          ///< Mean overdensity (should be ~1)

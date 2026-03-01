@@ -771,6 +771,7 @@ OrigamiPipelineResult run_pipeline_impl(
             sum += result.particle_density[i];
         }
         double mean_rho = sum / static_cast<double>(n_particles);
+        result.rho_M = mean_rho;
 
         #pragma omp parallel for
         for (int64_t i = 0; i < n_particles; ++i) {
@@ -1004,6 +1005,45 @@ OrigamiPipelineResult run_pipeline_impl(
             for (int c = 0; c < 4; ++c) {
                 compute_stats(od_cls[c], c + 1, result);
             }
+        }
+
+        // === Optional: Volume-weighted PDF from grid cells ===
+        if (config.pdf_volume_weighted && !result.density_3d.empty()) {
+            int64_t n_cells = static_cast<int64_t>(result.density_3d.size());
+
+            // Compute grid mean (rho_V = mean of density_3d)
+            double grid_sum = 0.0;
+            #pragma omp parallel for reduction(+:grid_sum)
+            for (int64_t i = 0; i < n_cells; ++i) {
+                grid_sum += result.density_3d[i];
+            }
+            double grid_mean = grid_sum / static_cast<double>(n_cells);
+
+            // Compute grid overdensity: (1+delta) = density / grid_mean
+            std::vector<double> grid_overdensity(n_cells);
+            #pragma omp parallel for
+            for (int64_t i = 0; i < n_cells; ++i) {
+                grid_overdensity[i] = result.density_3d[i] / grid_mean;
+            }
+
+            // Histogram using same bin range as mass-weighted PDF
+            stats::HistogramResult hist_vol;
+            if (config.pdf_log_bins) {
+                hist_vol = stats::histogram_log(
+                    grid_overdensity.data(), n_cells,
+                    config.pdf_n_bins, range_min, range_max,
+                    config.n_threads
+                );
+            } else {
+                hist_vol = stats::histogram(
+                    grid_overdensity.data(), n_cells,
+                    config.pdf_n_bins, range_min, range_max,
+                    config.n_threads
+                );
+            }
+
+            result.pdf_all_volume_weighted = stats::histogram_to_pdf(hist_vol);
+            result.hist_all_volume_weighted = std::move(hist_vol.counts);
         }
 
         result.pdf_time_ms = get_time_ms() - t0;

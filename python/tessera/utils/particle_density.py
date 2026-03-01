@@ -464,6 +464,9 @@ def compute_cic_density_pdf(
     particle_mass: float = 1.0,
     n_threads: int = 0,
     periodic: bool = True,
+    morphology: NDArray[np.uint8] | None = None,
+    jackknife: bool = False,
+    jackknife_subboxes: int = 2,
 ) -> dict:
     """
     Compute mass-weighted and volume-weighted overdensity PDFs from CIC density.
@@ -500,6 +503,13 @@ def compute_cic_density_pdf(
         Number of OpenMP threads. 0 = auto-detect (capped at 8).
     periodic : bool, default=True
         Use periodic boundary conditions.
+    morphology : ndarray of uint8 or None, default=None
+        ORIGAMI morphology classes (0=void, 1=wall, 2=filament, 3=halo).
+        If provided, per-class mass-weighted PDFs are computed.
+    jackknife : bool, default=False
+        Enable jackknife resampling for uncertainty estimation on mass-weighted PDFs.
+    jackknife_subboxes : int, default=2
+        Sub-boxes per dimension for jackknife (2->8, 3->27).
 
     Returns
     -------
@@ -516,6 +526,19 @@ def compute_cic_density_pdf(
         - ``rho_M``: mass-weighted mean density = mean(particle_density)
         - ``n_particles``: number of particles
         - ``output_cells``: grid resolution used
+
+        When ``morphology`` is provided:
+
+        - ``pdf_void_mass_weighted``, ``pdf_wall_mass_weighted``,
+          ``pdf_filament_mass_weighted``, ``pdf_halo_mass_weighted``:
+          per-class mass-weighted PDFs, shape (n_bins,)
+
+        When ``jackknife=True``:
+
+        - ``pdf_mass_weighted_error``: jackknife error for global mass-weighted PDF
+        - ``pdf_void_mass_weighted_error``, ``pdf_wall_mass_weighted_error``,
+          ``pdf_filament_mass_weighted_error``, ``pdf_halo_mass_weighted_error``:
+          per-class jackknife errors (only when ``morphology`` is also provided)
 
     Raises
     ------
@@ -578,14 +601,9 @@ def compute_cic_density_pdf(
     total_vol = float(np.sum(hist_vol))
     pdf_volume_weighted = hist_vol / (total_vol * bin_widths) if total_vol > 0 else hist_vol.astype(float)
 
-    # Mass-weighted PDF: histogram particles with uniform weights
-    hist_mass, _ = np.histogram(od_part_pos, bins=bin_edges)
-    total_mass = float(np.sum(hist_mass))
-    pdf_mass_weighted = hist_mass / (total_mass * bin_widths) if total_mass > 0 else hist_mass.astype(float)
-
-    return {
+    # Build result dict
+    result = {
         # PDFs
-        'pdf_mass_weighted': pdf_mass_weighted,
         'pdf_volume_weighted': pdf_volume_weighted,
         'bin_edges': bin_edges,
         'bin_centers': bin_centers,
@@ -599,3 +617,91 @@ def compute_cic_density_pdf(
         'n_particles': int(cic_result.n_particles),
         'output_cells': int(cic_result.output_cells),
     }
+
+    # Validate morphology if provided
+    if morphology is not None:
+        morphology = np.ascontiguousarray(morphology, dtype=np.uint8)
+        if len(morphology) != len(overdensity_particles):
+            raise ValueError(
+                f"morphology length ({len(morphology)}) must match "
+                f"number of particles ({len(overdensity_particles)})"
+            )
+
+    class_names = ['void', 'wall', 'filament', 'halo']
+
+    if jackknife and morphology is not None:
+        # Jackknife with morphology conditioning — use C++ for performance
+        jk_result = _ts.stats.compute_jackknife_conditional_histogram(
+            positions,
+            np.ascontiguousarray(overdensity_particles, dtype=np.float64),
+            morphology,
+            box_size,
+            n_bins,
+            range_min,
+            range_max,
+            True,  # log_bins
+            jackknife_subboxes,
+            n_threads,
+        )
+
+        # Global mass-weighted PDF and error
+        result['pdf_mass_weighted'] = np.array(jk_result.all.global_pdf)
+        result['pdf_mass_weighted_error'] = np.array(jk_result.all.pdf_error)
+
+        # Per-class PDFs and errors
+        for cls_name, cls_result in zip(
+            class_names,
+            [jk_result.void_class, jk_result.wall_class,
+             jk_result.filament_class, jk_result.halo_class],
+        ):
+            result[f'pdf_{cls_name}_mass_weighted'] = np.array(cls_result.global_pdf)
+            result[f'pdf_{cls_name}_mass_weighted_error'] = np.array(cls_result.pdf_error)
+
+    elif jackknife and morphology is None:
+        # Jackknife without morphology — unconditional
+        jk_result = _ts.stats.compute_jackknife_histogram(
+            positions,
+            np.ascontiguousarray(overdensity_particles, dtype=np.float64),
+            box_size,
+            n_bins,
+            range_min,
+            range_max,
+            True,  # log_bins
+            jackknife_subboxes,
+            n_threads,
+        )
+
+        result['pdf_mass_weighted'] = np.array(jk_result.global_pdf)
+        result['pdf_mass_weighted_error'] = np.array(jk_result.pdf_error)
+
+    elif morphology is not None:
+        # Per-class PDFs without jackknife — simple histogram per class
+        # Global mass-weighted PDF
+        hist_mass, _ = np.histogram(od_part_pos, bins=bin_edges)
+        total_mass = float(np.sum(hist_mass))
+        result['pdf_mass_weighted'] = (
+            hist_mass / (total_mass * bin_widths) if total_mass > 0
+            else hist_mass.astype(float)
+        )
+
+        for cls_idx, cls_name in enumerate(class_names):
+            mask = morphology == cls_idx
+            od_cls = overdensity_particles[mask]
+            od_cls_pos = od_cls[od_cls > 0]
+            hist_cls, _ = np.histogram(od_cls_pos, bins=bin_edges)
+            total_cls = float(np.sum(hist_cls))
+            result[f'pdf_{cls_name}_mass_weighted'] = (
+                hist_cls / (total_cls * bin_widths) if total_cls > 0
+                else hist_cls.astype(float)
+            )
+
+    else:
+        # No morphology, no jackknife — simple global mass-weighted PDF
+        hist_mass, _ = np.histogram(od_part_pos, bins=bin_edges)
+        total_mass = float(np.sum(hist_mass))
+        result['pdf_mass_weighted'] = (
+            hist_mass / (total_mass * bin_widths) if total_mass > 0
+            else hist_mass.astype(float)
+        )
+
+    return result

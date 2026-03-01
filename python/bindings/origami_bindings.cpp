@@ -544,6 +544,9 @@ void bind_origami(py::module& m) {
             "Enable jackknife resampling for uncertainty estimation")
         .def_readwrite("pdf_jackknife_subboxes", &OrigamiPipelineConfig::pdf_jackknife_subboxes,
             "Sub-boxes per dimension for jackknife (2->8, 3->27)")
+        .def_readwrite("pdf_volume_weighted", &OrigamiPipelineConfig::pdf_volume_weighted,
+            "Compute volume-weighted PDF from density grid cells. "
+            "Requires grid-based density (grid-MC or CIC). Default: False.")
         .def_readwrite("cartesian_only", &OrigamiPipelineConfig::cartesian_only,
             "If True, only use Cartesian axes (x,y,z) for shell-crossing detection, "
             "skipping diagonal axis checks. Useful for diagnosing the effect of diagonal axes "
@@ -898,7 +901,27 @@ void bind_origami(py::module& m) {
                 {sizeof(double)},
                 r.pdf_halo_error.data()
             );
-        }, "Jackknife error for halo PDF");
+        }, "Jackknife error for halo PDF")
+        // Volume-weighted PDF
+        .def_property_readonly("pdf_all_volume_weighted", [](const OrigamiPipelineResult& r) {
+            if (r.pdf_all_volume_weighted.empty()) return py::array_t<double>();
+            return py::array_t<double>(
+                {static_cast<py::ssize_t>(r.pdf_all_volume_weighted.size())},
+                {sizeof(double)},
+                r.pdf_all_volume_weighted.data()
+            );
+        }, "Volume-weighted PDF from grid cells")
+        .def_property_readonly("hist_all_volume_weighted", [](const OrigamiPipelineResult& r) {
+            if (r.hist_all_volume_weighted.empty()) return py::array_t<int64_t>();
+            return py::array_t<int64_t>(
+                {static_cast<py::ssize_t>(r.hist_all_volume_weighted.size())},
+                {sizeof(int64_t)},
+                r.hist_all_volume_weighted.data()
+            );
+        }, "Volume-weighted histogram counts from grid cells")
+        // Mass-weighted mean density
+        .def_readonly("rho_M", &OrigamiPipelineResult::rho_M,
+            "Mass-weighted mean density = mean(particle_density)");
 
     // detect_id_ordering
     origami_m.def("detect_id_ordering",
