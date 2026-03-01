@@ -320,6 +320,15 @@ struct ParticleDensityResult {
     double mean_density;            ///< Mean density (should equal particle_mass * N^3 / box^3)
     double total_time_ms;           ///< Computation time in milliseconds
     int64_t n_tetrahedra;          ///< Number of tetrahedra processed
+
+    // Tetrahedra volume statistics (computed in log-space)
+    double min_tetra_volume = 0.0;         ///< Minimum tetrahedron volume
+    double max_tetra_volume = 0.0;         ///< Maximum tetrahedron volume
+    double mean_tetra_volume = 0.0;        ///< Geometric mean tetrahedron volume (exp of mean log V)
+    double stddev_tetra_volume = 0.0;      ///< Linear-space std dev of tetrahedron volumes
+    double stddev2_tetra_volume = 0.0;     ///< 2 * linear-space std dev
+    double log_stddev_tetra_volume = 0.0;  ///< Log-normal std dev (std dev of log V)
+    double log_stddev2_tetra_volume = 0.0; ///< 2 * log-normal std dev
 };
 
 /**

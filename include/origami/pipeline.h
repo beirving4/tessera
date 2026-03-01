@@ -161,6 +161,15 @@ struct OrigamiPipelineResult {
     double density_cell_width = 0.0;    ///< Physical cell width
     double mean_density = 0.0;          ///< Mean density value
 
+    // Tetrahedra volume statistics (direct particle density only)
+    double min_tetra_volume = 0.0;
+    double max_tetra_volume = 0.0;
+    double mean_tetra_volume = 0.0;
+    double stddev_tetra_volume = 0.0;
+    double stddev2_tetra_volume = 0.0;
+    double log_stddev_tetra_volume = 0.0;
+    double log_stddev2_tetra_volume = 0.0;
+
     // === Optional: Per-particle density (if sample_density_at_particles) ===
     std::vector<double> particle_density;
 

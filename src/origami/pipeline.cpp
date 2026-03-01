@@ -675,6 +675,13 @@ OrigamiPipelineResult run_pipeline_impl(
 
         result.particle_density = std::move(direct_result.density);
         result.mean_density = direct_result.mean_density;
+        result.min_tetra_volume = direct_result.min_tetra_volume;
+        result.max_tetra_volume = direct_result.max_tetra_volume;
+        result.mean_tetra_volume = direct_result.mean_tetra_volume;
+        result.stddev_tetra_volume = direct_result.stddev_tetra_volume;
+        result.stddev2_tetra_volume = direct_result.stddev2_tetra_volume;
+        result.log_stddev_tetra_volume = direct_result.log_stddev_tetra_volume;
+        result.log_stddev2_tetra_volume = direct_result.log_stddev2_tetra_volume;
         // Note: density_3d is left empty when using direct method
         result.density_cells = 0;
         result.density_cell_width = 0.0;

@@ -647,6 +647,20 @@ void bind_tetra_density(py::module& m) {
         .def_readonly("mean_density", &ParticleDensityResult::mean_density)
         .def_readonly("total_time_ms", &ParticleDensityResult::total_time_ms)
         .def_readonly("n_tetrahedra", &ParticleDensityResult::n_tetrahedra)
+        .def_readonly("min_tetra_volume", &ParticleDensityResult::min_tetra_volume,
+            "Minimum tetrahedron volume")
+        .def_readonly("max_tetra_volume", &ParticleDensityResult::max_tetra_volume,
+            "Maximum tetrahedron volume")
+        .def_readonly("mean_tetra_volume", &ParticleDensityResult::mean_tetra_volume,
+            "Mean tetrahedron volume")
+        .def_readonly("stddev_tetra_volume", &ParticleDensityResult::stddev_tetra_volume,
+            "Standard deviation of tetrahedron volumes")
+        .def_readonly("stddev2_tetra_volume", &ParticleDensityResult::stddev2_tetra_volume,
+            "2 * standard deviation of tetrahedron volumes")
+        .def_readonly("log_stddev_tetra_volume", &ParticleDensityResult::log_stddev_tetra_volume,
+            "Log-normal standard deviation of tetrahedron volumes (std dev of log V)")
+        .def_readonly("log_stddev2_tetra_volume", &ParticleDensityResult::log_stddev2_tetra_volume,
+            "2 * log-normal standard deviation of tetrahedron volumes")
         .def_property_readonly("density", [](const ParticleDensityResult& r) {
             // Return as 1D numpy array
             return py::array_t<double>(

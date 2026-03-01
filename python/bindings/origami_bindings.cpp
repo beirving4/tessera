@@ -608,6 +608,20 @@ void bind_origami(py::module& m) {
         .def_readonly("density_cells", &OrigamiPipelineResult::density_cells)
         .def_readonly("density_cell_width", &OrigamiPipelineResult::density_cell_width)
         .def_readonly("mean_density", &OrigamiPipelineResult::mean_density)
+        .def_readonly("min_tetra_volume", &OrigamiPipelineResult::min_tetra_volume,
+            "Minimum tetrahedron volume (direct density only)")
+        .def_readonly("max_tetra_volume", &OrigamiPipelineResult::max_tetra_volume,
+            "Maximum tetrahedron volume (direct density only)")
+        .def_readonly("mean_tetra_volume", &OrigamiPipelineResult::mean_tetra_volume,
+            "Mean tetrahedron volume (direct density only)")
+        .def_readonly("stddev_tetra_volume", &OrigamiPipelineResult::stddev_tetra_volume,
+            "Standard deviation of tetrahedron volumes (direct density only)")
+        .def_readonly("stddev2_tetra_volume", &OrigamiPipelineResult::stddev2_tetra_volume,
+            "2 * standard deviation of tetrahedron volumes (direct density only)")
+        .def_readonly("log_stddev_tetra_volume", &OrigamiPipelineResult::log_stddev_tetra_volume,
+            "Log-normal standard deviation of tetrahedron volumes (direct density only)")
+        .def_readonly("log_stddev2_tetra_volume", &OrigamiPipelineResult::log_stddev2_tetra_volume,
+            "2 * log-normal standard deviation of tetrahedron volumes (direct density only)")
         .def_readonly("morph_grid_cells", &OrigamiPipelineResult::morph_grid_cells)
         .def_readonly("v_void", &OrigamiPipelineResult::v_void)
         .def_readonly("v_wall", &OrigamiPipelineResult::v_wall)
