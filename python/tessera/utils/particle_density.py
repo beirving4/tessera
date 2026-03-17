@@ -454,6 +454,46 @@ except ImportError:
         _ts = None
 
 
+def physical_cic_grid_size(
+    box_size_com: float,
+    scale_factor: float,
+    physical_cell_size: float,
+    min_grid: int = 8,
+    max_grid: int = 4096,
+) -> tuple[int, float]:
+    """Compute CIC grid size for a target physical cell size.
+
+    The physical cell size is ``a * L_com / N_grid``, so for a desired
+    physical cell size R we need ``N_grid = round(a * L_com / R)``.
+
+    Parameters
+    ----------
+    box_size_com : float
+        Comoving box size (e.g. 256 Mpc/h).
+    scale_factor : float
+        Scale factor of the snapshot.
+    physical_cell_size : float
+        Target physical cell size in Mpc/h.
+    min_grid : int, default=8
+        Minimum allowed grid size.
+    max_grid : int, default=4096
+        Maximum allowed grid size.
+
+    Returns
+    -------
+    n_grid : int
+        Grid resolution (cells per dimension), clipped to [min_grid, max_grid].
+    realized_physical_cell_size : float
+        Actual physical cell size after rounding: ``a * L_com / n_grid``.
+    """
+    physical_box = scale_factor * box_size_com
+    n_grid_raw = physical_box / physical_cell_size
+    n_grid = int(round(n_grid_raw))
+    n_grid = max(min_grid, min(max_grid, n_grid))
+    realized = physical_box / n_grid
+    return n_grid, realized
+
+
 def compute_cic_density_pdf(
     positions: NDArray[np.floating],
     box_size: float,
