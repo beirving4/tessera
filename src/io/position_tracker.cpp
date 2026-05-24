@@ -921,7 +921,9 @@ PositionBranchCatalogData extract_position_branches_parallel(
     PositionMatchConfig config,
     PositionBranchExtractor::Strategy strategy,
     int n_threads,
-    std::function<void(size_t, size_t)> progress_callback
+    std::function<void(size_t, size_t)> progress_callback,
+    std::optional<int32_t> snap_min,
+    std::optional<int32_t> snap_max
 ) {
     const size_t n_branches = start_points.size();
     PositionBranchCatalogData result;
@@ -941,9 +943,28 @@ PositionBranchCatalogData extract_position_branches_parallel(
     std::atomic<size_t> completed{0};
 
     if (strategy == PositionBranchExtractor::Strategy::PRELOAD_CATALOGS) {
-        // Option B: Preload all catalogs, then parallelize matching
-        std::cout << "Loading all halo catalogs..." << std::endl;
-        auto raw_catalogs = reader.load_all_snapshots();
+        // Option B: Preload all catalogs, then parallelize matching.
+        // Honor [snap_min, snap_max] so future-extended snapshots that no
+        // backward branch reaches are never loaded (bounds peak memory).
+        std::vector<int32_t> snaps_to_load = reader.get_available_snapshots();
+        if (snap_min || snap_max) {
+            std::vector<int32_t> filtered;
+            filtered.reserve(snaps_to_load.size());
+            for (int32_t s : snaps_to_load) {
+                if (snap_min && s < *snap_min) continue;
+                if (snap_max && s > *snap_max) continue;
+                filtered.push_back(s);
+            }
+            snaps_to_load = std::move(filtered);
+            std::cout << "Loading halo catalogs in snapshot range ["
+                      << (snap_min ? std::to_string(*snap_min) : std::string("-inf"))
+                      << ", "
+                      << (snap_max ? std::to_string(*snap_max) : std::string("+inf"))
+                      << "]..." << std::endl;
+        } else {
+            std::cout << "Loading all halo catalogs..." << std::endl;
+        }
+        auto raw_catalogs = reader.load_snapshots(snaps_to_load);
         std::cout << "Loaded " << raw_catalogs.size() << " snapshots" << std::endl;
 
         // Build spatial indices for fast neighbor lookup
@@ -1172,7 +1193,7 @@ PositionBranchCatalogData extract_position_branches_parallel(
             for (size_t i = 0; i < n_branches; i++) {
                 const auto& start = start_points[i];
                 all_branches[i] = extractor.track_branch(
-                    start.snap_num, start.group_nr, true, false
+                    start.snap_num, start.group_nr, true, false, snap_min, snap_max
                 );
 
                 size_t done = ++completed;
@@ -1186,7 +1207,7 @@ PositionBranchCatalogData extract_position_branches_parallel(
         for (size_t i = 0; i < n_branches; i++) {
             const auto& start = start_points[i];
             all_branches[i] = extractor.track_branch(
-                start.snap_num, start.group_nr, true, false
+                start.snap_num, start.group_nr, true, false, snap_min, snap_max
             );
             if (progress_callback && (i + 1) % 10 == 0) {
                 progress_callback(i + 1, n_branches);

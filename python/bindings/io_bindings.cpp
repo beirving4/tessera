@@ -999,7 +999,9 @@ void bind_io(py::module& m) {
              PositionMatchConfig config,
              PositionBranchExtractor::Strategy strategy,
              int n_threads,
-             py::object progress_callback) -> PositionBranchCatalogData {
+             py::object progress_callback,
+             std::optional<int32_t> snap_min,
+             std::optional<int32_t> snap_max) -> PositionBranchCatalogData {
               std::function<void(size_t, size_t)> cpp_callback = nullptr;
               if (!progress_callback.is_none()) {
                   cpp_callback = [&progress_callback](size_t done, size_t total) {
@@ -1009,7 +1011,8 @@ void bind_io(py::module& m) {
               }
               py::gil_scoped_release release;
               return extract_position_branches_parallel(
-                  reader, box_size, start_points, config, strategy, n_threads, cpp_callback
+                  reader, box_size, start_points, config, strategy, n_threads, cpp_callback,
+                  snap_min, snap_max
               );
           },
           py::arg("reader"),
@@ -1019,6 +1022,8 @@ void bind_io(py::module& m) {
           py::arg("strategy") = PositionBranchExtractor::Strategy::PRELOAD_CATALOGS,
           py::arg("n_threads") = 0,
           py::arg("progress_callback") = py::none(),
+          py::arg("snap_min") = std::nullopt,
+          py::arg("snap_max") = std::nullopt,
           R"pbdoc(
           Extract position-matched branches in parallel.
 
@@ -1038,6 +1043,13 @@ void bind_io(py::module& m) {
               Number of threads (0 = auto)
           progress_callback : callable, optional
               Progress callback(done, total)
+          snap_min : int, optional
+              Inclusive lower snapshot bound; snapshots below are never loaded.
+              None = no lower bound.
+          snap_max : int, optional
+              Inclusive upper snapshot bound; snapshots above are never loaded.
+              None = no upper bound. Cap at the descendant snapshot to avoid
+              loading future-extended catalogs no backward branch reaches.
 
           Returns
           -------

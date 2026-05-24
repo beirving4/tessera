@@ -580,6 +580,12 @@ struct BranchStartPoint {
  * @param strategy Parallelization strategy (default: PRELOAD_CATALOGS)
  * @param n_threads Number of threads (0 = use OMP_NUM_THREADS)
  * @param progress_callback Optional progress callback (done, total)
+ * @param snap_min Optional lower snapshot bound (inclusive); snapshots below
+ *                 this are never loaded/considered. nullopt = no lower bound.
+ * @param snap_max Optional upper snapshot bound (inclusive); snapshots above
+ *                 this are never loaded/considered. nullopt = no upper bound.
+ *                 Capping at the descendant snapshot avoids loading
+ *                 future-extended catalogs that no backward branch reaches.
  * @return Position-matched branch catalog
  */
 PositionBranchCatalogData extract_position_branches_parallel(
@@ -589,7 +595,9 @@ PositionBranchCatalogData extract_position_branches_parallel(
     PositionMatchConfig config = {},
     PositionBranchExtractor::Strategy strategy = PositionBranchExtractor::Strategy::PRELOAD_CATALOGS,
     int n_threads = 0,
-    std::function<void(size_t, size_t)> progress_callback = nullptr
+    std::function<void(size_t, size_t)> progress_callback = nullptr,
+    std::optional<int32_t> snap_min = std::nullopt,
+    std::optional<int32_t> snap_max = std::nullopt
 );
 
 /**
