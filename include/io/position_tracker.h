@@ -124,7 +124,7 @@ public:
     /**
      * Check if index has been built.
      */
-    bool is_built() const { return !cells_.empty(); }
+    bool is_built() const { return built_; }
 
     /**
      * Get number of cells per dimension.
@@ -132,9 +132,12 @@ public:
     int32_t n_cells_per_dim() const { return n_cells_; }
 
     /**
-     * Get total number of cells.
+     * Get total number of cells (dense extent = n_cells_per_dim^3), not just
+     * the occupied ones actually stored.
      */
-    size_t n_cells_total() const { return cells_.size(); }
+    size_t n_cells_total() const {
+        return static_cast<size_t>(n_cells_) * n_cells_ * n_cells_;
+    }
 
     /**
      * Get cell size.
@@ -156,9 +159,13 @@ private:
     float box_size_;
     float cell_size_;
     int32_t n_cells_;  // cells per dimension
+    bool built_ = false;
 
-    // Flattened 3D grid: cells_[cell_index] = vector of group indices in that cell
-    std::vector<std::vector<int32_t>> cells_;
+    // Sparse 3D grid: cells_[flat_cell_index] = group indices in that cell.
+    // Only OCCUPIED cells are stored. A dense (box/cell_size)^3 grid is
+    // infeasible for large boxes (L2048: 410^3 ~= 69M cells) where occupancy
+    // is tiny -- a hash map keeps build cost + memory O(n_groups), not O(box^3).
+    std::unordered_map<size_t, std::vector<int32_t>> cells_;
 
     // Convert position to cell index
     int32_t pos_to_cell_1d(float x) const;

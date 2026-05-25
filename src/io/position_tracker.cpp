@@ -318,18 +318,14 @@ SpatialGrid::SpatialGrid(float box_size, float cell_size)
 }
 
 void SpatialGrid::build(const HaloCatalogData& catalog) {
-    const size_t n_cells_total = static_cast<size_t>(n_cells_) * n_cells_ * n_cells_;
     cells_.clear();
-    cells_.resize(n_cells_total);
-
-    // Reserve average expected capacity per cell
     const size_t n_groups = catalog.n_groups();
-    const size_t avg_per_cell = std::max(size_t(1), n_groups / n_cells_total);
-    for (auto& cell : cells_) {
-        cell.reserve(avg_per_cell * 2);  // 2x average for variance
-    }
+    // At most n_groups distinct occupied cells; reserve buckets up front to
+    // avoid rehashing. No dense (box/cell_size)^3 allocation -- that is what
+    // blew up for large boxes (L2048: ~69M cells/snapshot x ~75 snapshots).
+    cells_.reserve(n_groups);
 
-    // Insert each group into its cell
+    // Insert each group into its (sparse) cell.
     for (size_t i = 0; i < n_groups; i++) {
         int32_t ix = pos_to_cell_1d(catalog.pos_x[i]);
         int32_t iy = pos_to_cell_1d(catalog.pos_y[i]);
@@ -337,6 +333,7 @@ void SpatialGrid::build(const HaloCatalogData& catalog) {
         size_t cell_idx = cell_3d_to_flat(ix, iy, iz);
         cells_[cell_idx].push_back(static_cast<int32_t>(i));
     }
+    built_ = true;
 }
 
 std::vector<int32_t> SpatialGrid::get_candidates(const std::array<float, 3>& pos) const {
@@ -357,8 +354,11 @@ std::vector<int32_t> SpatialGrid::get_candidates(const std::array<float, 3>& pos
                 int32_t iz = (cz + dz + n_cells_) % n_cells_;
 
                 size_t cell_idx = cell_3d_to_flat(ix, iy, iz);
-                const auto& cell = cells_[cell_idx];
-                candidates.insert(candidates.end(), cell.begin(), cell.end());
+                auto it = cells_.find(cell_idx);
+                if (it != cells_.end()) {
+                    candidates.insert(candidates.end(),
+                                      it->second.begin(), it->second.end());
+                }
             }
         }
     }
@@ -368,9 +368,11 @@ std::vector<int32_t> SpatialGrid::get_candidates(const std::array<float, 3>& pos
 
 void SpatialGrid::clear() {
     cells_.clear();
+    built_ = false;
 }
 
 std::tuple<size_t, size_t, float> SpatialGrid::get_stats() const {
+    const size_t dense_total = static_cast<size_t>(n_cells_) * n_cells_ * n_cells_;
     if (cells_.empty()) {
         return {0, 0, 0.0f};
     }
@@ -378,14 +380,18 @@ std::tuple<size_t, size_t, float> SpatialGrid::get_stats() const {
     size_t min_count = std::numeric_limits<size_t>::max();
     size_t max_count = 0;
     size_t total = 0;
-
-    for (const auto& cell : cells_) {
+    for (const auto& [idx, cell] : cells_) {
+        (void)idx;
         min_count = std::min(min_count, cell.size());
         max_count = std::max(max_count, cell.size());
         total += cell.size();
     }
+    // Cells not present in the sparse map hold zero groups, so the true minimum
+    // is 0 whenever any dense cell is unoccupied. avg uses the dense extent so
+    // it stays comparable to the old dense-grid statistic.
+    if (cells_.size() < dense_total) min_count = 0;
 
-    float avg = static_cast<float>(total) / static_cast<float>(cells_.size());
+    float avg = static_cast<float>(total) / static_cast<float>(dense_total);
     return {min_count, max_count, avg};
 }
 
