@@ -1,6 +1,6 @@
 # tessera
 
-[![CI](https://github.com/beirving4/tessera/actions/workflows/ci.yml/badge.svg)](https://github.com/beirving4/tessera/actions/workflows/ci.yml)
+<!--- [![CI](https://github.com/beirving4/tessera/actions/workflows/ci.yml/badge.svg)](https://github.com/beirving4/tessera/actions/workflows/ci.yml) --->
 [![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12%20|%203.13%20|%203.14-blue)](https://www.python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
